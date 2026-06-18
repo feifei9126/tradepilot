@@ -1,0 +1,17 @@
+version: "3.8"
+services:
+  tradepilot:
+    build: .
+    container_name: tradepilot
+    ports:
+      - "3456:3456"
+    volumes:
+      - tradepilot_data:/app/data
+      - ./plugins:/app/plugins
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=sqlite:///app/data/tradepilot.db
+    restart: unless-stopped
+
+volumes:
+  tradepilot_data:
