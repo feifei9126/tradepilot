@@ -10,6 +10,7 @@ import {
   FileSpreadsheet, ScrollText, Ship, Earth, FlaskConical, Search, Clock, ArrowRight,
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { toast } from "sonner";
 
 const DOC_TYPES = [
   { id: "commercial_invoice", label: "商业发票", abbr: "CI", icon: FileText, desc: "Commercial Invoice", color: "blue" },
@@ -27,127 +28,44 @@ const COLORS: Record<string, string> = {
   rose: "bg-rose-50 text-rose-700 border-rose-200",
 };
 
-const MOCK_ORDERS = [
-  { id: "o1", no: "ORD-2026-088", customer: "BestBuy Co.", amount: 12500 },
-  { id: "o2", no: "ORD-2026-089", customer: "EuroTech GmbH", amount: 17500 },
-  { id: "o3", no: "ORD-2026-090", customer: "Sakura Trading", amount: 1600 },
-];
-
-const GENERATED = [
-  { id: "d1", type: "commercial_invoice", orderNo: "ORD-2026-088", v: 2, status: "generated", date: "2026-06-01" },
-  { id: "d2", type: "packing_list", orderNo: "ORD-2026-088", v: 1, status: "generated", date: "2026-06-01" },
-  { id: "d3", type: "commercial_invoice", orderNo: "ORD-2026-089", v: 1, status: "draft", date: "2026-05-28" },
-  { id: "d4", type: "bill_of_lading", orderNo: "ORD-2026-090", v: 1, status: "draft", date: "2026-06-03" },
-];
-
 export default function DocumentsPage() {
   const [tab, setTab] = useState<"generate" | "list">("generate");
-  const [selOrder, setSelOrder] = useState(MOCK_ORDERS[0].id);
+  const [selOrder, setSelOrder] = useState("o1");
   const [selType, setSelType] = useState(DOC_TYPES[0].id);
   const [generating, setGenerating] = useState(false);
   const [selectedDoc, setSelectedDoc] = useState<any>(null);
-  const [previewDocInfo, setPreviewDocInfo] = useState<{order?: string; type?: string}>({});
-  const [generatedDocs, setGeneratedDocs] = useState<any[]>(GENERATED);
+  const [generatedDocs, setGeneratedDocs] = useState<any[]>([]);
+  const [orders, setOrders] = useState<any[]>([]);
   const [managing, setManaging] = useState(false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
-  function generateDocContent(doc: any): { html: string; filename: string } {
-    const dt = DOC_TYPES.find(t => t.id === doc.type);
-    const order = MOCK_ORDERS.find(o => o.no === doc.orderNo);
-    const typeName = dt?.label || doc.type;
-    const filename = `${doc.type}_${doc.orderNo}_v${doc.v}.html`;
+  useEffect(() => { loadGenerated(); loadOrders(); }, []);
 
-    const items = [
-      { desc: "Electronic Component TP-1001", qty: 500, unit: "pcs", price: 12.50 },
-      { desc: "Sensor Module TP-2000", qty: 200, unit: "pcs", price: 8.00 },
-    ];
-    const subtotal = items.reduce((s, i) => s + i.qty * i.price, 0);
-
-    const html = `<html><head><meta charset="utf-8"><style>
-      body { font-family: 'Times New Roman', serif; padding: 40px; color: #333; max-width: 800px; margin: 0 auto; }
-      h1 { text-align: center; font-size: 20px; border-bottom: 2px solid #333; padding-bottom: 8px; margin-bottom: 24px; text-transform: uppercase; letter-spacing: 2px; }
-      .header { display: flex; justify-content: space-between; margin-bottom: 24px; font-size: 12px; }
-      .box { border: 1px solid #ccc; padding: 12px; margin-bottom: 16px; font-size: 12px; }
-      .box strong { display: block; margin-bottom: 4px; font-size: 11px; color: #666; }
-      table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 12px; }
-      th { background: #f5f5f5; border: 1px solid #ccc; padding: 8px; text-align: left; font-size: 11px; }
-      td { border: 1px solid #ccc; padding: 8px; }
-      .total { text-align: right; font-size: 14px; font-weight: bold; margin-top: 16px; }
-      .footer { margin-top: 40px; font-size: 11px; color: #666; text-align: center; border-top: 1px solid #ccc; padding-top: 16px; }
-    </style></head><body>
-      <h1>${typeName}</h1>
-      <div class="header">
-        <div><strong>Document No:</strong> ${filename.replace('.html','')}</div>
-        <div><strong>Date:</strong> ${doc.date || doc.createdAt?.slice(0,10) || new Date().toISOString().slice(0,10)}</div>
-      </div>
-      <div style="display:flex;gap:16px;margin-bottom:16px">
-        <div class="box" style="flex:1"><strong>SELLER</strong>TradePilot Co., Ltd.<br>Shanghai, China</div>
-        <div class="box" style="flex:1"><strong>BUYER</strong>${order?.customer || 'N/A'}<br>${order?.customer || ''}</div>
-      </div>
-      <div class="box"><strong>ORDER REFERENCE</strong>${doc.orderNo}</div>
-      <table><tr><th>Description</th><th>Qty</th><th>Unit</th><th>Unit Price</th><th>Amount</th></tr>
-      ${items.map(i => `<tr><td>${i.desc}</td><td>${i.qty}</td><td>${i.unit}</td><td>$${i.price.toFixed(2)}</td><td>$${(i.qty * i.price).toFixed(2)}</td></tr>`).join('')}
-      </table>
-      <div class="total">Total Amount: <span style="color:#2563eb">$${subtotal.toFixed(2)}</span></div>
-      <div class="footer">This is a computer-generated document. No signature required.</div>
-    </body></html>`;
-    return { html, filename };
-  }
-
-  function doDownload(doc: any) {
-    const { html, filename } = generateDocContent(doc);
-    const blob = new Blob([html], { type: "text/html" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url; a.download = filename;
-    document.body.appendChild(a); a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-    toast.success("下载已开始");
-  }
-
-  useEffect(() => { loadGenerated(); }, []);
-
-  async function loadGenerated() {
+  async function loadOrders() {
     try {
-      const r = await fetch("/api/documents");
+      const r = await fetch("/api/orders");
       const data = await r.json();
-      if (Array.isArray(data) && data.length > 0) setGeneratedDocs(data);
-      else if (Array.isArray(data?.documents) && data.documents.length > 0) setGeneratedDocs(data.documents);
+      if (Array.isArray(data)) setOrders(data);
     } catch {}
   }
 
-  async function handleDeleteDoc(id: string) {
-    if (!confirm("\u786e\u5b9a\u8981\u5220\u9664\u8be5\u5355\u8bc1\u5417\uff1f")) return;
+  async function loadGenerated() {
     try {
-      const r = await fetch("/api/documents", {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id }),
-      });
-      if (r.ok) { toast.success("\u5355\u8bc1\u5df2\u5220\u9664"); loadGenerated(); }
-      else toast.error("\u5220\u9664\u5931\u8d25");
-    } catch { toast.error("\u5220\u9664\u5931\u8d25"); }
+      const r = await fetch("/api/documents/download");
+      const data = await r.json();
+      if (data?.documents) setGeneratedDocs(data.documents);
+    } catch {}
   }
 
-  async function handleBatchDelete() {
-    if (selectedIds.length === 0) { toast.error("\u8bf7\u9009\u62e9\u8981\u5220\u9664\u7684\u5355\u8bc1"); return; }
-    if (!confirm(`\u786e\u5b9a\u8981\u5220\u9664\u9009\u4e2d\u7684 ${selectedIds.length} \u4efd\u5355\u8bc1\u5417\uff1f`)) return;
-    let ok = 0;
-    for (const id of selectedIds) {
-      try {
-        const r = await fetch("/api/documents", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id }) });
-        if (r.ok) ok++;
-      } catch {}
-    }
-    toast.success(`${ok} \u4efd\u5355\u8bc1\u5df2\u5220\u9664`);
-    setSelectedIds([]);
-    setManaging(false);
-    loadGenerated();
+  function doDownload(doc: any) {
+    const url = `/api/documents/download?id=${doc.id}`;
+    window.open(url, "_blank");
+    toast.success("预览已在新窗口打开");
   }
 
-  function toggleSelect(id: string) {
-    setSelectedIds(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]);
+  function doRealDownload(doc: any) {
+    const url = `/api/documents/download?id=${doc.id}`;
+    window.open(url, "_blank");
   }
 
   function doPreview(doc: any) {
@@ -164,17 +82,50 @@ export default function DocumentsPage() {
       });
       if (res.ok) {
         const data = await res.json();
-        toast.success(`\u2705 ${data.count || 1} 份单证已生成`);
+        toast.success(`✅ ${data.count || 1} 份单证已生成`);
         setTab("list");
-        if (data.documents) setGeneratedDocs(prev => [...prev, ...data.documents]);
+        if (data.documents) loadGenerated();
       } else {
-        toast.error("\u751f成失败");
+        toast.error("生成失败");
       }
     } catch {
-      toast.error("\u751f成失败");
+      toast.error("生成失败");
     }
     setGenerating(false);
   };
+
+  async function handleDeleteDoc(id: string) {
+    if (!confirm("确定要删除该单证吗？")) return;
+    try {
+      const r = await fetch("/api/documents", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      });
+      if (r.ok) { toast.success("单证已删除"); loadGenerated(); }
+      else toast.error("删除失败");
+    } catch { toast.error("删除失败"); }
+  }
+
+  async function handleBatchDelete() {
+    if (selectedIds.length === 0) { toast.error("请选择要删除的单证"); return; }
+    if (!confirm(`确定要删除选中的 ${selectedIds.length} 份单证吗？`)) return;
+    let ok = 0;
+    for (const id of selectedIds) {
+      try {
+        const r = await fetch("/api/documents", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id }) });
+        if (r.ok) ok++;
+      } catch {}
+    }
+    toast.success(`${ok} 份单证已删除`);
+    setSelectedIds([]);
+    setManaging(false);
+    loadGenerated();
+  }
+
+  function toggleSelect(id: string) {
+    setSelectedIds(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]);
+  }
 
   return (
     <div className="space-y-6">
@@ -205,14 +156,14 @@ export default function DocumentsPage() {
               选择订单
             </h2>
             <div className="grid grid-cols-3 gap-3">
-              {MOCK_ORDERS.map(o => (
+              {orders.map(o => (
                 <Card key={o.id}
                   className={cn("cursor-pointer transition-all hover:shadow-md", selOrder === o.id && "ring-2 ring-primary shadow-md")}
                   onClick={() => setSelOrder(o.id)}>
                   <CardContent className="p-4">
                     <p className="font-semibold text-sm">{o.no}</p>
-                    <p className="text-xs text-muted-foreground mt-0.5">{o.customer}</p>
-                    <p className="text-xs text-muted-foreground">${o.amount.toLocaleString()}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">{o.contactName}</p>
+                    <p className="text-xs text-muted-foreground">${(o.totalAmount || 0).toLocaleString()}</p>
                   </CardContent>
                 </Card>
               ))}
@@ -248,7 +199,6 @@ export default function DocumentsPage() {
 
           {/* Actions */}
           <div className="flex gap-3 justify-end pt-2">
-            <Button variant="outline" size="sm" onClick={() => { const o = MOCK_ORDERS.find(x => x.id === selOrder); doPreview({id:"pv",type:selType,orderNo:o?.no||"",v:1,status:"generated",date:new Date().toISOString().slice(0,10)}); }}><Eye className="h-4 w-4 mr-1.5" />预览</Button>
             <Button size="sm" onClick={doGenerate} disabled={generating}>
               {generating ? <Loader2 className="h-4 w-4 animate-spin mr-1.5" /> : <Plus className="h-4 w-4 mr-1.5" />}
               {generating ? "生成中..." : "一键生成"}
@@ -297,7 +247,7 @@ export default function DocumentsPage() {
                     <div>
                       <p className="font-medium text-sm">{dt?.label} — {d.orderNo}</p>
                       <p className="text-xs text-muted-foreground flex items-center gap-2 mt-0.5">
-                        <Clock className="h-3 w-3" />{d.date || d.createdAt?.slice(0, 10)} · v{d.v || 1}
+                        <Clock className="h-3 w-3" />{d.createdAt?.slice(0, 10) || "N/A"}
                       </p>
                     </div>
                   </div>
@@ -305,8 +255,8 @@ export default function DocumentsPage() {
                     <Badge className={isGen ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-700"}>
                       <CheckCircle className="h-3 w-3 mr-1" />{isGen ? "已生成" : "草稿"}
                     </Badge>
-                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => doDownload(d)}>
-                      <Download className="h-4 w-4" />
+                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => doRealDownload(d)} title="预览/下载">
+                      <Eye className="h-4 w-4" />
                     </Button>
                     {managing && (
                       <Button variant="ghost" size="icon" className="h-8 w-8 text-red-400 hover:text-red-600 hover:bg-red-50"
@@ -335,11 +285,11 @@ export default function DocumentsPage() {
                   <Badge variant="outline" className="text-xs ml-2">{selectedDoc.orderNo}</Badge>
                 </DialogTitle>
               </DialogHeader>
-              <div className="border rounded-lg p-4 bg-white" dangerouslySetInnerHTML={{
-                __html: generateDocContent(selectedDoc).html
-              }} />
+              <div className="border rounded-lg p-4 bg-white">
+                <iframe src={`/api/documents/download?id=${selectedDoc.id}`} className="w-full h-[400px] border-0" />
+              </div>
               <div className="flex justify-between pt-2">
-                <Button variant="outline" size="sm" onClick={() => doDownload(selectedDoc)}>
+                <Button variant="outline" size="sm" onClick={() => doRealDownload(selectedDoc)}>
                   <Download className="h-4 w-4 mr-1" />下载文件
                 </Button>
                 <Button variant="outline" size="sm" onClick={() => setSelectedDoc(null)}>关闭</Button>
@@ -351,5 +301,3 @@ export default function DocumentsPage() {
     </div>
   );
 }
-// Needed for generate toast
-import { toast } from "sonner";

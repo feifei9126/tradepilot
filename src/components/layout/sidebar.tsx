@@ -7,6 +7,7 @@ import {
   LayoutDashboard, Users, Package, MessageSquareQuote, MessageSquare,
   FileText, ClipboardList, Ship, Settings as SettingsIcon, Building2, Smartphone,
   Target, DollarSign, Mail, Puzzle, Eye, EyeOff, ChevronUp, ChevronDown, GripVertical,
+  BarChart3,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useTranslation } from "@/lib/i18n";
@@ -27,6 +28,7 @@ const allNavItems: NavItem[] = [
   { href: "/app/email/settings", labelKey: "nav.email_settings", icon: SettingsIcon },
   { href: "/app/bind", labelKey: "nav.bind", icon: Smartphone },
   { href: "/app/messages", labelKey: "nav.messages", icon: MessageSquare },
+  { href: "/app/reports", labelKey: "nav.reports", icon: BarChart3 },
   { href: "/app/leads", labelKey: "nav.leads", icon: Target },
   { href: "/app/shipments", labelKey: "nav.shipments", icon: Ship },
   { href: "/app/logistics", labelKey: "nav.logistics", icon: Ship },

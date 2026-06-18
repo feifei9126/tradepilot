@@ -36,6 +36,14 @@ export default function FinancePage() {
   const { receivables, landedCosts, fxRates } = data;
   const totalBalance = receivables?.reduce((s: number, r: any) => s + r.balance, 0) || 0;
   const overdueCount = receivables?.filter((r: any) => r.status === "overdue").length || 0;
+  const pendingCount = receivables?.filter((r: any) => r.status === "pending").length || 0;
+
+  const statusIcon = (s: string) => {
+    if (s === "overdue") return XCircle;
+    if (s === "partial") return Clock;
+    if (s === "pending") return Clock;
+    return CheckCircle2;
+  };
 
   return (
     <div className="space-y-6">
@@ -44,6 +52,11 @@ export default function FinancePage() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight">财务管理</h1>
           <p className="text-sm text-muted-foreground mt-0.5">应收应付 · 到岸成本 · 汇率 · 退税</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={() => fetch("/api/finance").then(r => r.json()).then(setData)}>
+            <RefreshCw className="h-4 w-4 mr-1.5" />刷新
+          </Button>
         </div>
       </div>
 
@@ -68,7 +81,7 @@ export default function FinancePage() {
             {[
               { icon: DollarSign, value: `$${totalBalance.toLocaleString()}`, label: "应收余额", color: "text-green-600", bg: "bg-green-50" },
               { icon: AlertTriangle, value: overdueCount, label: "逾期笔数", color: "text-red-600", bg: "bg-red-50" },
-              { icon: Clock, value: receivables?.filter((r: any) => r.status === "pending").length || 0, label: "待收款", color: "text-blue-600", bg: "bg-blue-50" },
+              { icon: Clock, value: pendingCount, label: "待收款", color: "text-blue-600", bg: "bg-blue-50" },
             ].map((s, i) => (
               <Card key={i}>
                 <CardContent className="p-4 flex items-center gap-4">
@@ -80,26 +93,34 @@ export default function FinancePage() {
           </div>
 
           <div className="space-y-2">
-            {receivables?.map((r: any) => (
-              <Card key={r.id} className="hover:shadow-sm transition-shadow">
-                <CardContent className="p-4 flex items-center justify-between">
-                  <div className="flex items-center gap-4">
-                    <div className={cn("w-2 h-10 rounded-full", r.status === "overdue" ? "bg-red-400" : r.status === "partial" ? "bg-amber-400" : "bg-blue-400")} />
-                    <div>
-                      <p className="font-medium text-sm">{r.customer}</p>
-                      <p className="text-xs text-muted-foreground mt-0.5">{r.orderNo} · 总额 {r.currency} {r.total.toLocaleString()} · 尾款 {r.currency} {r.balance.toLocaleString()}</p>
-                      <p className="text-xs text-muted-foreground">到期: {r.dueDate}</p>
+            {receivables?.map((r: any) => {
+              const SIcon = statusIcon(r.status);
+              return (
+                <Card key={r.id}>
+                  <CardContent className="p-4 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center", STATUS_STYLES[r.status] || "bg-gray-50")}>
+                        <SIcon className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <p className="font-medium text-sm">{r.customer} <span className="text-muted-foreground font-normal">{r.orderNo}</span></p>
+                        <p className="text-xs text-muted-foreground">
+                          应付: ${r.total.toLocaleString()} · 定金: ${r.deposit.toLocaleString()} · 到期: {r.dueDate}
+                        </p>
+                      </div>
                     </div>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <Badge className={STATUS_STYLES[r.status] || ""}>
-                      {r.status === "overdue" ? "逾期" : r.status === "partial" ? "部分收款" : "待收款"}
-                    </Badge>
-                    <Button size="sm" variant="outline" className="h-8" onClick={() => toast.success(`✅ 已登记收款 ${r.currency} ${r.balance}`)}>登记收款</Button>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+                    <div className="flex items-center gap-3">
+                      <Badge className={STATUS_STYLES[r.status]}>
+                        {{ overdue: "逾期", partial: "部分收款", pending: "待收款", paid: "已结清" }[r.status] || r.status}
+                      </Badge>
+                      <span className={cn("font-semibold text-sm", r.balance > 0 ? "text-red-600" : "text-green-600")}>
+                        ${r.balance.toLocaleString()}
+                      </span>
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
           </div>
         </div>
       )}
@@ -150,21 +171,29 @@ export default function FinancePage() {
 
       {/* Tab: 汇率 */}
       {tab === "fx" && (
-        <Card>
-          <CardContent className="p-6">
-            <div className="grid grid-cols-3 gap-6">
-              {fxRates?.map((fx: any, i: number) => (
-                <div key={i} className="text-center p-6 bg-gradient-to-br from-muted/50 to-muted rounded-xl border">
-                  <p className="text-sm text-muted-foreground mb-1">{fx.from} → {fx.to}</p>
-                  <p className="text-3xl font-bold tracking-tight">{fx.rate}</p>
-                  <p className="text-xs text-muted-foreground mt-2 flex items-center justify-center gap-1">
-                    <RefreshCw className="h-3 w-3" />{fx.date}
-                  </p>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+        <div className="space-y-5">
+          <Card>
+            <CardContent className="p-6">
+              <div className="grid grid-cols-3 gap-6">
+                {fxRates?.map((fx: any, i: number) => (
+                  <div key={i} className="text-center p-6 bg-gradient-to-br from-muted/50 to-muted rounded-xl border">
+                    <p className="text-sm text-muted-foreground mb-1">{fx.from} → {fx.to}</p>
+                    <p className="text-3xl font-bold tracking-tight">{fx.rate}</p>
+                    <p className="text-xs text-muted-foreground mt-2 flex items-center justify-center gap-1">
+                      <RefreshCw className="h-3 w-3" />{fx.date}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="bg-blue-50 border-blue-100">
+            <CardContent className="p-3 text-xs text-blue-700 flex items-start gap-2">
+              <Landmark className="h-4 w-4 shrink-0 mt-0.5" />
+              汇率数据来源: ECB 欧洲央行 · 每日更新 · 支持手动覆盖
+            </CardContent>
+          </Card>
+        </div>
       )}
 
       {/* Tab: 退税管理 */}
@@ -203,14 +232,13 @@ export default function FinancePage() {
           </Card>
 
           <Card className="bg-muted/30">
-            <CardContent className="p-4 text-sm">
-              <p className="font-medium mb-2">📋 退税资料清单</p>
-              <ul className="text-xs text-muted-foreground space-y-1 list-disc list-inside">
-                <li>出口货物报关单（出口退税专用）</li>
-                <li>增值税专用发票（抵扣联）</li>
-                <li>出口收汇核销单</li>
-                <li>商业发票 · 装箱单</li>
-              </ul>
+            <CardContent className="p-4 text-center text-sm text-muted-foreground">
+              <FileText className="h-6 w-6 mx-auto mb-1" />
+              <p>退税资料管理</p>
+              <p className="text-xs mt-1">上传出口报关单、增值税发票等退税资料</p>
+              <Button variant="outline" size="sm" className="mt-2 h-8 text-xs">
+                <Download className="h-3.5 w-3.5 mr-1" />上传资料
+              </Button>
             </CardContent>
           </Card>
         </div>

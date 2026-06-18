@@ -41,7 +41,7 @@ export const DEFAULT_ORDER = [
   "/app/quotations", "/app/orders", "/app/suppliers",
   "/app/email", "/app/bind", "/app/messages", "/app/leads",
   "/app/shipments", "/app/logistics", "/app/finance",
-  "/app/documents", "/app/plugins", "/app/settings",
+  "/app/reports", "/app/documents", "/app/plugins", "/app/settings",
 ];
 
 // Hook to use sidebar config

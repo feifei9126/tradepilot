@@ -1,0 +1,121 @@
+import { NextRequest, NextResponse } from "next/server";
+import { store } from "@/lib/store";
+
+const DOC_TEMPLATES: Record<string, { label: string; desc: string }> = {
+  commercial_invoice: { label: "商业发票 Commercial Invoice", desc: "CI" },
+  packing_list: { label: "装箱单 Packing List", desc: "PL" },
+  bill_of_lading: { label: "提单 Bill of Lading", desc: "B/L" },
+  certificate_of_origin: { label: "产地证 Certificate of Origin", desc: "C/O" },
+  msds: { label: "MSDS", desc: "Material Safety Data Sheet" },
+  proforma_invoice: { label: "形式发票 Proforma Invoice", desc: "PI" },
+};
+
+function generateDocumentHTML(doc: any, order: any): string {
+  const typeInfo = DOC_TEMPLATES[doc.type] || { label: doc.type, desc: "" };
+  const items = order?.items || [
+    { productName: "Sample Product", quantity: 100, unit: "pcs", unitPrice: 10.0, amount: 1000 },
+  ];
+  const subtotal = items.reduce((s: number, i: any) => s + (i.amount || i.quantity * i.unitPrice), 0);
+  const now = new Date().toISOString().slice(0, 10);
+  const contact = order?.contactId ? store.contacts.get(order.contactId) : null;
+
+  return `<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>${typeInfo.label} - ${doc.orderNo}</title>
+<style>
+  @page { margin: 20mm 15mm; size: A4; }
+  body { font-family: 'Times New Roman', 'SimSun', serif; padding: 0; margin: 0; color: #333; font-size: 12px; line-height: 1.5; }
+  .page { max-width: 190mm; margin: 0 auto; padding: 30px 20px; }
+  h1 { text-align: center; font-size: 18px; border-bottom: 2px solid #333; padding-bottom: 8px; margin-bottom: 20px; text-transform: uppercase; letter-spacing: 1px; }
+  .company { text-align: center; font-size: 14px; font-weight: bold; margin-bottom: 4px; }
+  .header { display: flex; justify-content: space-between; margin-bottom: 20px; gap: 12px; }
+  .header .box { border: 1px solid #ccc; padding: 10px; width: 48%; font-size: 11px; border-radius: 4px; }
+  .header .box strong { display: block; margin-bottom: 4px; font-size: 10px; color: #666; text-transform: uppercase; letter-spacing: 0.5px; }
+  table { width: 100%; border-collapse: collapse; margin: 16px 0; }
+  th { background: #f0f0f0; border: 1px solid #999; padding: 6px 8px; text-align: left; font-size: 11px; }
+  td { border: 1px solid #999; padding: 6px 8px; font-size: 11px; }
+  .total-row td { font-weight: bold; background: #f8f8f8; }
+  .amount { text-align: right; }
+  .footer { margin-top: 40px; font-size: 10px; color: #666; border-top: 1px solid #ccc; padding-top: 12px; }
+  .footer p { margin: 2px 0; }
+  .signature { margin-top: 30px; }
+  .signature p { margin: 2px 0; font-size: 11px; }
+</style></head><body>
+<div class="page">
+  <h1>${typeInfo.label}</h1>
+  <div class="header">
+    <div class="box">
+      <strong>Seller / 卖方</strong>
+      <p>TradePilot Technologies Co., Ltd.</p>
+      <p>Shenzhen Bay Science Park, Nanshan District</p>
+      <p>Shenzhen, China 518000</p>
+      <p>Tel: +86 755 8888 9999</p>
+      <p>Email: sales@tradepilot.com</p>
+    </div>
+    <div class="box">
+      <strong>Buyer / 买方</strong>
+      <p>${order?.contactName || contact?.name || "N/A"}</p>
+      ${contact?.country ? `<p>Country: ${contact.country}</p>` : ""}
+      ${contact?.email ? `<p>Email: ${contact.email}</p>` : ""}
+      ${contact?.phone ? `<p>Tel: ${contact.phone}</p>` : ""}
+    </div>
+  </div>
+  <table>
+    <tr><th style="width:40px">No.</th><th>Description / 品名描述</th><th style="width:60px">Qty / 数量</th><th style="width:50px">Unit</th><th style="width:80px">Unit Price / 单价</th><th style="width:90px">Amount / 金额</th></tr>
+    ${items.map((item: any, idx: number) => `
+    <tr>
+      <td>${idx + 1}</td>
+      <td>${item.productName || item.desc || `Item ${idx + 1}`}</td>
+      <td class="amount">${item.quantity || item.qty || 0}</td>
+      <td class="amount">${item.unit || "pcs"}</td>
+      <td class="amount">$${(item.unitPrice || item.price || 0).toFixed(2)}</td>
+      <td class="amount">$${(item.amount || (item.quantity || 0) * (item.unitPrice || 0)).toFixed(2)}</td>
+    </tr>`).join("")}
+    <tr class="total-row"><td colspan="5" style="text-align:right">Total / 合计 (USD)</td><td class="amount">$${subtotal.toFixed(2)}</td></tr>
+  </table>
+  <div style="margin-top: 16px; font-size: 11px;">
+    <p><strong>Document No:</strong> ${doc.id}</p>
+    <p><strong>Date / 日期:</strong> ${now}</p>
+    <p><strong>Order No / 订单号:</strong> ${doc.orderNo}</p>
+    <p><strong>Trade Terms / 贸易条款:</strong> ${order?.tradeTerm || "FOB SHENZHEN"}</p>
+    <p><strong>Payment / 付款方式:</strong> T/T 30% deposit, 70% before shipment</p>
+    <p><strong>Port of Loading / 装运港:</strong> Shenzhen, China</p>
+    ${order?.deliveryDate ? `<p><strong>Delivery / 预计交期:</strong> ${order.deliveryDate}</p>` : ""}
+  </div>
+  <div class="signature">
+    <p>Authorized Signature: ________________________</p>
+    <p>Title: ________________________</p>
+    <p>Date: ${now}</p>
+  </div>
+  <div class="footer">
+    <p>This document is automatically generated by TradePilot. E. &amp; O. E.</p>
+    <p>Generated: ${now} | TradePilot Open Source</p>
+  </div>
+</div></body></html>`;
+}
+
+export async function GET(req: NextRequest) {
+  try {
+    const url = new URL(req.url);
+    const id = url.searchParams.get("id");
+    if (!id) {
+      // List all generated documents
+      const docs = store.documents.list().filter(d => d.status === "generated");
+      return NextResponse.json({ documents: docs });
+    }
+
+    const doc = store.documents.get(id);
+    if (!doc) return NextResponse.json({ error: "文档未找到" }, { status: 404 });
+
+    const order = doc.orderId ? store.orders.get(doc.orderId) : null;
+    const html = generateDocumentHTML(doc, order);
+
+    return new NextResponse(html, {
+      headers: {
+        "Content-Type": "text/html; charset=utf-8",
+        "Content-Disposition": `inline; filename="${doc.type}_${doc.orderNo}.html"`,
+      },
+    });
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+}
