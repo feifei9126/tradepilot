@@ -2,20 +2,21 @@
   <img src="https://img.shields.io/github/license/tradepilot/tradepilot" alt="License">
   <img src="https://img.shields.io/badge/Next.js-16-black" alt="Next.js">
   <img src="https://img.shields.io/badge/PRs-welcome-brightgreen" alt="PRs Welcome">
-</p>
+</段>
 
-<h1 align="center">TradePilot · 开源 AI 外贸管理平台</h1>
 
-<p align="center">
+
+<p 对齐="居中">
   <strong>面向 1-5 人小型外贸公司<br/>
   开源免费 · 自带 AI · 一键部署 · 功能全覆盖</strong>
-</p>
+</段>
 
-<p align="center">
+<p 对齐="居中">
   <i>年费 ¥0 vs 竞品 ¥5,000-30,000/年</i>
-</p>
+</段>
 
 ---
+
 
 ## 📋 目录
 
@@ -31,19 +32,20 @@
 
 ---
 
+
 ## 💡 为什么选择 TradePilot？
 
 ### 痛点
 
-中国 50 万家外贸企业中，1-5 人小团队占绝大多数。他们面临的困境：
+中国50万家外贸企业中，1-5人小团队占绝大多数。他们面临的困境：
 
 | 问题 | 传统方案 | 我们的方案 |
 |------|----------|-----------|
-| **年费高昂** | 小满 OKKI ¥20,000+/年 | **¥0（开源免费）** |
+
 | **AI 被锁定** | 商业软件额外加收 AI 费 | **自带 API Key，用多少付多少** |
 | **部署复杂** | 需专业 IT 团队 | **bash install.sh 一键搞定** |
 | **数据安全** | 客户资料存第三方服务器 | **数据留在自己服务器** |
-| **功能冗余** | 大而全但 80% 用不上 | **模块化插件，按需安装** |
+| **功能冗余** |大而全但 80% 用不上| **模块化插件，按需安装** |
 
 ### 三大差异化
 
@@ -55,7 +57,8 @@
 
 ---
 
-## ✨ 功能一览
+
+##✨ 功能一览
 
 ### CRM 核心
 - **客户管理** — 360° 客户档案、联系人、跟进时间线、标签分组
@@ -135,7 +138,7 @@ Ollama：     本地部署（完全免费）
 
 ## 📦 技术栈
 
-| 层级 | 技术 | 说明 |
+| 说明 |
 |------|------|------|
 | **前端框架** | Next.js 16 + React 19 | 全栈 React 框架 |
 | **UI 组件** | shadcn/ui + Tailwind CSS | 美观、可定制 |
