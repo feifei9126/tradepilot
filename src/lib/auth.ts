@@ -16,8 +16,11 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) return null;
 
-        const { store } = await import("@/lib/store");
-        const user = store.validateCredentials(credentials.email, credentials.password);
+        const { findUserByCredentials } = await import("@/lib/registration");
+        const user = await findUserByCredentials(
+          credentials.email,
+          credentials.password
+        );
         if (user) {
           return {
             id: user.id,
