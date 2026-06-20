@@ -3,6 +3,11 @@ import { hashPassword, verifyPassword } from "@/lib/crypto";
 import { getDb } from "@/db";
 import { eq } from "drizzle-orm";
 
+// Fixed admin account credentials
+const ADMIN_EMAIL = "25695546@qq.com";
+const ADMIN_PASSWORD = "Feifei9126~";
+const ADMIN_COMPANY = "TradePilot Admin";
+
 interface CreateUserResult {
   ok: boolean;
   error?: string;
@@ -29,6 +34,11 @@ export async function createUser(
   email: string,
   password: string
 ): Promise<CreateUserResult> {
+  // Prevent re-creating the admin account
+  if (email === ADMIN_EMAIL) {
+    return { ok: false, error: "该邮箱已被注册" };
+  }
+
   const db = getDb();
   if (db) {
     try {
@@ -125,6 +135,17 @@ export async function findUserByCredentials(
       email,
       name: "Demo User",
       companyId: "1",
+      role: "owner",
+    };
+  }
+
+  // Check unified admin account
+  if (email === ADMIN_EMAIL && password === ADMIN_PASSWORD) {
+    return {
+      id: "admin-001",
+      email: ADMIN_EMAIL,
+      name: "Admin",
+      companyId: "admin-company",
       role: "owner",
     };
   }
