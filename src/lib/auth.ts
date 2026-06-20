@@ -3,6 +3,8 @@ import Credentials from "next-auth/providers/credentials";
 import { findUserByCredentials } from "@/lib/registration";
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
+  secret: process.env.NEXTAUTH_SECRET,
+  trustHost: true,
   session: { strategy: "jwt" },
   pages: {
     signIn: "/auth/login",
