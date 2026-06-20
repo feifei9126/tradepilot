@@ -1,4 +1,4 @@
-﻿import { store, type StoredUser, type StoredCompany } from "@/lib/store";
+﻿import { userStore, type StoredUser, type StoredCompany } from "@/lib/user-store";
 import { hashPassword, verifyPassword } from "@/lib/crypto";
 import { getDb } from "@/db";
 import { eq } from "drizzle-orm";
@@ -93,14 +93,14 @@ export async function createUser(
   }
 
   // Fallback: in-memory store
-  const existing = store.users.findByEmail(email);
+  const existing = userStore.users.findByEmail(email);
   if (existing) {
     return { ok: false, error: "该邮箱已被注册" };
   }
 
   const companyId = crypto.randomUUID();
   const passwordHash = await hashPassword(password);
-  store.companies.create({
+  userStore.companies.create({
     id: companyId,
     name: company,
     slug: company.toLowerCase().replace(/[^a-z0-9]+/g, "-"),
@@ -108,7 +108,7 @@ export async function createUser(
   });
 
   const userId = crypto.randomUUID();
-  store.users.create({
+  userStore.users.create({
     id: userId,
     companyId,
     email,
@@ -177,7 +177,7 @@ export async function findUserByCredentials(
   }
 
   // Fallback: in-memory store
-  const user = store.users.findByEmail(email);
+  const user = userStore.users.findByEmail(email);
   if (user) {
     const valid = await verifyPassword(password, user.password);
     if (valid) {
