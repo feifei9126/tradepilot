@@ -1,4 +1,4 @@
-import NextAuth from "next-auth";
+﻿import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
@@ -16,14 +16,15 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) return null;
 
-        // MVP: accept demo credentials
-        if (credentials.email === "demo@tradepilot.dev" && credentials.password === "password") {
+        const { store } = await import("@/lib/store");
+        const user = store.validateCredentials(credentials.email, credentials.password);
+        if (user) {
           return {
-            id: "1",
-            email: "demo@tradepilot.dev",
-            name: "Demo User",
-            companyId: "1",
-            role: "owner",
+            id: user.id,
+            email: user.email,
+            name: user.name,
+            companyId: user.companyId,
+            role: user.role,
           };
         }
 

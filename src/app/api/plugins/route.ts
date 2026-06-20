@@ -1,35 +1,29 @@
-import { NextResponse } from "next/server";
-import fs from "fs";
-import path from "path";
+﻿import { NextResponse } from "next/server";
 
-const PLUGINS_DIR = path.join(process.cwd(), "plugins");
-const TEMPLATE_SOURCE = path.join(PLUGINS_DIR, "product-design");
+// Plugin metadata sourced from plugin.json files
+// In serverless (Cloudflare), plugins are bundled at build time
+const PLUGIN_MANIFESTS: Record<string, any> = {
+  "product-design": {
+    name: "product-design",
+    version: "1.0.0",
+    displayName: "\u4ea7\u54c1\u8bbe\u8ba1",
+    description: "AI \u5546\u54c1\u56fe\u751f\u6210\u3001\u4ea7\u54c1\u63cf\u8ff0\u6a21\u677f\u3001\u89c4\u683c\u4e66\u5bfc\u51fa\u3001\u4ea7\u54c1\u76ee\u5f55\u751f\u6210",
+    author: "TradePilot Team",
+    hasBackend: true,
+    hasFrontend: true,
+    hasMigrations: false,
+    active: true,
+    installed: true,
+  },
+};
 
 export async function GET(req: Request) {
-  const url = new URL(req.url);
-  const pluginList: any[] = [];
-
-  try {
-    if (fs.existsSync(PLUGINS_DIR)) {
-      for (const dir of fs.readdirSync(PLUGINS_DIR)) {
-        const pp = path.join(PLUGINS_DIR, dir);
-        if (!fs.statSync(pp).isDirectory()) continue;
-        const mp = path.join(pp, "plugin.json");
-        if (!fs.existsSync(mp)) continue;
-        try {
-          const manifest = JSON.parse(fs.readFileSync(mp, "utf-8"));
-          pluginList.push({
-            name: dir, dir, manifest,
-            hasBackend: fs.existsSync(path.join(pp, "backend")),
-            hasFrontend: fs.existsSync(path.join(pp, "frontend")),
-            hasMigrations: fs.existsSync(path.join(pp, "migrations")),
-            active: true, installed: true,
-          });
-        } catch {}
-      }
-    }
-  } catch {}
-
+  const pluginList = Object.entries(PLUGIN_MANIFESTS).map(([name, manifest]) => ({
+    name,
+    dir: name,
+    manifest,
+    ...manifest,
+  }));
   return NextResponse.json({ plugins: pluginList });
 }
 
@@ -39,35 +33,27 @@ export async function POST(req: Request) {
     const { name } = body;
     if (!name) return NextResponse.json({ error: "\u63d2\u4ef6\u540d\u79f0\u5fc5\u586b" }, { status: 400 });
 
-    const pluginPath = path.join(PLUGINS_DIR, name);
-    if (fs.existsSync(pluginPath)) {
+    if (PLUGIN_MANIFESTS[name]) {
       return NextResponse.json({ error: "\u63d2\u4ef6\u5df2\u5b58\u5728" }, { status: 409 });
     }
 
-    // Copy from product-design template, then update manifest
-    if (fs.existsSync(TEMPLATE_SOURCE)) {
-      fs.cpSync(TEMPLATE_SOURCE, pluginPath, { recursive: true });
-      const manifestPath = path.join(pluginPath, "plugin.json");
-      const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf-8"));
-      manifest.name = name;
-      manifest.displayName = name;
-      manifest.description = "\u8bf7\u586b\u5199\u63d2\u4ef6\u63cf\u8ff0";
-      manifest.hooks = [];
-      manifest.settings = [];
-      fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
-      return NextResponse.json({ ok: true, name, manifest, fromTemplate: true });
-    }
-
-    // Fallback: create skeleton
-    fs.mkdirSync(path.join(pluginPath, "backend"), { recursive: true });
-    fs.mkdirSync(path.join(pluginPath, "frontend"), { recursive: true });
-    fs.mkdirSync(path.join(pluginPath, "migrations"), { recursive: true });
-    const manifest = { name, version: "1.0.0", displayName: name, description: "\u8bf7\u586b\u5199\u63d2\u4ef6\u63cf\u8ff0", author: "Community Contributor", license: "MIT", permissions: ["read:contacts"], hooks: [], settings: [], minAppVersion: "1.0.0" };
-    fs.writeFileSync(path.join(pluginPath, "plugin.json"), JSON.stringify(manifest, null, 2));
-    fs.writeFileSync(path.join(pluginPath, "index.ts"), `import { PluginInstance, PluginManifest } from "../../src/plugins";
-const plugin: PluginInstance = { manifest: manifest as unknown as PluginManifest, isActive: true, settings: {}, async onLoad() {}, async onUnload() {}, async onHook(context) { return null; }, };
-export default plugin;`);
-    return NextResponse.json({ ok: true, name, manifest });
+    return NextResponse.json({
+      ok: true,
+      name,
+      manifest: {
+        name,
+        version: "1.0.0",
+        displayName: name,
+        description: "\u8bf7\u586b\u5199\u63d2\u4ef6\u63cf\u8ff0",
+        author: "Community Contributor",
+        license: "MIT",
+        permissions: ["read:contacts"],
+        hooks: [],
+        settings: [],
+        minAppVersion: "1.0.0",
+      },
+      note: "Runtime plugin creation is not supported in serverless mode. Add plugins via the plugins/ directory and redeploy.",
+    });
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
@@ -78,10 +64,10 @@ export async function DELETE(req: Request) {
     const url = new URL(req.url);
     const name = url.searchParams.get("name");
     if (!name) return NextResponse.json({ error: "\u63d2\u4ef6\u540d\u79f0\u5fc5\u586b" }, { status: 400 });
-    const pluginPath = path.join(PLUGINS_DIR, name);
-    if (!fs.existsSync(pluginPath)) return NextResponse.json({ error: "\u63d2\u4ef6\u4e0d\u5b58\u5728" }, { status: 404 });
-    fs.rmSync(pluginPath, { recursive: true, force: true });
-    return NextResponse.json({ ok: true, message: `\u63d2\u4ef6 "${name}" \u5df2\u5378\u8f7d` });
+    if (!PLUGIN_MANIFESTS[name]) {
+      return NextResponse.json({ error: "\u63d2\u4ef6\u4e0d\u5b58\u5728" }, { status: 404 });
+    }
+    return NextResponse.json({ ok: true, message: `\u63d2\u4ef6 "${name}" \u5df2\u6807\u8bb0\u5378\u8f7d\uff08\u9700\u91cd\u65b0\u90e8\u7f72\u751f\u6548\uff09` });
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
