@@ -1,4 +1,4 @@
-﻿// Simple password hashing using Web Crypto API
+// Simple password hashing using Web Crypto API
 // Works in both Node.js and Cloudflare Workers / Edge Runtime
 
 async function getKeyMaterial(password: string): Promise<CryptoKey> {

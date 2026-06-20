@@ -1,4 +1,4 @@
-﻿import { NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { createUser } from "@/lib/registration";
 
 export async function POST(req: Request) {

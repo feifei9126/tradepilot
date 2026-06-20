@@ -1,4 +1,4 @@
-﻿import { hashPassword, verifyPassword } from "@/lib/crypto";
+import { hashPassword, verifyPassword } from "@/lib/crypto";
 import { getDb } from "@/db";
 import { eq } from "drizzle-orm";
 import { users as usersTable, companies as companiesTable } from "@/db/schema";

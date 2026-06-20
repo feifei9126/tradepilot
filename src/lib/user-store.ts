@@ -1,4 +1,4 @@
-﻿// In-memory user & company store (separate from main store to avoid encoding issues)
+// In-memory user & company store (separate from main store to avoid encoding issues)
 export interface StoredUser {
   id: string;
   companyId: string;
