@@ -94,7 +94,7 @@
 ---
 
 ## 🚀 快速开始
-
+项目演示地址：https://tradepilot.us.kg/
 ### 方式一：Docker 一键部署（推荐，¥0）
 
 ```bash
