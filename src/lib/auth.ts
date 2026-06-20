@@ -1,5 +1,6 @@
 ﻿import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
+import { findUserByCredentials } from "@/lib/registration";
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
   session: { strategy: "jwt" },
@@ -16,7 +17,6 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) return null;
 
-        const { findUserByCredentials } = await import("@/lib/registration");
         const user = await findUserByCredentials(
           credentials.email,
           credentials.password

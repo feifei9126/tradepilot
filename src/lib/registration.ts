@@ -2,6 +2,7 @@
 import { hashPassword, verifyPassword } from "@/lib/crypto";
 import { getDb } from "@/db";
 import { eq } from "drizzle-orm";
+import { users as usersTable, companies as companiesTable } from "@/db/schema";
 
 // Fixed admin account credentials
 const ADMIN_EMAIL = "25695546@qq.com";
@@ -42,7 +43,6 @@ export async function createUser(
   const db = getDb();
   if (db) {
     try {
-      const { users: usersTable, companies: companiesTable } = await import("@/db/schema");
       const existingDb = await db
         .select()
         .from(usersTable)
@@ -153,7 +153,6 @@ export async function findUserByCredentials(
   const db = getDb();
   if (db) {
     try {
-      const { users: usersTable } = await import("@/db/schema");
       const [user] = await db
         .select()
         .from(usersTable)
