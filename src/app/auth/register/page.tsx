@@ -48,32 +48,32 @@ export default function RegisterPage() {
               <Ship className="h-6 w-6 text-primary" />
             </div>
           </div>
-          <CardTitle>&#x521b;&#x5efa;&#x8d26;&#x53f7;</CardTitle>
+          <CardTitle>创建账号</CardTitle>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="company">&#x516c;&#x53f8;&#x540d;</Label>
-              <Input id="company" placeholder="&#x4f60;&#x7684;&#x5916;&#x8d38;&#x516c;&#x53f8;" value={company} onChange={(e) => setCompany(e.target.value)} required />
+              <Label htmlFor="company">公司名</Label>
+              <Input id="company" placeholder="你的外贸公司" value={company} onChange={(e) => setCompany(e.target.value)} required />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="name">&#x59d3;&#x540d;</Label>
-              <Input id="name" placeholder="&#x738b;&#x603b;" value={name} onChange={(e) => setName(e.target.value)} required />
+              <Label htmlFor="name">姓名</Label>
+              <Input id="name" placeholder="王总" value={name} onChange={(e) => setName(e.target.value)} required />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="email">&#x90ae;&#x7bb1;</Label>
+              <Label htmlFor="email">邮箱</Label>
               <Input id="email" type="email" placeholder="your@company.com" value={email} onChange={(e) => setEmail(e.target.value)} required />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="password">&#x5bc6;&#x7801;</Label>
+              <Label htmlFor="password">密码</Label>
               <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
             </div>
             <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? "&#x6ce8;&#x518c;&#x4e2d;..." : "&#x6ce8;&#x518c;&#x5e76;&#x5f00;&#x59cb;&#x4f7f;&#x7528;"}
+              {loading ? "注册中..." : "注册并开始使用"}
             </Button>
             <p className="text-center text-sm text-muted-foreground">
-              &#x5df2;&#x6709;&#x8d26;&#x53f7;&#xff1f;{" "}
-              <Link href="/auth/login" className="text-primary hover:underline">&#x53bb;&#x767b;&#x5f55;</Link>
+              已有账号？{" "}
+              <Link href="/auth/login" className="text-primary hover:underline">去登录</Link>
             </p>
           </form>
         </CardContent>
