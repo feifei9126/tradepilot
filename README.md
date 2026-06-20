@@ -56,6 +56,8 @@
 
 ---
 项目演示地址：https://tradepilot.us.kg/
+测试账号：demo@tradepilot.dev
+密码：12345678
 
 ##✨ 功能一览
 
