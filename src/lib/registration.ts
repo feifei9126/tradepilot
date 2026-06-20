@@ -104,7 +104,7 @@ export async function findUserByCredentials(
   password: string
 ): Promise<FindUserResult | null> {
   // 1. Check hardcoded demo account
-  if (email === "demo@tradepilot.dev" && password === "password") {
+  if (email === "demo@tradepilot.dev" && password === "12345678") {
     return {
       id: "1",
       email,

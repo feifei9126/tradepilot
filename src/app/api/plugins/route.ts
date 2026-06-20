@@ -1,4 +1,4 @@
-﻿import { NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 
 // Plugin metadata sourced from plugin.json files
 // In serverless (Cloudflare), plugins are bundled at build time
