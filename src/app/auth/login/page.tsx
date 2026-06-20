@@ -13,7 +13,7 @@ import Link from "next/link";
 export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState("demo@tradepilot.dev");
-  const [password, setPassword] = useState("password");
+  const [password, setPassword] = useState("12345678");
   const [loading, setLoading] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {

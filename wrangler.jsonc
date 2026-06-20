@@ -24,5 +24,6 @@
   }
   ,
   "vars": {
-    "DATABASE_URL": "postgresql://neondb_owner:npg_zjZT42nLDuYv@ep-autumn-rice-ad1kyitb-pooler.c-2.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require"
+    "DATABASE_URL": "postgresql://neondb_owner:npg_zjZT42nLDuYv@ep-autumn-rice-ad1kyitb-pooler.c-2.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require",
+    "NEXTAUTH_SECRET": "ae1b23cd45ef67ab89cd01ef23ab45cd67ef89ab01cd23ef45ab67cd89ef01ab"
   }}
