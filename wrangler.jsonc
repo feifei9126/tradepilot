@@ -22,4 +22,7 @@
   "observability": {
     "enabled": true
   }
-}
+  ,
+  "vars": {
+    "DATABASE_URL": "postgresql://neondb_owner:npg_zjZT42nLDuYv@ep-autumn-rice-ad1kyitb-pooler.c-2.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require"
+  }}
