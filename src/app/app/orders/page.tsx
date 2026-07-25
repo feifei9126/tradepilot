@@ -7,37 +7,70 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Search, ClipboardList, Plus } from "lucide-react";
 import Link from "next/link";
+import type { StoredOrder } from "@/lib/store";
+import { toast } from "sonner";
+import { formatMoney } from "@/lib/currency";
 
 const STATUS_CFG: Record<string, string> = {
-  confirmed: "已确认", in_production: "生产中", inspection: "验货中",
-  ready: "待发货", shipped: "已发货", completed: "已完成",
+  confirmed: "已确认",
+  in_production: "生产中",
+  inspection: "验货中",
+  ready: "待发货",
+  shipped: "已发货",
+  completed: "已完成",
 };
 
 export default function OrdersPage() {
-  const [orders, setOrders] = useState<any[]>([]);
+  const [orders, setOrders] = useState<StoredOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
 
   useEffect(() => {
-    fetch("/api/orders").then(r => r.json()).then(data => { setOrders(data); setLoading(false); });
+    fetch("/api/orders")
+      .then(async (response) => {
+        const data = await response.json();
+        if (!response.ok || !Array.isArray(data))
+          throw new Error("订单数据加载失败");
+        setOrders(data);
+      })
+      .catch((error: unknown) =>
+        toast.error(
+          error instanceof Error ? error.message : "订单数据加载失败",
+        ),
+      )
+      .finally(() => setLoading(false));
   }, []);
 
-  const filtered = orders.filter(o => o.no?.includes(search) || o.contactName?.includes(search));
+  const filtered = orders.filter(
+    (o) => o.no?.includes(search) || o.contactName?.includes(search),
+  );
 
-  if (loading) return <div className="p-8 text-center text-muted-foreground">加载中...</div>;
+  if (loading)
+    return (
+      <div className="p-8 text-center text-muted-foreground">加载中...</div>
+    );
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold">订单</h1>
-          <p className="text-sm text-muted-foreground mt-1">跟踪和管理所有订单</p>
+          <p className="text-sm text-muted-foreground mt-1">
+            跟踪和管理所有订单
+          </p>
         </div>
-        <Link href="/app/orders/new"><Button><Plus className="h-4 w-4 mr-2" /> 新建订单</Button></Link>
+        <Button render={<Link href="/app/orders/new" />} nativeButton={false}>
+          <Plus className="h-4 w-4 mr-2" /> 新建订单
+        </Button>
       </div>
       <div className="relative">
         <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-        <Input placeholder="搜索订单..." className="pl-9" value={search} onChange={(e) => setSearch(e.target.value)} />
+        <Input
+          placeholder="搜索订单..."
+          className="pl-9"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
       </div>
       {filtered.length === 0 && (
         <div className="py-16 text-center text-sm text-muted-foreground">
@@ -55,12 +88,21 @@ export default function OrdersPage() {
                     <ClipboardList className="h-4 w-4 text-primary" />
                     <div>
                       <p className="text-sm font-medium">{o.no}</p>
-                      <p className="text-xs text-muted-foreground">{o.contactName} · ${o.totalAmount?.toLocaleString()}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {o.contactName} ·{" "}
+                        {formatMoney(o.totalAmount, o.currency)}
+                      </p>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <Badge variant="secondary">{STATUS_CFG[o.status] || o.status}</Badge>
-                    {o.deliveryDate && <span className="text-xs text-muted-foreground">交期: {o.deliveryDate}</span>}
+                    <Badge variant="secondary">
+                      {STATUS_CFG[o.status] || o.status}
+                    </Badge>
+                    {o.deliveryDate && (
+                      <span className="text-xs text-muted-foreground">
+                        交期: {o.deliveryDate}
+                      </span>
+                    )}
                   </div>
                 </div>
               </CardContent>

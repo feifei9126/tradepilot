@@ -1,0 +1,19 @@
+log_level = "INFO"
+listen_host = "0.0.0.0"
+listen_port = 8080
+
+[app]
+video_source = "local"
+subtitle_provider = "edge"
+endpoint = ""
+enable_redis = true
+redis_host = "redis"
+redis_port = 6379
+redis_db = 0
+redis_password = "tradepilot-video"
+max_concurrent_tasks = 2
+max_queued_tasks = 20
+tls_verify = true
+
+[ui]
+hide_log = false

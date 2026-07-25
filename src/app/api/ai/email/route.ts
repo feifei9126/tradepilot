@@ -1,25 +1,39 @@
 import { NextRequest, NextResponse } from "next/server";
-import { promptEngine, buildChatMessages } from "@/lib/llm-gateway/prompts";
-import { llmGateway } from "@/lib/llm-gateway";
+
+import { AIRequestConfigError, AIUpstreamError, callChatCompletion } from "@/lib/ai/chat-completions";
+import { buildEmailMessages, buildEmailPrompt } from "@/lib/ai/email-prompts";
 
 export async function POST(req: NextRequest) {
   try {
-    const { type, context } = await req.json();
-    // type: cold_email | follow_up | quotation_reply | holiday_greeting | sample_request
-    // context: { companyName, contactName, customerSummary, lastCommunication, productInfo, language, tone }
-
-    const systemPrompt = promptEngine.emailCompose(type, context || {});
-    const userContent = `请用${context?.language || "中文"}写一封${getTypeLabel(type)}。`;
-    const messages = buildChatMessages(systemPrompt, userContent);
-
-    const result = await llmGateway.chat("email_compose", messages, {
+    const body = await req.json();
+    const context = body.context || {};
+    const systemPrompt = buildEmailPrompt(body.type, context);
+    const messages = buildEmailMessages(
+      systemPrompt,
+      `请用${context.language || "中文"}写一封${getTypeLabel(body.type)}。`,
+    );
+    const { data } = await callChatCompletion({
+      ...body,
+      messages,
       temperature: 0.8,
       maxTokens: 2048,
     });
-
-    return NextResponse.json({ content: result.content, usage: result.usage });
-  } catch (e: any) {
-    return NextResponse.json({ error: e.message }, { status: 500 });
+    const content = data.choices?.[0]?.message?.content || "";
+    if (!content.trim()) {
+      return NextResponse.json({ error: "AI 未返回有效邮件内容" }, { status: 502 });
+    }
+    return NextResponse.json({
+      content,
+      usage: data.usage || null,
+    });
+  } catch (error: unknown) {
+    if (error instanceof AIRequestConfigError) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
+    if (error instanceof AIUpstreamError) {
+      return NextResponse.json({ error: error.message, detail: error.detail }, { status: error.status });
+    }
+    return NextResponse.json({ error: error instanceof Error ? error.message : "邮件生成失败" }, { status: 500 });
   }
 }
 

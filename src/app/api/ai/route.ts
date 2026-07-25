@@ -1,55 +1,62 @@
 import { NextRequest, NextResponse } from "next/server";
+import { AIRequestConfigError, AIUpstreamError, callChatCompletion, type ChatMessage } from "@/lib/ai/chat-completions";
+
+type AIRequestBody = {
+  apiKey?: string;
+  provider?: string;
+  model?: string;
+  messages?: ChatMessage[];
+  temperature?: number;
+  maxTokens?: number;
+  baseUrl?: string;
+  requestPath?: string;
+  userAgent?: string;
+  customHeaders?: string;
+  useProxy?: boolean;
+  proxyUrl?: string;
+};
+
+function getMessage(error: unknown) {
+  return error instanceof Error ? error.message : "服务器内部错误";
+}
 
 export async function POST(req: NextRequest) {
   try {
-    const { apiKey, provider, model, messages, temperature, maxTokens } = await req.json();
+    const body = await req.json() as AIRequestBody;
 
-    if (!apiKey) {
-      return NextResponse.json({ error: "需要提供 API Key" }, { status: 400 });
-    }
-
-    if (!messages || !Array.isArray(messages) || messages.length === 0) {
+    if (!body.messages || !Array.isArray(body.messages) || body.messages.length === 0) {
       return NextResponse.json({ error: "需要提供消息内容" }, { status: 400 });
     }
 
-    // Determine the API endpoint based on provider
-    let baseUrl = "https://api.deepseek.com";
-    if (provider === "openai") baseUrl = "https://api.openai.com/v1";
-    else if (provider === "tongyi") baseUrl = "https://dashscope.aliyuncs.com/api/v1";
-    // deepseek default
-
-    const response = await fetch(`${baseUrl}/chat/completions`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model: model || "deepseek-chat",
-        messages,
-        temperature: temperature ?? 0.7,
-        max_tokens: maxTokens ?? 2048,
-      }),
+    const { data, endpoint } = await callChatCompletion({
+      ...body,
+      messages: body.messages,
+      maxTokens: body.maxTokens ?? 2048,
     });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      return NextResponse.json(
-        { error: `AI API 错误: ${response.status}`, detail: errorText },
-        { status: response.status }
-      );
+    const content = data.choices?.[0]?.message?.content || "";
+    if (!content.trim()) {
+      return NextResponse.json({ error: "AI 未返回有效内容" }, { status: 502 });
     }
-
-    const data = await response.json();
     return NextResponse.json({
-      content: data.choices?.[0]?.message?.content || "",
+      content,
       model: data.model,
       usage: data.usage || null,
+      endpoint,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
+    if (error instanceof AIRequestConfigError) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
     console.error("AI API error:", error);
+    if (error instanceof AIUpstreamError) {
+      return NextResponse.json(
+        { error: error.message, detail: error.detail },
+        { status: error.status }
+      );
+    }
     return NextResponse.json(
-      { error: error.message || "服务器内部错误" },
+      { error: getMessage(error) },
       { status: 500 }
     );
   }

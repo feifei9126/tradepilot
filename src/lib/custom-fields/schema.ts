@@ -25,7 +25,7 @@ export interface CustomFieldDef {
   placeholder?: string;
   hint?: string;
   options?: FieldOption[];
-  defaultValue?: any;
+  defaultValue?: unknown;
   order: number;
   section?: string;
   width?: "full" | "half" | "third";

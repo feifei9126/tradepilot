@@ -4,8 +4,19 @@ import { useState, useCallback, useEffect } from "react";
 
 const STORAGE_KEY = "tradepilot_ai_config";
 
+export type AIProviderConfig = {
+  apiKey: string;
+  baseUrl: string;
+  requestPath: string;
+  model: string;
+  userAgent: string;
+  customHeaders: string;
+  useProxy: boolean;
+  proxyUrl: string;
+};
+
 export interface AIConfig {
-  providers: Record<string, { apiKey: string; baseUrl?: string; model: string }>;
+  providers: Record<string, AIProviderConfig>;
   taskMapping: Record<string, string>;
 }
 
@@ -14,62 +25,176 @@ const DEFAULT_CONFIG: AIConfig = {
   taskMapping: {},
 };
 
+export const DEFAULT_PROVIDER_SETTINGS: Record<
+  string,
+  Omit<AIProviderConfig, "apiKey" | "model"> & { model: string }
+> = {
+  openai: {
+    baseUrl: "https://api.openai.com/v1",
+    requestPath: "/chat/completions",
+    model: "gpt-4o-mini",
+    userAgent: "TradePilot/0.1",
+    customHeaders: "",
+    useProxy: false,
+    proxyUrl: "",
+  },
+  tongyi: {
+    baseUrl: "https://dashscope.aliyuncs.com/compatible-mode/v1",
+    requestPath: "/chat/completions",
+    model: "qwen-plus",
+    userAgent: "TradePilot/0.1",
+    customHeaders: "",
+    useProxy: false,
+    proxyUrl: "",
+  },
+  deepseek: {
+    baseUrl: "https://api.deepseek.com",
+    requestPath: "/chat/completions",
+    model: "deepseek-chat",
+    userAgent: "TradePilot/0.1",
+    customHeaders: "",
+    useProxy: false,
+    proxyUrl: "",
+  },
+  ollama: {
+    baseUrl: "http://localhost:11434/v1",
+    requestPath: "/chat/completions",
+    model: "",
+    userAgent: "TradePilot/0.1",
+    customHeaders: "",
+    useProxy: false,
+    proxyUrl: "",
+  },
+};
+
+export function getDefaultProviderConfig(providerId: string): AIProviderConfig {
+  const defaults =
+    DEFAULT_PROVIDER_SETTINGS[providerId] || DEFAULT_PROVIDER_SETTINGS.deepseek;
+  return {
+    apiKey: "",
+    ...defaults,
+  };
+}
+
+function normalizeProviderConfig(
+  providerId: string,
+  data: Partial<AIProviderConfig>,
+): AIProviderConfig {
+  const defaults = getDefaultProviderConfig(providerId);
+  return {
+    ...defaults,
+    ...data,
+    baseUrl: data.baseUrl || defaults.baseUrl,
+    requestPath: data.requestPath || defaults.requestPath,
+    model: data.model ?? defaults.model,
+    userAgent: data.userAgent ?? defaults.userAgent,
+    customHeaders: data.customHeaders ?? defaults.customHeaders,
+    useProxy: data.useProxy ?? defaults.useProxy,
+    proxyUrl: data.proxyUrl ?? defaults.proxyUrl,
+  };
+}
+
+function normalizeConfig(value: unknown): AIConfig {
+  const parsed =
+    value && typeof value === "object" && !Array.isArray(value)
+      ? (value as Partial<AIConfig>)
+      : {};
+  const providers: AIConfig["providers"] = {};
+  const rawProviders =
+    parsed.providers &&
+    typeof parsed.providers === "object" &&
+    !Array.isArray(parsed.providers)
+      ? parsed.providers
+      : {};
+  Object.entries(rawProviders).forEach(([providerId, provider]) => {
+    if (!provider || typeof provider !== "object" || Array.isArray(provider))
+      return;
+    providers[providerId] = normalizeProviderConfig(
+      providerId,
+      provider as Partial<AIProviderConfig>,
+    );
+  });
+  const rawTaskMapping =
+    parsed.taskMapping &&
+    typeof parsed.taskMapping === "object" &&
+    !Array.isArray(parsed.taskMapping)
+      ? parsed.taskMapping
+      : {};
+  const taskMapping = Object.fromEntries(
+    Object.entries(rawTaskMapping).filter(
+      ([, mapping]) =>
+        typeof mapping === "string" && parseTaskMapping(mapping) !== null,
+    ),
+  ) as Record<string, string>;
+  return {
+    providers,
+    taskMapping,
+  };
+}
+
+export function parseTaskMapping(mapping: string) {
+  const separator = mapping.indexOf(":");
+  if (separator <= 0 || separator === mapping.length - 1) return null;
+  return {
+    providerId: mapping.slice(0, separator),
+    model: mapping.slice(separator + 1),
+  };
+}
+
 export function useAIConfig() {
   const [config, setConfigState] = useState<AIConfig>(DEFAULT_CONFIG);
   const [loaded, setLoaded] = useState(false);
 
-  // Load from localStorage on mount; auto-configure DeepSeek on first visit
+  // Load from localStorage on mount
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        setConfigState(JSON.parse(saved));
-      } else {
-        // Auto-configure DeepSeek so AI features work out of the box
-        const defaultConfig: AIConfig = {
-          providers: {
-            deepseek: { apiKey: "sk-9cf7295494dd4f8cb59d5700b753e0b4", model: "deepseek-chat" },
-          },
-          taskMapping: {
-            quotation: "deepseek:deepseek-chat",
-            order_suggestion: "deepseek:deepseek-chat",
-            inquiry_extraction: "deepseek:deepseek-chat",
-            customer_analysis: "deepseek:deepseek-chat",
-            communication_summary: "deepseek:deepseek-chat",
-            document_generation: "deepseek:deepseek-chat",
-            embedding: "deepseek:deepseek-chat",
-          },
-        };
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(defaultConfig));
-        setConfigState(defaultConfig);
+    const timer = window.setTimeout(() => {
+      try {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (saved) {
+          setConfigState(normalizeConfig(JSON.parse(saved)));
+        }
+      } catch (e) {
+        console.warn("Failed to load AI config:", e);
       }
-    } catch (e) {
-      console.warn("Failed to load AI config:", e);
-    }
-    setLoaded(true);
+      setLoaded(true);
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, []);
 
-  const setConfig = useCallback((value: AIConfig | ((prev: AIConfig) => AIConfig)) => {
-    if (typeof value === "function") {
-      setConfigState((prev) => {
-        const result = (value as (prev: AIConfig) => AIConfig)(prev);
-        try { localStorage.setItem(STORAGE_KEY, JSON.stringify(result)); } catch {}
-        return result;
-      });
-    } else {
-      setConfigState(value);
-      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(value)); } catch {}
-    }
-  }, []);
+  const setConfig = useCallback(
+    (value: AIConfig | ((prev: AIConfig) => AIConfig)) => {
+      if (typeof value === "function") {
+        setConfigState((prev) => {
+          const result = (value as (prev: AIConfig) => AIConfig)(prev);
+          try {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(result));
+          } catch {}
+          return result;
+        });
+      } else {
+        setConfigState(value);
+        try {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(value));
+        } catch {}
+      }
+    },
+    [],
+  );
 
   const updateProvider = useCallback(
-    (providerId: string, data: { apiKey: string; baseUrl?: string; model: string }) => {
+    (providerId: string, data: Partial<AIProviderConfig>) => {
       setConfig((prev) => ({
         ...prev,
-        providers: { ...prev.providers, [providerId]: data },
+        providers: {
+          ...prev.providers,
+          [providerId]: normalizeProviderConfig(providerId, {
+            ...prev.providers[providerId],
+            ...data,
+          }),
+        },
       }));
     },
-    [setConfig]
+    [setConfig],
   );
 
   const removeProvider = useCallback(
@@ -86,7 +211,7 @@ export function useAIConfig() {
         return { ...prev, providers, taskMapping };
       });
     },
-    [setConfig]
+    [setConfig],
   );
 
   const updateTaskMapping = useCallback(
@@ -96,19 +221,20 @@ export function useAIConfig() {
         taskMapping: { ...prev.taskMapping, [taskKey]: value },
       }));
     },
-    [setConfig]
+    [setConfig],
   );
 
   const getTaskProvider = useCallback(
     (taskKey: string) => {
       const mapping = config.taskMapping[taskKey];
       if (!mapping) return null;
-      const [providerId, model] = mapping.split(":");
-      const provider = config.providers[providerId];
+      const parsed = parseTaskMapping(mapping);
+      if (!parsed) return null;
+      const provider = config.providers[parsed.providerId];
       if (!provider) return null;
-      return { providerId, model, apiKey: provider.apiKey, baseUrl: provider.baseUrl };
+      return { ...provider, ...parsed };
     },
-    [config]
+    [config],
   );
 
   return {

@@ -1,6 +1,7 @@
 import { pgTable, uuid, varchar, text, decimal, integer, boolean, timestamp } from "drizzle-orm/pg-core";
 import { products } from "./products";
 import { companies } from "./companies";
+import { orders } from "./orders";
 
 export const suppliers = pgTable("suppliers", {
   id: uuid("id").defaultRandom().primaryKey(),

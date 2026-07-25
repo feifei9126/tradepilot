@@ -1,13 +1,46 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import { Ship, Package, Truck, FileSearch, Anchor, ClipboardCheck, MapPin, Calendar, Container, ArrowRight } from "lucide-react";
+import {
+  Ship,
+  Package,
+  Truck,
+  FileSearch,
+  Anchor,
+  ClipboardCheck,
+  MapPin,
+  Container,
+  ArrowRight,
+} from "lucide-react";
+import type { LucideIcon } from "lucide-react";
+import { toast } from "sonner";
 
-const MILESTONE_ICONS: Record<string, any> = {
-  "订舱": Ship, "工厂提货": Package, "报关": FileSearch, "装船": Anchor, "清关": ClipboardCheck, "派送": Truck,
+interface TrackingMilestone {
+  name: string;
+  status: "done" | "pending";
+  date: string | null;
+  note?: string;
+}
+
+interface TrackingItem {
+  id: string;
+  orderNo: string;
+  customer: string;
+  containerNo: string;
+  status: string;
+  milestones: TrackingMilestone[];
+}
+
+const MILESTONE_ICONS: Record<string, LucideIcon> = {
+  订舱: Ship,
+  工厂提货: Package,
+  报关: FileSearch,
+  装船: Anchor,
+  清关: ClipboardCheck,
+  派送: Truck,
 };
 
 const STATUS_CFG: Record<string, { label: string; cls: string }> = {
@@ -17,15 +50,34 @@ const STATUS_CFG: Record<string, { label: string; cls: string }> = {
 };
 
 export default function LogisticsPage() {
-  const [tracking, setTracking] = useState<any[]>([]);
+  const [tracking, setTracking] = useState<TrackingItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch("/api/logistics").then(r => r.json()).then(d => { setTracking(d); setLoading(false); if (d.length > 0) setExpanded(d[0].id); });
+    fetch("/api/logistics")
+      .then(async (response) => {
+        const data = await response.json();
+        if (!response.ok || !Array.isArray(data))
+          throw new Error("物流数据加载失败");
+        setTracking(data);
+        if (data.length > 0) setExpanded(data[0].id);
+      })
+      .catch((error: unknown) =>
+        toast.error(
+          error instanceof Error ? error.message : "物流数据加载失败",
+        ),
+      )
+      .finally(() => setLoading(false));
   }, []);
 
-  if (loading) return <div className="p-12 text-center text-muted-foreground flex items-center justify-center gap-2"><Ship className="h-5 w-5 animate-pulse" />加载物流数据...</div>;
+  if (loading)
+    return (
+      <div className="p-12 text-center text-muted-foreground flex items-center justify-center gap-2">
+        <Ship className="h-5 w-5 animate-pulse" />
+        加载物流数据...
+      </div>
+    );
 
   return (
     <div className="space-y-6">
@@ -33,7 +85,9 @@ export default function LogisticsPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">物流跟踪</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">订舱 → 提货 → 报关 → 装船 → 清关 → 派送</p>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            订舱 → 提货 → 报关 → 装船 → 清关 → 派送
+          </p>
         </div>
       </div>
 
@@ -49,16 +103,24 @@ export default function LogisticsPage() {
 
       {/* Tracking Cards */}
       <div className="space-y-4">
-        {tracking.map(t => {
+        {tracking.map((t) => {
           const statusInfo = STATUS_CFG[t.status] || STATUS_CFG.processing;
           const isExpanded = expanded === t.id;
-          const doneCount = t.milestones.filter((m: any) => m.status === "done").length;
+          const doneCount = t.milestones.filter(
+            (m) => m.status === "done",
+          ).length;
           const progress = Math.round((doneCount / t.milestones.length) * 100);
 
           return (
             <Card key={t.id} className="overflow-hidden">
               {/* Header */}
-              <div className="p-4 border-b bg-muted/20 flex items-center justify-between cursor-pointer" onClick={() => setExpanded(isExpanded ? null : t.id)}>
+              <button
+                type="button"
+                className="flex w-full items-center justify-between border-b bg-muted/20 p-4 text-left transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+                onClick={() => setExpanded(isExpanded ? null : t.id)}
+                aria-expanded={isExpanded}
+                aria-controls={`tracking-${t.id}`}
+              >
                 <div className="flex items-center gap-4">
                   <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
                     <Container className="h-5 w-5 text-primary" />
@@ -66,8 +128,14 @@ export default function LogisticsPage() {
                   <div>
                     <p className="font-semibold">{t.orderNo}</p>
                     <div className="flex items-center gap-3 text-xs text-muted-foreground mt-0.5">
-                      <span className="flex items-center gap-1"><MapPin className="h-3 w-3" />{t.customer}</span>
-                      <span className="flex items-center gap-1"><Container className="h-3 w-3" />{t.containerNo}</span>
+                      <span className="flex items-center gap-1">
+                        <MapPin className="h-3 w-3" />
+                        {t.customer}
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <Container className="h-3 w-3" />
+                        {t.containerNo}
+                      </span>
                     </div>
                   </div>
                 </div>
@@ -75,39 +143,78 @@ export default function LogisticsPage() {
                   {/* Progress Bar */}
                   <div className="hidden sm:flex items-center gap-2">
                     <div className="w-24 h-1.5 bg-gray-200 rounded-full overflow-hidden">
-                      <div className="h-full bg-primary rounded-full transition-all" style={{ width: `${progress}%` }} />
+                      <div
+                        className="h-full bg-primary rounded-full transition-all"
+                        style={{ width: `${progress}%` }}
+                      />
                     </div>
-                    <span className="text-xs text-muted-foreground">{progress}%</span>
+                    <span className="text-xs text-muted-foreground">
+                      {progress}%
+                    </span>
                   </div>
                   <Badge className={statusInfo.cls}>{statusInfo.label}</Badge>
                 </div>
-              </div>
+              </button>
 
               {/* Milestones */}
               {isExpanded && (
-                <div className="p-6">
+                <div id={`tracking-${t.id}`} className="p-6">
                   <div className="relative">
-                    {t.milestones.map((m: any, i: number) => {
+                    {t.milestones.map((m, i) => {
                       const Icon = MILESTONE_ICONS[m.name] || Ship;
                       const done = m.status === "done";
                       return (
-                        <div key={i} className="flex gap-4 pb-8 relative last:pb-0">
+                        <div
+                          key={i}
+                          className="flex gap-4 pb-8 relative last:pb-0"
+                        >
                           {i < t.milestones.length - 1 && (
-                            <div className={cn("absolute left-5 top-10 w-0.5 h-[calc(100%-20px)]", done ? "bg-green-300" : "bg-gray-200")} />
+                            <div
+                              className={cn(
+                                "absolute left-5 top-10 w-0.5 h-[calc(100%-20px)]",
+                                done ? "bg-green-300" : "bg-gray-200",
+                              )}
+                            />
                           )}
-                          <div className={cn(
-                            "w-10 h-10 rounded-full flex items-center justify-center shrink-0 border-2",
-                            done ? "bg-green-50 border-green-400" : "bg-gray-50 border-gray-300"
-                          )}>
-                            <Icon className={cn("h-5 w-5", done ? "text-green-600" : "text-gray-400")} />
+                          <div
+                            className={cn(
+                              "w-10 h-10 rounded-full flex items-center justify-center shrink-0 border-2",
+                              done
+                                ? "bg-green-50 border-green-400"
+                                : "bg-gray-50 border-gray-300",
+                            )}
+                          >
+                            <Icon
+                              className={cn(
+                                "h-5 w-5",
+                                done ? "text-green-600" : "text-gray-400",
+                              )}
+                            />
                           </div>
                           <div className="flex-1 pt-1">
                             <div className="flex items-center justify-between">
-                              <p className={cn("font-medium", done ? "text-gray-900" : "text-gray-500")}>{m.name}</p>
-                              <span className="text-xs text-muted-foreground">{m.date || ""}</span>
+                              <p
+                                className={cn(
+                                  "font-medium",
+                                  done ? "text-gray-900" : "text-gray-500",
+                                )}
+                              >
+                                {m.name}
+                              </p>
+                              <span className="text-xs text-muted-foreground">
+                                {m.date || ""}
+                              </span>
                             </div>
-                            {m.note && <p className="text-sm text-muted-foreground mt-1">{m.note}</p>}
-                            {!done && <p className="text-xs text-amber-600 mt-1">⏳ 待处理</p>}
+                            {m.note && (
+                              <p className="text-sm text-muted-foreground mt-1">
+                                {m.note}
+                              </p>
+                            )}
+                            {!done && (
+                              <p className="text-xs text-amber-600 mt-1">
+                                ⏳ 待处理
+                              </p>
+                            )}
                           </div>
                         </div>
                       );
@@ -118,6 +225,11 @@ export default function LogisticsPage() {
             </Card>
           );
         })}
+        {tracking.length === 0 && (
+          <p className="py-12 text-center text-sm text-muted-foreground">
+            暂无物流记录
+          </p>
+        )}
       </div>
     </div>
   );

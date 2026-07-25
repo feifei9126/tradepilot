@@ -1,92 +1,174 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
-import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { cn } from "@/lib/utils";
+import { useEffect, useState } from "react";
+import Link from "next/link";
+import { AnimatePresence, motion } from "motion/react";
 import {
-  Ship, Users, FileText, ClipboardList, Brain, CheckCircle, ArrowRight, Menu, X,
-  Globe, Smartphone, QrCode, Bell, Bot, MessageSquare, Quote, Star, Shield,
-  Sparkles, Zap, Layers, BarChart3, ChevronRight, ExternalLink, Clock, DollarSign
+  ArrowRight,
+  Bot,
+  Boxes,
+  Check,
+  CircleDollarSign,
+  ClipboardList,
+  FileText,
+  Film,
+  Globe,
+  Menu,
+  PackageCheck,
+  ShieldCheck,
+  Ship,
+  Smartphone,
+  Users,
+  X,
 } from "lucide-react";
+
+import { LocalQrCode } from "@/components/local-qr-code";
+import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useTranslation } from "@/lib/i18n";
+import { motionTokens } from "@/lib/motion";
 
-const features = [
-  { icon: Brain, titleKey: "landing.feature.ai", descKey: "landing.feature.ai.desc", color: "from-violet-500 to-violet-600", lightBg: "bg-violet-50" },
-  { icon: FileText, titleKey: "landing.feature.quote", descKey: "landing.feature.quote.desc", color: "from-blue-500 to-blue-600", lightBg: "bg-blue-50" },
-  { icon: ClipboardList, titleKey: "landing.feature.order", descKey: "landing.feature.order.desc", color: "from-emerald-500 to-emerald-600", lightBg: "bg-emerald-50" },
-  { icon: Users, titleKey: "landing.feature.customer", descKey: "landing.feature.customer.desc", color: "from-amber-500 to-amber-600", lightBg: "bg-amber-50" },
-  { icon: CheckCircle, titleKey: "landing.feature.doc", descKey: "landing.feature.doc.desc", color: "from-rose-500 to-rose-600", lightBg: "bg-rose-50" },
-  { icon: Ship, titleKey: "landing.feature.ship", descKey: "landing.feature.ship.desc", color: "from-cyan-500 to-cyan-600", lightBg: "bg-cyan-50" },
-];
-
-const steps = [
-  { num: "1", titleKey: "landing.step1.title", descKey: "landing.step1.desc" },
-  { num: "2", titleKey: "landing.step2.title", descKey: "landing.step2.desc" },
-  { num: "3", titleKey: "landing.step3.title", descKey: "landing.step3.desc" },
+const capabilities = [
+  {
+    icon: Users,
+    titleKey: "landing.feature.customer",
+    descKey: "landing.feature.customer.desc",
+    tone: "bg-blue-50 text-blue-700",
+  },
+  {
+    icon: FileText,
+    titleKey: "landing.feature.quote",
+    descKey: "landing.feature.quote.desc",
+    tone: "bg-violet-50 text-violet-700",
+  },
+  {
+    icon: ClipboardList,
+    titleKey: "landing.feature.order",
+    descKey: "landing.feature.order.desc",
+    tone: "bg-emerald-50 text-emerald-700",
+  },
+  {
+    icon: PackageCheck,
+    titleKey: "landing.feature.ship",
+    descKey: "landing.feature.ship.desc",
+    tone: "bg-amber-50 text-amber-700",
+  },
+  {
+    icon: Bot,
+    titleKey: "landing.feature.ai",
+    descKey: "landing.feature.ai.desc",
+    tone: "bg-cyan-50 text-cyan-700",
+  },
+  {
+    icon: Film,
+    title: "产品视频生产",
+    titleEn: "Product video production",
+    desc: "从产品素材采集到短视频生成，任务与成片集中管理。",
+    descEn: "Manage collection, rendering tasks, and deliverables in one flow.",
+    tone: "bg-orange-50 text-orange-700",
+  },
 ];
 
 const providers = ["DeepSeek", "通义千问", "OpenAI", "Ollama 本地"];
 const providersEn = ["DeepSeek", "Tongyi Qwen", "OpenAI", "Ollama Local"];
 
-const testimonials = [
-  { quote: "以前跟单靠微信追问，现在 TradePilot 自动提醒交期，AI 回复客户消息，一个人也能管 20 个订单。", author: "张经理", role: "深圳××电子科技", rating: 5 },
-  { quote: "API Key 自己管的模式太好了，用 DeepSeek 一个月 AI 成本不到 20 块，功能不比那些年费几千的差。", author: "李总", role: "广州××贸易有限公司", rating: 5 },
-];
-
 export default function LandingPage() {
-  const router = useRouter();
   const { t, locale, setLocale } = useTranslation();
   const [menuOpen, setMenuOpen] = useState(false);
-  const [scrolled, setScrolled] = useState(false);
-  const [lanIp, setLanIp] = useState("");
+  const [downloadUrl, setDownloadUrl] = useState("");
 
   useEffect(() => {
     const host = window.location.host;
     if (!host.startsWith("localhost") && !host.startsWith("127.")) {
-      setLanIp(host);
-    } else {
-      fetch("/api/network").then(r => r.json()).then(d => {
-        if (d.lanIp && d.lanIp !== "localhost") setLanIp(d.lanIp);
-      }).catch(() => {});
+      const timer = window.setTimeout(
+        () => setDownloadUrl(`${window.location.origin}/download`),
+        0,
+      );
+      return () => window.clearTimeout(timer);
     }
-  }, []);
-  useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 20);
-    window.addEventListener("scroll", onScroll);
-    return () => window.removeEventListener("scroll", onScroll);
+
+    fetch("/api/network")
+      .then((response) => response.json())
+      .then((data) =>
+        setDownloadUrl(`${data.urls?.lan || window.location.origin}/download`),
+      )
+      .catch(() => setDownloadUrl(`${window.location.origin}/download`));
   }, []);
 
   const providerList = locale === "zh" ? providers : providersEn;
+  const isChinese = locale === "zh";
+
+  function scrollToSection(id: string) {
+    document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
+    setMenuOpen(false);
+  }
 
   return (
-    <div className="min-h-screen bg-white">
-      {/* ===== NAV ===== */}
-      <nav className={cn(
-        "fixed top-0 left-0 right-0 z-50 transition-all duration-300",
-        scrolled ? "bg-white/80 backdrop-blur-lg border-b shadow-sm" : "bg-transparent"
-      )}>
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 h-16">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center shadow-sm">
-              <Ship className="h-4 w-4 text-white" />
-            </div>
-            <span className="font-bold text-lg tracking-tight">TradePilot</span>
-          </div>
+    <div className="min-h-screen bg-[#f4f7fa] text-[#12202c]">
+      <header className="fixed inset-x-0 top-0 z-50 border-b border-white/15 bg-[#17212b]/95 text-white backdrop-blur-md">
+        <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6">
+          <Link
+            href="/"
+            className="flex items-center gap-3"
+            aria-label="TradePilot 首页"
+          >
+            <span className="flex size-9 items-center justify-center rounded-md bg-[#2f77e5] shadow-[inset_0_0_0_1px_rgb(255_255_255/20%)]">
+              <Ship className="size-[18px]" />
+            </span>
+            <span>
+              <strong className="block text-sm">TradePilot</strong>
+              <span className="block text-[9px] font-semibold text-[#91a5b8]">
+                GLOBAL TRADE OS
+              </span>
+            </span>
+          </Link>
 
-          <div className="hidden md:flex items-center gap-1">
-            {["功能", "AI", "价格"].map((item) => (
-              <Button key={item} variant="ghost" size="sm" className="text-sm text-muted-foreground hover:text-foreground">
-                {item}
-              </Button>
-            ))}
-          </div>
+          <nav
+            className="hidden items-center gap-1 md:flex"
+            aria-label="官网导航"
+          >
+            <Button
+              variant="ghost"
+              size="sm"
+              className="!border-transparent text-[#c7d1db] hover:bg-white/10 hover:text-white"
+              onClick={() => scrollToSection("operations")}
+            >
+              业务能力
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="!border-transparent text-[#c7d1db] hover:bg-white/10 hover:text-white"
+              onClick={() => scrollToSection("studio")}
+            >
+              视频生产
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="!border-transparent text-[#c7d1db] hover:bg-white/10 hover:text-white"
+              onClick={() => scrollToSection("deployment")}
+            >
+              自托管
+            </Button>
+          </nav>
 
-          <div className="hidden md:flex items-center gap-3">
-            <Select value={locale} onValueChange={(v) => v && setLocale(v as "zh" | "en")}>
-              <SelectTrigger className="w-24 h-8 text-xs">
-                <Globe className="h-3 w-3 mr-1" />
+          <div className="hidden items-center gap-2 md:flex">
+            <Select
+              value={locale}
+              items={{ zh: "中文", en: "English" }}
+              onValueChange={(value) =>
+                value && setLocale(value as "zh" | "en")
+              }
+            >
+              <SelectTrigger className="h-9 w-28 !border-white/20 !bg-white/5 !text-white hover:!bg-white/10">
+                <Globe className="size-4" />
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -94,16 +176,30 @@ export default function LandingPage() {
                 <SelectItem value="en">English</SelectItem>
               </SelectContent>
             </Select>
-            <Button variant="ghost" size="sm" onClick={() => router.push("/auth/login")}>{t("landing.nav.login")}</Button>
-            <Button size="sm" className="h-8 shadow-sm" onClick={() => router.push("/auth/login")}>
-              {t("landing.nav.start")} <ArrowRight className="h-3.5 w-3.5 ml-1" />
+            <Button
+              render={<Link href="/auth/login" />}
+              nativeButton={false}
+              variant="ghost"
+              className="!border-transparent text-white hover:bg-white/10 hover:text-white"
+            >
+              {t("landing.nav.login")}
+            </Button>
+            <Button render={<Link href="/auth/login" />} nativeButton={false}>
+              {t("landing.nav.start")}
+              <ArrowRight />
             </Button>
           </div>
 
-          <div className="md:hidden flex items-center gap-2">
-            <Select value={locale} onValueChange={(v) => v && setLocale(v as "zh" | "en")}>
-              <SelectTrigger className="w-20 h-8 text-xs">
-                <Globe className="h-3 w-3 mr-1" />
+          <div className="flex items-center gap-2 md:hidden">
+            <Select
+              value={locale}
+              items={{ zh: "中", en: "EN" }}
+              onValueChange={(value) =>
+                value && setLocale(value as "zh" | "en")
+              }
+            >
+              <SelectTrigger className="h-9 w-20 !border-white/20 !bg-white/5 !text-white">
+                <Globe className="size-4" />
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -111,288 +207,421 @@ export default function LandingPage() {
                 <SelectItem value="en">EN</SelectItem>
               </SelectContent>
             </Select>
-            <Button variant="ghost" size="icon" onClick={() => setMenuOpen(!menuOpen)}>
-              {menuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+            <Button
+              variant="ghost"
+              size="icon"
+              className="!border-transparent text-white hover:bg-white/10 hover:text-white"
+              onClick={() => setMenuOpen((open) => !open)}
+              aria-label={menuOpen ? "关闭导航" : "打开导航"}
+              aria-expanded={menuOpen}
+            >
+              {menuOpen ? <X /> : <Menu />}
             </Button>
           </div>
         </div>
-        {menuOpen && (
-          <div className="border-t p-4 space-y-2 md:hidden bg-white/95 backdrop-blur-lg">
-            <Button className="w-full" variant="outline" onClick={() => router.push("/auth/login")}>{t("landing.nav.login")}</Button>
-            <Button className="w-full" onClick={() => router.push("/auth/login")}>{t("landing.nav.start")}</Button>
-          </div>
-        )}
-      </nav>
 
-      {/* ===== HERO ===== */}
-      <section className="relative pt-32 pb-24 px-4 overflow-hidden">
-        {/* Background decoration */}
-        <div className="absolute inset-0 bg-gradient-to-b from-primary/5 via-transparent to-transparent pointer-events-none" />
-        <div className="absolute top-20 left-1/4 w-96 h-96 bg-primary/5 rounded-full blur-3xl" />
-        <div className="absolute top-40 right-1/4 w-64 h-64 bg-violet-100/50 rounded-full blur-3xl" />
-
-        <div className="relative mx-auto max-w-4xl text-center">
-          <div className="inline-flex items-center gap-1.5 rounded-full border bg-white/80 backdrop-blur-sm px-3 py-1 text-sm text-muted-foreground shadow-sm mb-6">
-            <Brain className="h-3.5 w-3.5 text-primary" />
-            {t("landing.badge")}
-          </div>
-
-          <h1 className="text-5xl md:text-6xl font-bold tracking-tight leading-tight">
-            <span className="text-gray-900">{t("landing.hero.title1")}</span>
-            <span className="block mt-2 bg-gradient-to-r from-primary via-primary/80 to-violet-500 bg-clip-text text-transparent">
-              {t("landing.hero.title2")}
-            </span>
-          </h1>
-
-          <p className="mt-6 text-lg text-gray-500 max-w-2xl mx-auto leading-relaxed">
-            {t("landing.hero.desc")}
-          </p>
-
-          <div className="flex items-center justify-center gap-3 mt-10">
-            <Button size="lg" className="text-base h-12 px-8 shadow-lg shadow-primary/20" onClick={() => router.push("/auth/login")}>
-              {t("landing.hero.cta")} <ArrowRight className="h-4 w-4 ml-1.5" />
-            </Button>
-            <Button size="lg" variant="outline" className="text-base h-12 px-8" onClick={() => router.push("/app")}>
-              {t("landing.hero.demo")}
-            </Button>
-          </div>
-
-          <p className="text-sm text-gray-400 mt-4 flex items-center justify-center gap-1.5">
-            <Shield className="h-3.5 w-3.5" />{t("landing.hero.tagline")}
-          </p>
-
-          {/* Stats row */}
-          <div className="grid grid-cols-3 gap-8 max-w-lg mx-auto mt-16 pt-8 border-t">
-            {[
-              { value: "50+", label: "预置产品" },
-              { value: "6", label: "AI 能力" },
-              { value: "0", label: "月费零元" },
-            ].map((s, i) => (
-              <div key={i} className="text-center">
-                <p className="text-2xl font-bold text-gray-900">{s.value}</p>
-                <p className="text-xs text-muted-foreground">{s.label}</p>
+        <AnimatePresence initial={false}>
+          {menuOpen && (
+            <motion.nav
+              initial={{ opacity: 0, y: -8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: motionTokens.duration.fast }}
+              className="border-t border-white/15 bg-[#17212b] px-4 py-4 md:hidden"
+              aria-label="移动端官网导航"
+            >
+              <div className="grid gap-2">
+                <Button
+                  variant="ghost"
+                  className="justify-start text-white"
+                  onClick={() => scrollToSection("operations")}
+                >
+                  业务能力
+                </Button>
+                <Button
+                  variant="ghost"
+                  className="justify-start text-white"
+                  onClick={() => scrollToSection("studio")}
+                >
+                  视频生产
+                </Button>
+                <Button
+                  variant="ghost"
+                  className="justify-start text-white"
+                  onClick={() => scrollToSection("deployment")}
+                >
+                  自托管
+                </Button>
+                <Button
+                  render={<Link href="/auth/login" />}
+                  nativeButton={false}
+                  className="mt-2"
+                >
+                  {t("landing.nav.start")}
+                  <ArrowRight />
+                </Button>
               </div>
-            ))}
-          </div>
-        </div>
-      </section>
+            </motion.nav>
+          )}
+        </AnimatePresence>
+      </header>
 
-      {/* ===== FEATURES ===== */}
-      <section className="py-24 px-4 bg-gray-50/50">
-        <div className="mx-auto max-w-6xl">
-          <div className="text-center mb-16">
-            <div className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1 text-sm text-primary font-medium mb-4">
-              <Zap className="h-3.5 w-3.5" /> 核心功能
-            </div>
-            <h2 className="text-3xl md:text-4xl font-bold text-gray-900">{t("landing.features.title")}</h2>
-            <p className="text-gray-500 mt-3 max-w-xl mx-auto">{t("landing.features.desc")}</p>
-          </div>
+      <main>
+        <section className="relative flex min-h-[calc(100svh-48px)] items-center overflow-hidden px-4 pb-12 pt-28 text-white sm:px-6">
+          <div
+            className="absolute inset-0 bg-cover bg-center bg-no-repeat"
+            style={{ backgroundImage: "url('/tradepilot-console.png')" }}
+            aria-hidden="true"
+          />
+          <div
+            className="absolute inset-0 bg-[#101b26]/85"
+            aria-hidden="true"
+          />
 
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-5">
-            {features.map((f) => {
-              const Icon = f.icon;
-              return (
-                <div key={f.titleKey} className="group bg-white rounded-xl border border-gray-100 p-6 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200">
-                  <div className={cn("w-11 h-11 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform", f.lightBg)}>
-                    <Icon className="h-5 w-5" style={{ color: f.color.includes("violet") ? "#7c3aed" : f.color.includes("blue") ? "#2563eb" : f.color.includes("emerald") ? "#059669" : f.color.includes("amber") ? "#d97706" : f.color.includes("rose") ? "#e11d48" : "#06b6d4" }} />
-                  </div>
-                  <h3 className="font-semibold text-gray-900 mb-1">{t(f.titleKey)}</h3>
-                  <p className="text-sm text-gray-500 leading-relaxed">{t(f.descKey)}</p>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </section>
+          <div className="relative mx-auto w-full max-w-7xl">
+            <div className="max-w-3xl">
+              <p className="mb-4 flex items-center gap-2 text-xs font-semibold text-[#83cbd5]">
+                <span className="studio-live-dot" />
+                GLOBAL OPERATIONS · SELF HOSTED
+              </p>
+              <h1 className="text-5xl font-bold leading-none sm:text-6xl">
+                TradePilot
+              </h1>
+              <h2 className="mt-5 max-w-2xl text-2xl font-semibold leading-tight sm:text-4xl">
+                {isChinese
+                  ? "外贸业务、履约与产品内容的统一控制台"
+                  : "One control system for trade, fulfillment, and product content"}
+              </h2>
+              <p className="mt-5 max-w-2xl text-sm leading-7 text-[#c5d0da] sm:text-base">
+                {isChinese
+                  ? "把客户、询盘、报价、订单、出货和产品视频放回同一条业务线上，让小团队先看到异常，再处理日常工作。"
+                  : "Keep customers, quotations, orders, shipments, and product video on one operational line, with exceptions visible first."}
+              </p>
 
-      {/* ===== HOW IT WORKS ===== */}
-      <section className="py-24 px-4">
-        <div className="mx-auto max-w-4xl">
-          <div className="text-center mb-16">
-            <div className="inline-flex items-center gap-1.5 rounded-full bg-emerald/10 px-3 py-1 text-sm text-emerald-600 font-medium mb-4 bg-emerald-50">
-              <Clock className="h-3.5 w-3.5" /> 快速上手
-            </div>
-            <h2 className="text-3xl md:text-4xl font-bold text-gray-900">{t("landing.steps.title")}</h2>
-            <p className="text-gray-500 mt-3">{t("landing.steps.desc")}</p>
-          </div>
-
-          <div className="relative">
-            {/* Connecting line */}
-            <div className="hidden md:block absolute left-1/2 top-16 bottom-16 w-px bg-gradient-to-b from-primary/30 via-primary/10 to-transparent" />
-
-            {steps.map((s, i) => (
-              <div key={s.num} className={cn("relative flex items-center gap-8 mb-12 last:mb-0", i % 2 === 0 ? "md:flex-row" : "md:flex-row-reverse")}>
-                <div className="hidden md:block flex-1 text-center">
-                  <div className={cn(
-                    "inline-block text-left max-w-xs space-y-2",
-                    i % 2 === 0 ? "text-right" : "text-left"
-                  )}>
-                    <h3 className="font-semibold text-gray-900 text-lg">{t(s.titleKey)}</h3>
-                    <p className="text-sm text-gray-500">{t(s.descKey)}</p>
-                  </div>
-                </div>
-
-                <div className="relative flex items-center justify-center shrink-0">
-                  <div className="w-14 h-14 rounded-full bg-gradient-to-br from-primary to-primary/70 text-white font-bold text-lg flex items-center justify-center shadow-lg shadow-primary/20">
-                    {s.num}
-                  </div>
-                </div>
-
-                {/* Mobile text */}
-                <div className="md:hidden flex-1">
-                  <h3 className="font-semibold text-gray-900">{t(s.titleKey)}</h3>
-                  <p className="text-sm text-gray-500 mt-1">{t(s.descKey)}</p>
-                </div>
-
-                <div className="hidden md:block flex-1" />
+              <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+                <Button
+                  render={<Link href="/auth/login" />}
+                  nativeButton={false}
+                  size="lg"
+                  className="h-11 px-5"
+                >
+                  {t("landing.hero.cta")}
+                  <ArrowRight />
+                </Button>
+                <Button
+                  render={<Link href="/app" />}
+                  nativeButton={false}
+                  size="lg"
+                  variant="outline"
+                  className="h-11 border-white/35 bg-white/5 px-5 text-white hover:bg-white/10 hover:text-white"
+                >
+                  {t("landing.hero.demo")}
+                </Button>
               </div>
-            ))}
-          </div>
-        </div>
-      </section>
 
-      {/* ===== AI BYOK ===== */}
-      <section className="py-24 px-4 bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 text-white">
-        <div className="mx-auto max-w-4xl text-center">
-          <div className="inline-flex items-center gap-1.5 bg-white/10 rounded-full px-3 py-1 text-sm text-gray-300 mb-4">
-            <Sparkles className="h-3.5 w-3.5" /> {t("landing.byok.badge")}
-          </div>
-          <h2 className="text-3xl md:text-4xl font-bold">{t("landing.byok.title")}</h2>
-          <p className="mt-4 text-gray-400 max-w-2xl mx-auto">{t("landing.byok.desc")}</p>
-
-          <div className="flex justify-center gap-4 mt-10 flex-wrap">
-            {providerList.map((name, i) => (
-              <div key={name} className={cn(
-                "rounded-xl border px-5 py-3 text-sm transition-all duration-200 hover:-translate-y-1",
-                "bg-white/5 border-white/10 hover:bg-white/10 hover:border-white/20"
-              )}>
-                <p className="font-medium">{name}</p>
-              </div>
-            ))}
-          </div>
-
-          <div className="mt-10 grid grid-cols-3 gap-6 max-w-lg mx-auto">
-            {[
-              { icon: DollarSign, label: "零月费", desc: "只用你的 API Key" },
-              { icon: Shield, label: "数据私有", desc: "Key & 数据本地加密" },
-              { icon: Zap, label: "自由切换", desc: "模型随时换" },
-            ].map((s, i) => (
-              <div key={i} className="text-center">
-                <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center mx-auto mb-2">
-                  <s.icon className="h-5 w-5 text-primary" />
-                </div>
-                <p className="text-sm font-medium">{s.label}</p>
-                <p className="text-xs text-gray-400 mt-0.5">{s.desc}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ===== MOBILE APP ===== */}
-      <section className="py-24 px-4 bg-gray-50/50">
-        <div className="mx-auto max-w-5xl">
-          <div className="grid md:grid-cols-2 gap-12 items-center">
-            <div>
-              <div className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1 text-sm text-primary font-medium mb-4">
-                <Smartphone className="h-4 w-4 mr-1" /> 移动端
-              </div>
-              <h2 className="text-3xl md:text-4xl font-bold text-gray-900">手机 App 同步管理</h2>
-              <p className="text-gray-500 mt-3 leading-relaxed">随时随地接收客户消息，AI 自动回复，扫码绑定 WhatsApp/微信。</p>
-              <div className="mt-6 space-y-4">
+              <div className="mt-10 hidden max-w-2xl grid-cols-3 border-y border-white/20 py-4 sm:grid">
                 {[
-                  { icon: MessageSquare, text: "消息实时同步 — 手机与 Web 端一致" },
-                  { icon: Bot, text: "AI 自动回复 — 收到消息自动生成回复并发出" },
-                  { icon: QrCode, text: "扫码绑定 — 绑定 WhatsApp/微信账号" },
-                  { icon: Bell, text: "推送通知 — 新消息即时提醒" },
-                ].map((item, i) => {
-                  const Icon = item.icon;
+                  ["31.6K", isChinese ? "演示订单金额" : "Demo order value"],
+                  ["60%", isChinese ? "询盘转化率" : "Inquiry conversion"],
+                  ["BYOK", isChinese ? "模型自主配置" : "Model ownership"],
+                ].map(([value, label]) => (
+                  <div
+                    key={label}
+                    className="border-r border-white/20 px-4 first:pl-0 last:border-r-0"
+                  >
+                    <strong className="block text-xl tabular-nums">
+                      {value}
+                    </strong>
+                    <span className="mt-1 block text-[11px] text-[#9eafbe]">
+                      {label}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section
+          id="operations"
+          className="scroll-mt-16 border-b border-[#dce3ea] bg-white px-4 py-20 sm:px-6"
+        >
+          <div className="mx-auto max-w-7xl">
+            <div className="mb-10 max-w-2xl">
+              <p className="mb-2 text-xs font-semibold text-[#1769e0]">
+                OPERATIONS / ONE FLOW
+              </p>
+              <h2 className="text-3xl font-bold">
+                {isChinese
+                  ? "日常业务保持明亮、紧凑、可扫描"
+                  : "Bright, compact, and scannable daily operations"}
+              </h2>
+              <p className="mt-3 text-sm leading-6 text-[#637181]">
+                {t("landing.features.desc")}
+              </p>
+            </div>
+
+            <div className="grid overflow-hidden rounded-lg border border-[#dce3ea] md:grid-cols-2 lg:grid-cols-3">
+              {capabilities.map((capability) => {
+                const Icon = capability.icon;
+                return (
+                  <article
+                    key={capability.titleKey || capability.title}
+                    className="border-b border-[#dce3ea] p-6 md:border-r lg:min-h-48"
+                  >
+                    <span
+                      className={`flex size-10 items-center justify-center rounded-md ${capability.tone}`}
+                    >
+                      <Icon className="size-5" />
+                    </span>
+                    <h3 className="mt-5 text-base font-semibold">
+                      {capability.titleKey
+                        ? t(capability.titleKey)
+                        : isChinese
+                          ? capability.title
+                          : capability.titleEn}
+                    </h3>
+                    <p className="mt-2 text-sm leading-6 text-[#637181]">
+                      {capability.descKey
+                        ? t(capability.descKey)
+                        : isChinese
+                          ? capability.desc
+                          : capability.descEn}
+                    </p>
+                  </article>
+                );
+              })}
+            </div>
+          </div>
+        </section>
+
+        <section
+          id="studio"
+          className="scroll-mt-16 bg-[#17212b] px-4 py-20 text-white sm:px-6"
+        >
+          <div className="mx-auto grid max-w-7xl gap-12 lg:grid-cols-[0.8fr_1.2fr] lg:items-center">
+            <div>
+              <p className="mb-2 flex items-center gap-2 text-xs font-semibold text-[#83cbd5]">
+                <span className="size-2 rounded-full bg-[#e85b32]" />
+                GROWTH STUDIO
+              </p>
+              <h2 className="max-w-xl text-3xl font-bold leading-tight">
+                {isChinese
+                  ? "产品素材进入，销售视频交付"
+                  : "Product material in, sales video delivered"}
+              </h2>
+              <p className="mt-4 max-w-xl text-sm leading-7 text-[#aebbc6]">
+                {isChinese
+                  ? "Firecrawl 采集产品素材，MoneyPrinterTurbo 与 OpenMontage 承接自动成片和高级制作，任务状态与交付集中可见。"
+                  : "Collect product material with Firecrawl and route rendering through MoneyPrinterTurbo or OpenMontage with visible delivery states."}
+              </p>
+              <Button
+                render={<Link href="/app/product-video" />}
+                nativeButton={false}
+                className="mt-7 bg-[#e85b32] text-white hover:bg-[#d94f29]"
+              >
+                {isChinese ? "进入产品视频" : "Open product video"}
+                <ArrowRight />
+              </Button>
+            </div>
+
+            <div className="rounded-lg border border-[#43505d] bg-[#1d2935] p-5 sm:p-7">
+              <div className="flex items-center justify-between border-b border-[#43505d] pb-4">
+                <div>
+                  <span className="text-[10px] text-[#8194a7]">
+                    CURRENT PIPELINE
+                  </span>
+                  <strong className="mt-1 block text-sm">
+                    {isChinese
+                      ? "产品内容生产链路"
+                      : "Product content pipeline"}
+                  </strong>
+                </div>
+                <span className="flex items-center gap-2 text-xs font-semibold text-[#78cfb1]">
+                  <span className="studio-live-dot !bg-[#38b986]" />
+                  {isChinese ? "引擎在线" : "Engine online"}
+                </span>
+              </div>
+
+              <div className="relative mt-7 grid grid-cols-4 gap-2">
+                <div className="absolute left-[12.5%] right-[12.5%] top-4 h-px bg-[#43505d]" />
+                <motion.div
+                  className="absolute left-[12.5%] top-4 h-px origin-left bg-[#e85b32]"
+                  initial={{ scaleX: 0 }}
+                  whileInView={{ scaleX: 0.68 }}
+                  viewport={{ once: true, amount: 0.8 }}
+                  transition={{
+                    duration: motionTokens.duration.slow,
+                    ease: motionTokens.easing.smooth,
+                  }}
+                  style={{ width: "75%" }}
+                />
+                {[
+                  [Boxes, isChinese ? "素材采集" : "Collect", "complete"],
+                  [FileText, isChinese ? "内容配置" : "Configure", "complete"],
+                  [Bot, isChinese ? "引擎生成" : "Generate", "active"],
+                  [Film, isChinese ? "成片交付" : "Deliver", "pending"],
+                ].map(([Icon, label, status]) => {
+                  const PipelineIcon = Icon as typeof Boxes;
                   return (
-                    <div key={i} className="flex items-center gap-3">
-                      <div className="rounded-full bg-primary/10 w-10 h-10 flex items-center justify-center">
-                        <Icon className="h-5 w-5 text-primary" />
-                      </div>
-                      <span className="text-sm text-gray-600">{item.text}</span>
+                    <div
+                      key={label as string}
+                      className="relative z-10 text-center"
+                    >
+                      <span
+                        className={`mx-auto flex size-8 items-center justify-center rounded-full border ${status === "complete" ? "border-[#38b986] bg-[#203d38] text-[#78cfb1]" : status === "active" ? "border-[#f28a67] bg-[#e85b32] text-white" : "border-[#5b6875] bg-[#263440] text-[#8194a7]"}`}
+                      >
+                        {status === "complete" ? (
+                          <Check className="size-4" />
+                        ) : (
+                          <PipelineIcon className="size-4" />
+                        )}
+                      </span>
+                      <span className="mt-3 block text-[11px] font-semibold text-[#d5dde5]">
+                        {label as string}
+                      </span>
                     </div>
                   );
                 })}
               </div>
             </div>
-            <div className="text-center">
-              <div className="inline-block bg-white rounded-2xl shadow-lg border p-8">
-                <img src={"https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=" + encodeURIComponent(lanIp ? "http://" + lanIp + ":3456/download" : (typeof window !== "undefined" ? window.location.origin + "/download" : "http://192.168.0.101:3456/download"))}
-                  alt="下载 TradePilot App" className="mx-auto w-40 h-40" />
-                <p className="text-sm font-medium text-gray-900 mt-4">扫码下载手机 App</p>
-                <p className="text-xs text-muted-foreground mt-1">支持 Android / iOS</p>
+          </div>
+        </section>
+
+        <section
+          id="deployment"
+          className="scroll-mt-16 border-b border-[#dce3ea] bg-white px-4 py-20 sm:px-6"
+        >
+          <div className="mx-auto grid max-w-7xl gap-12 lg:grid-cols-[1.1fr_0.9fr] lg:items-center">
+            <div>
+              <p className="mb-2 text-xs font-semibold text-[#12805c]">
+                BYOK / SELF HOSTED
+              </p>
+              <h2 className="max-w-2xl text-3xl font-bold">
+                {t("landing.byok.title")}
+              </h2>
+              <p className="mt-4 max-w-2xl text-sm leading-7 text-[#637181]">
+                {t("landing.byok.desc")}
+              </p>
+
+              <div className="mt-8 grid max-w-2xl grid-cols-2 overflow-hidden rounded-lg border border-[#dce3ea] sm:grid-cols-4">
+                {providerList.map((provider) => (
+                  <div
+                    key={provider}
+                    className="flex min-h-20 items-center justify-center border-b border-r border-[#dce3ea] px-3 text-center text-sm font-semibold last:border-r-0"
+                  >
+                    {provider}
+                  </div>
+                ))}
+              </div>
+
+              <div className="mt-7 flex flex-wrap gap-x-6 gap-y-3 text-xs font-medium text-[#4e5d6b]">
+                <span className="flex items-center gap-2">
+                  <ShieldCheck className="size-4 text-[#12805c]" />
+                  {isChinese ? "密钥由使用者配置" : "User-configured keys"}
+                </span>
+                <span className="flex items-center gap-2">
+                  <CircleDollarSign className="size-4 text-[#1769e0]" />
+                  {isChinese ? "模型费用独立结算" : "Independent model billing"}
+                </span>
+                <span className="flex items-center gap-2">
+                  <Globe className="size-4 text-[#b75c13]" />
+                  {isChinese ? "支持本地服务地址" : "Local endpoints supported"}
+                </span>
+              </div>
+            </div>
+
+            <div className="rounded-lg border border-[#dce3ea] bg-[#f4f7fa] p-7">
+              <div className="flex items-start gap-4">
+                <span className="flex size-11 shrink-0 items-center justify-center rounded-md bg-[#17212b] text-white">
+                  <Smartphone className="size-5" />
+                </span>
+                <div>
+                  <h3 className="font-semibold">
+                    {isChinese
+                      ? "同一部署，桌面与手机访问"
+                      : "One deployment for desktop and mobile"}
+                  </h3>
+                  <p className="mt-2 text-sm leading-6 text-[#637181]">
+                    {isChinese
+                      ? "响应式后台通过同一个地址访问，也可以添加到手机主屏幕。"
+                      : "Use the same responsive workspace URL on desktop or mobile."}
+                  </p>
+                </div>
+              </div>
+              <div className="mt-7 border-t border-[#dce3ea] pt-7 text-center">
+                {downloadUrl ? (
+                  <LocalQrCode
+                    value={downloadUrl}
+                    alt="打开 TradePilot 移动入口"
+                    className="mx-auto size-36 bg-white"
+                  />
+                ) : (
+                  <div className="mx-auto flex size-36 items-center justify-center border border-[#dce3ea] bg-white text-xs text-[#637181]">
+                    生成二维码...
+                  </div>
+                )}
+                <p className="mt-4 text-xs font-semibold text-[#4e5d6b]">
+                  {isChinese ? "扫描当前部署地址" : "Scan this deployment URL"}
+                </p>
               </div>
             </div>
           </div>
-        </div>
-      </section>
+        </section>
 
-      {/* ===== TESTIMONIALS ===== */}
-      <section className="py-24 px-4 bg-gray-50/30">
-        <div className="mx-auto max-w-4xl">
-          <div className="text-center mb-12">
-            <div className="inline-flex items-center gap-1.5 rounded-full bg-amber/10 px-3 py-1 text-sm text-amber-600 font-medium mb-4 bg-amber-50">
-              <Quote className="h-3.5 w-3.5" /> 用户反馈
+        <section className="bg-[#eaf2fd] px-4 py-16 sm:px-6">
+          <div className="mx-auto flex max-w-7xl flex-col gap-6 md:flex-row md:items-center md:justify-between">
+            <div>
+              <h2 className="text-2xl font-bold">{t("landing.cta.title")}</h2>
+              <p className="mt-2 text-sm text-[#637181]">
+                {t("landing.cta.desc")}
+              </p>
             </div>
-            <h2 className="text-3xl font-bold text-gray-900">外贸人怎么说</h2>
-          </div>
-
-          <div className="grid md:grid-cols-2 gap-6">
-            {testimonials.map((t, i) => (
-              <div key={i} className="bg-white rounded-xl border p-6 hover:shadow-md transition-shadow">
-                <div className="flex gap-1 mb-3">
-                  {Array.from({ length: t.rating }).map((_, j) => (
-                    <Star key={j} className="h-4 w-4 fill-amber-400 text-amber-400" />
-                  ))}
-                </div>
-                <p className="text-sm text-gray-600 leading-relaxed mb-4">"{t.quote}"</p>
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center text-sm font-medium text-primary">
-                    {t.author[0]}
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium">{t.author}</p>
-                    <p className="text-xs text-muted-foreground">{t.role}</p>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ===== CTA ===== */}
-      <section className="py-24 px-4">
-        <div className="mx-auto max-w-2xl text-center">
-          <div className="bg-gradient-to-br from-primary/5 via-white to-violet-50 rounded-2xl border p-12">
-            <h2 className="text-3xl font-bold text-gray-900">{t("landing.cta.title")}</h2>
-            <p className="text-gray-500 mt-3 mb-8">{t("landing.cta.desc")}</p>
-            <Button size="lg" className="text-base h-12 px-8 shadow-lg shadow-primary/20" onClick={() => router.push("/auth/login")}>
-              {t("landing.hero.cta")} <ArrowRight className="h-4 w-4 ml-1.5" />
+            <Button
+              render={<Link href="/auth/login" />}
+              nativeButton={false}
+              size="lg"
+              className="md:shrink-0"
+            >
+              {t("landing.hero.cta")}
+              <ArrowRight />
             </Button>
           </div>
-        </div>
-      </section>
+        </section>
+      </main>
 
-      {/* ===== FOOTER ===== */}
-      <footer className="border-t py-10 px-4 bg-gray-50/50">
-        <div className="mx-auto max-w-6xl">
-          <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-            <div className="flex items-center gap-2">
-              <div className="w-7 h-7 rounded-md bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center">
-                <Ship className="h-3.5 w-3.5 text-white" />
-              </div>
-              <span className="font-semibold text-sm text-gray-600">TradePilot</span>
-            </div>
-            <p className="text-sm text-gray-400">{t("landing.footer")}</p>
-            <div className="flex items-center gap-3 text-xs text-gray-400">
-              <a href="#" className="hover:text-gray-600">GitHub</a>
-              <a href="#" className="hover:text-gray-600">文档</a>
-              <a href="#" className="hover:text-gray-600">隐私</a>
-            </div>
+      <footer className="border-t border-[#2f3c49] bg-[#17212b] px-4 py-8 text-[#9eafbe] sm:px-6">
+        <div className="mx-auto flex max-w-7xl flex-col gap-5 text-xs sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-2 text-white">
+            <Ship className="size-4" />
+            <strong>TradePilot</strong>
+          </div>
+          <p>{t("landing.footer")}</p>
+          <div className="flex items-center gap-4">
+            <a
+              href="https://github.com/feifei9126/tradepilot"
+              target="_blank"
+              rel="noreferrer"
+              className="hover:text-white"
+            >
+              GitHub
+            </a>
+            <a
+              href="https://github.com/feifei9126/tradepilot#readme"
+              target="_blank"
+              rel="noreferrer"
+              className="hover:text-white"
+            >
+              {isChinese ? "使用文档" : "Docs"}
+            </a>
+            <a
+              href="https://github.com/feifei9126/tradepilot/blob/main/LICENSE"
+              target="_blank"
+              rel="noreferrer"
+              className="hover:text-white"
+            >
+              License
+            </a>
           </div>
         </div>
       </footer>

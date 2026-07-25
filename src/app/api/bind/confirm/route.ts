@@ -1,16 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { store } from "@/lib/store";
+import { consumeBindToken } from "@/lib/bind-tokens";
 
 export async function POST(req: NextRequest) {
-  const { token, channel, phone, deviceId } = await req.json();
+  const body = await req.json();
+  const token = typeof body.token === "string" ? body.token : "";
+  const deviceId = typeof body.deviceId === "string" && body.deviceId.trim() ? body.deviceId.trim().slice(0, 120) : "mobile";
   if (!token) return NextResponse.json({ error: "缺少 token" }, { status: 400 });
 
-  const tokens = (global as any).__bindTokens || {};
-  const bindData = tokens[token];
-  if (!bindData) return NextResponse.json({ error: "无效或已过期的二维码" }, { status: 400 });
-  if (Date.now() > bindData.expiresAt) { delete tokens[token]; return NextResponse.json({ error: "二维码已过期" }, { status: 400 }); }
+  const result = consumeBindToken(token);
+  if ("error" in result) return NextResponse.json({ error: result.error }, { status: 400 });
+  const { pending } = result;
 
-  store.bindings.set(phone || bindData.phone, { channel: channel || bindData.channel, phone: phone || bindData.phone, deviceId: deviceId || "mobile", boundAt: new Date().toISOString() });
-  delete tokens[token];
-  return NextResponse.json({ success: true, channel: channel || bindData.channel, phone: phone || bindData.phone });
+  store.bindings.set(pending.phone, { channel: pending.channel, phone: pending.phone, deviceId, boundAt: new Date().toISOString() });
+  return NextResponse.json({ success: true, channel: pending.channel, phone: pending.phone });
 }

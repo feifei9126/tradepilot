@@ -1,18 +1,23 @@
 import { Sidebar } from "@/components/layout/sidebar";
 import { Header } from "@/components/layout/header";
 import { Toaster } from "@/components/ui/sonner";
+import { auth } from "@/lib/auth";
+import { redirect } from "next/navigation";
 
-export default function AppLayout({
+export default async function AppLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const session = await auth();
+  if (!session?.user) redirect("/auth/login");
+
   return (
-    <div className="min-h-screen bg-muted/30">
+    <div data-tradepilot-app>
       <Sidebar />
       <Header />
-      <main className="pl-56 pt-14">
-        <div className="p-6">{children}</div>
+      <main className="min-h-screen pt-[60px] md:pl-[248px]">
+        <div className="app-content">{children}</div>
       </main>
       <Toaster />
     </div>

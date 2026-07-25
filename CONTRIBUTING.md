@@ -42,12 +42,12 @@
 
 ```bash
 # 克隆并安装
-git clone https://github.com/tradepilot/tradepilot.git
+git clone https://github.com/feifei9126/tradepilot.git
 cd tradepilot
 npm install
 
 # 启动开发服务器
-npx next dev -p 3456
+npm run dev
 
 # 构建生产版本
 npx next build
@@ -55,8 +55,8 @@ npx next build
 
 ## 插件开发
 
-参考 [plugins/product-design/](plugins/product-design/) 了解插件开发规范。
+插件接口定义位于 [src/plugins/index.ts](src/plugins/index.ts)，插件清单可在后台“插件源码”页面创建和审查。当前版本不会自动执行未经审查的插件代码。
 
 ## 提问
 
-如有疑问，请通过 GitHub Issues 或 Discussions 联系我们。
+如有疑问，请通过 [GitHub Issues](https://github.com/feifei9126/tradepilot/issues) 联系我们。

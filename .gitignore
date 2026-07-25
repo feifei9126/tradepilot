@@ -2,9 +2,13 @@ node_modules/
 .next/
 .env
 .env.local
+.env.*
+!.env.example
 *.log
 data/
 dist/
 out/
 .DS_Store
 *.tsbuildinfo
+.impeccable/
+openmontage-workspace/

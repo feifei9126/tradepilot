@@ -1,33 +1,152 @@
 import { NextResponse } from "next/server";
+import { store } from "@/lib/store";
 
-// Mock email data for MVP
-const mockEmails = [
-  { id: "e1", accountId: "a1", messageId: "msg1", from: "john@bestbuy.com", to: "sales@tradepilot.com", subject: "Q3 Order Inquiry - Electronic Components", body: "Dear TradePilot team,\n\nWe are interested in ordering 5,000 units of your electronic components for Q3. Could you please provide a quotation for Model TP-1001?\n\nBest regards,\nJohn Smith\nProcurement Manager\nBestBuy Co.", date: "2026-06-15T09:23:00Z", folder: "inbox", isRead: false, isStarred: true, labels: ["inquiry"], contactId: "c1", createdAt: "2026-06-15T09:23:00Z" },
-  { id: "e2", accountId: "a1", messageId: "msg2", from: "hans@eurotech.de", to: "sales@tradepilot.com", subject: "Re: Product Catalog Request", body: "Thank you for sending the catalog. We are particularly interested in your industrial-grade sensors. Could you arrange a sample shipment to our Hamburg office?\n\nBest,\nHans Mueller\nCEO - EuroTech GmbH", date: "2026-06-14T14:15:00Z", folder: "inbox", isRead: false, isStarred: false, labels: ["sample"], contactId: "c2", createdAt: "2026-06-14T14:15:00Z" },
-  { id: "e3", accountId: "a1", messageId: "msg3", from: "sales@tradepilot.com", to: "john@bestbuy.com", subject: "Quotation: TP-1001 5,000 units", body: "Dear John,\n\nThank you for your inquiry. Please find attached our quotation for 5,000 units of TP-1001 at USD 12.50/unit FOB Shanghai.\n\nBest regards,\nTradePilot Sales Team", date: "2026-06-15T10:30:00Z", folder: "sent", isRead: true, isStarred: false, labels: ["quotation"], contactId: "c1", createdAt: "2026-06-15T10:30:00Z" },
-  { id: "e4", accountId: "a1", messageId: "msg4", from: "info@newclient.de", to: "sales@tradepilot.com", subject: "New Partnership Inquiry", body: "Hello,\n\nWe found your company through Alibaba and are interested in establishing a business relationship.\n\nRegards,\nSarah Weber", date: "2026-06-13T08:00:00Z", folder: "inbox", isRead: true, isStarred: false, labels: [], createdAt: "2026-06-13T08:00:00Z" },
+interface LocalEmailRecord {
+  id: string;
+  accountId: string;
+  messageId: string;
+  from: string;
+  to: string;
+  subject: string;
+  body: string;
+  date: string;
+  folder: "inbox" | "sent" | "draft" | "trash";
+  isRead: boolean;
+  isStarred: boolean;
+  labels: string[];
+  contactId?: string;
+  createdAt: string;
+}
+
+// Sample records keep the email workspace testable without claiming IMAP is connected.
+const emailRecords: LocalEmailRecord[] = [
+  {
+    id: "e1",
+    accountId: "sample",
+    messageId: "msg1",
+    from: "john@bestbuy.com",
+    to: "sales@example.com",
+    subject: "Q3 Order Inquiry - Electronic Components",
+    body: "Dear team,\n\nWe are interested in ordering 5,000 units for Q3. Could you provide a quotation?\n\nBest regards,\nJohn Smith",
+    date: "2026-06-15T09:23:00Z",
+    folder: "inbox",
+    isRead: false,
+    isStarred: true,
+    labels: ["示例", "询盘"],
+    contactId: "c1",
+    createdAt: "2026-06-15T09:23:00Z",
+  },
+  {
+    id: "e2",
+    accountId: "sample",
+    messageId: "msg2",
+    from: "hans@eurotech.de",
+    to: "sales@example.com",
+    subject: "Re: Product Catalog Request",
+    body: "Thank you for sending the catalog. Could you arrange a sample shipment to our Hamburg office?",
+    date: "2026-06-14T14:15:00Z",
+    folder: "inbox",
+    isRead: false,
+    isStarred: false,
+    labels: ["示例", "样品"],
+    contactId: "c2",
+    createdAt: "2026-06-14T14:15:00Z",
+  },
 ];
 
 export async function GET(req: Request) {
   const url = new URL(req.url);
   const folder = url.searchParams.get("folder") || "inbox";
-  const q = url.searchParams.get("q") || "";
-  let filtered = mockEmails.filter(e => e.folder === folder);
-  if (q) filtered = filtered.filter(e => e.subject.toLowerCase().includes(q.toLowerCase()) || e.from.toLowerCase().includes(q.toLowerCase()));
-  return NextResponse.json({ emails: filtered });
+  const query = (url.searchParams.get("q") || "").toLowerCase();
+  let filtered = emailRecords.filter((email) => email.folder === folder);
+  if (query) {
+    filtered = filtered.filter(
+      (email) =>
+        email.subject.toLowerCase().includes(query) ||
+        email.from.toLowerCase().includes(query) ||
+        email.body.toLowerCase().includes(query),
+    );
+  }
+  return NextResponse.json({ emails: filtered, mode: "local-draft" });
 }
 
 export async function POST(req: Request) {
   try {
-    const body = await req.json();
-    const { to, subject, body: emailBody, cc } = body;
-    if (!to || !subject) return NextResponse.json({ error: "收件人和主题必填" }, { status: 400 });
-    const newEmail = {
-      id: "e_" + Date.now(), accountId: "a1", messageId: "msg_" + Date.now(),
-      from: "sales@tradepilot.com", to, subject, body: emailBody || "",
-      date: new Date().toISOString(), folder: "sent", isRead: true, isStarred: false,
-      labels: [], createdAt: new Date().toISOString(),
+    const payload = await req.json();
+    const to = typeof payload.to === "string" ? payload.to.trim() : "";
+    const subject =
+      typeof payload.subject === "string" ? payload.subject.trim() : "";
+    if (!to || !subject) {
+      return NextResponse.json({ error: "收件人和主题必填" }, { status: 400 });
+    }
+    const body = typeof payload.body === "string" ? payload.body : "";
+    if (to.length > 1_000 || subject.length > 500 || body.length > 100_000) {
+      return NextResponse.json(
+        { error: "草稿内容超出长度限制" },
+        { status: 413 },
+      );
+    }
+    if (payload.action !== "save-draft") {
+      return NextResponse.json(
+        { error: "SMTP 尚未连接，当前只支持保存本地草稿" },
+        { status: 503 },
+      );
+    }
+
+    const now = new Date().toISOString();
+    const email: LocalEmailRecord = {
+      id: crypto.randomUUID(),
+      accountId: "local",
+      messageId: crypto.randomUUID(),
+      from: "local-draft",
+      to,
+      subject,
+      body,
+      date: now,
+      folder: "draft",
+      isRead: true,
+      isStarred: false,
+      labels: ["本地草稿"],
+      createdAt: now,
     };
-    return NextResponse.json({ ok: true, email: newEmail });
-  } catch { return NextResponse.json({ error: "发送失败" }, { status: 500 }); }
+    emailRecords.unshift(email);
+    return NextResponse.json({ ok: true, email, mode: "local-draft" });
+  } catch {
+    return NextResponse.json({ error: "草稿保存失败" }, { status: 400 });
+  }
+}
+
+export async function PATCH(req: Request) {
+  try {
+    const payload = (await req.json()) as {
+      id?: string;
+      isRead?: boolean;
+      contactId?: string;
+    };
+    const email = emailRecords.find((item) => item.id === payload.id);
+    if (!email)
+      return NextResponse.json({ error: "邮件不存在" }, { status: 404 });
+    let changed = false;
+    if (typeof payload.isRead === "boolean") {
+      email.isRead = payload.isRead;
+      changed = true;
+    }
+    if (typeof payload.contactId === "string") {
+      const contactId = payload.contactId.trim();
+      if (contactId && !store.contacts.get(contactId)) {
+        return NextResponse.json({ error: "关联客户不存在" }, { status: 400 });
+      }
+      email.contactId = contactId || undefined;
+      changed = true;
+    }
+    if (!changed) {
+      return NextResponse.json(
+        { error: "没有可更新的邮件字段" },
+        { status: 400 },
+      );
+    }
+    return NextResponse.json({ email });
+  } catch {
+    return NextResponse.json({ error: "更新邮件失败" }, { status: 400 });
+  }
 }

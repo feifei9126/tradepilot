@@ -1,15 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
+import QRCode from "qrcode";
+
+import { createBindToken } from "@/lib/bind-tokens";
 
 export async function POST(req: NextRequest) {
-  const { channel, phone } = await req.json();
-  if (!channel || !phone) return NextResponse.json({ error: "缺少参数" }, { status: 400 });
+  const body = await req.json();
+  const channel = body.channel === "whatsapp" || body.channel === "wechat" ? body.channel : null;
+  const phone = typeof body.phone === "string" ? body.phone.trim() : "";
+  if (!channel || !phone) return NextResponse.json({ error: "渠道和手机号必填" }, { status: 400 });
+  if (phone.length > 40) return NextResponse.json({ error: "手机号格式无效" }, { status: 400 });
 
-  const token = Math.random().toString(36).substring(2, 10) + Date.now().toString(36);
-  const qrData = JSON.stringify({ token, channel, phone, server: req.headers.get("host") || "localhost:3456" });
-  const qrUrl = "https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=" + encodeURIComponent(qrData);
+  const pending = createBindToken(channel, phone);
+  const configuredOrigin = process.env.AUTH_URL || req.nextUrl.origin;
+  const qrData = JSON.stringify({
+    version: 1,
+    token: pending.token,
+    confirmUrl: new URL("/api/bind/confirm", configuredOrigin).toString(),
+  });
+  const qrUrl = await QRCode.toDataURL(qrData, { width: 250, margin: 1, errorCorrectionLevel: "M" });
 
-  (global as any).__bindTokens = (global as any).__bindTokens || {};
-  (global as any).__bindTokens[token] = { token, channel, phone, expiresAt: Date.now() + 300000 };
-
-  return NextResponse.json({ token, qrData, qrUrl, channel, phone, expiresAt: Date.now() + 300000 });
+  return NextResponse.json({ token: pending.token, qrData, qrUrl, channel, phone, expiresAt: pending.expiresAt });
 }

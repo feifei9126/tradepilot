@@ -1,7 +1,7 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { networkInterfaces } from "os";
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   const nets = networkInterfaces();
   let lanIp = "localhost";
   
@@ -15,12 +15,19 @@ export async function GET() {
     if (lanIp !== "localhost") break;
   }
   
+  const requestUrl = new URL(req.url);
+  const forwardedProtocol = req.headers.get("x-forwarded-proto")?.split(",")[0]?.trim();
+  const protocol = forwardedProtocol || requestUrl.protocol.replace(":", "");
+  const host = req.headers.get("host") || requestUrl.host;
+  const port = host.match(/:(\d+)$/)?.[1] || requestUrl.port;
+  const portSuffix = port ? `:${port}` : "";
+
   return NextResponse.json({
     lanIp,
-    port: process.env.PORT || "3456",
+    port,
     urls: {
-      lan: `http://${lanIp}:3456`,
-      localhost: "http://localhost:3456",
+      lan: `${protocol}://${lanIp}${portSuffix}`,
+      localhost: `${protocol}://${host}`,
     },
   });
 }

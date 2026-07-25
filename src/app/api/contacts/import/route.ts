@@ -1,17 +1,41 @@
 import { NextRequest, NextResponse } from "next/server";
-import { store } from "@/lib/store";
+import { randomUUID } from "node:crypto";
+import { store, type StoredContact } from "@/lib/store";
+import { isValidEmail } from "@/lib/validation";
+import {
+  AIRequestConfigError,
+  AIUpstreamError,
+  callChatCompletion,
+} from "@/lib/ai/chat-completions";
+
+interface ImportedContact {
+  name?: string;
+  country?: string;
+  source?: string;
+  tags?: string[];
+  notes?: string;
+  email?: string;
+  phone?: string;
+}
 
 export async function POST(req: NextRequest) {
   const body = await req.json();
-  const { chatText, source, apiKey, provider, model } = body;
+  const chatText =
+    typeof body.chatText === "string" ? body.chatText.trim() : "";
+  const source =
+    typeof body.source === "string"
+      ? body.source.trim().slice(0, 100)
+      : "聊天导入";
 
   if (!chatText) {
     return NextResponse.json({ error: "请提供聊天记录内容" }, { status: 400 });
   }
-  if (!apiKey) {
-    return NextResponse.json({ error: "需要提供 API Key 用于 AI 解析" }, { status: 400 });
+  if (chatText.length > 2 * 1024 * 1024) {
+    return NextResponse.json(
+      { error: "聊天记录内容不能超过 2 MB" },
+      { status: 413 },
+    );
   }
-
   const systemPrompt = `你是一位外贸数据录入专家。用户上传了${source || "聊天软件"}的聊天记录，请从中提取客户信息。
 
 请提取以下字段（JSON 格式）：
@@ -38,51 +62,58 @@ export async function POST(req: NextRequest) {
 - 只返回 JSON，不要其他文字`;
 
   try {
-    let providerUrl = "https://api.openai.com/v1/chat/completions";
-    let modelName = model || "gpt-4o-mini";
-    if (provider === "deepseek") {
-      providerUrl = "https://api.deepseek.com/v1/chat/completions";
-      modelName = model || "deepseek-chat";
-    } else if (provider === "tongyi") {
-      providerUrl = "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions";
-      modelName = model || "qwen-max";
-    }
-
-    const response = await fetch(providerUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${apiKey}` },
-      body: JSON.stringify({
-        model: modelName,
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: chatText.slice(0, 6000) },
-        ],
-        max_tokens: 2000,
-        temperature: 0.3,
-      }),
+    const { data } = await callChatCompletion({
+      ...body,
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: String(chatText).slice(0, 6000) },
+      ],
+      maxTokens: 2000,
+      temperature: 0.3,
     });
-
-    const data = await response.json();
-    if (!response.ok) {
-      return NextResponse.json({ error: `AI API 错误: ${response.status}`, detail: data }, { status: response.status });
-    }
 
     const content = data.choices?.[0]?.message?.content || "";
     // Parse JSON from response (handle markdown code blocks)
     const jsonMatch = content.match(/\{[\s\S]*\}/);
-    const parsed = jsonMatch ? JSON.parse(jsonMatch[0]) : { contacts: [] };
+    const parsed = (
+      jsonMatch ? JSON.parse(jsonMatch[0]) : { contacts: [] }
+    ) as { contacts?: ImportedContact[] };
 
     // Save to store
-    const saved = (parsed.contacts || []).map((c: any) => {
-      const contact = {
-        id: `c${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
-        name: c.name || "未知客户",
-        country: c.country || "",
-        source: c.source || source || "聊天导入",
-        tags: c.tags || [],
-        notes: c.notes || "",
-        email: c.email || "",
-        phone: c.phone || "",
+    const contacts = (Array.isArray(parsed.contacts) ? parsed.contacts : [])
+      .filter(
+        (contact) => typeof contact.name === "string" && contact.name.trim(),
+      )
+      .slice(0, 100);
+    if (contacts.length === 0) {
+      return NextResponse.json(
+        { error: "AI 未提取到有效客户，请检查聊天内容后重试" },
+        { status: 422 },
+      );
+    }
+
+    const saved = contacts.map((c) => {
+      const contact: StoredContact = {
+        id: `c_${randomUUID()}`,
+        name: c.name!.trim().slice(0, 200),
+        country:
+          typeof c.country === "string" ? c.country.trim().slice(0, 100) : "",
+        source:
+          typeof c.source === "string" ? c.source.trim().slice(0, 100) : source,
+        tags: Array.isArray(c.tags)
+          ? c.tags
+              .filter((tag): tag is string => typeof tag === "string")
+              .map((tag) => tag.trim().slice(0, 100))
+              .filter(Boolean)
+              .slice(0, 20)
+          : [],
+        notes:
+          typeof c.notes === "string" ? c.notes.trim().slice(0, 10_000) : "",
+        email:
+          typeof c.email === "string" && isValidEmail(c.email.trim())
+            ? c.email.trim()
+            : "",
+        phone: typeof c.phone === "string" ? c.phone.trim().slice(0, 80) : "",
         createdAt: new Date().toISOString().slice(0, 10),
       };
       store.contacts.add(contact);
@@ -90,7 +121,19 @@ export async function POST(req: NextRequest) {
     });
 
     return NextResponse.json({ contacts: saved, raw: content });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (error: unknown) {
+    if (error instanceof AIRequestConfigError) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
+    if (error instanceof AIUpstreamError) {
+      return NextResponse.json(
+        { error: error.message, detail: error.detail },
+        { status: error.status },
+      );
+    }
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "聊天记录导入失败" },
+      { status: 500 },
+    );
   }
 }

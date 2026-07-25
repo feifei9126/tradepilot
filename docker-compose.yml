@@ -1,17 +1,92 @@
-version: "3.8"
 services:
   tradepilot:
-    build: .
-    container_name: tradepilot
+    build:
+      context: .
+      target: runner
     ports:
-      - "3456:3456"
+      - "${PORT:-3456}:3456"
     volumes:
       - tradepilot_data:/app/data
       - ./plugins:/app/plugins
     environment:
-      - NODE_ENV=production
-      - DATABASE_URL=sqlite:///app/data/tradepilot.db
+      NODE_ENV: production
+      TRADEPILOT_PORT: "3456"
+      TRADEPILOT_DATA_DIR: /app/data
+      TRADEPILOT_START_VIDEO_WORKER: "false"
+      AUTH_SECRET: "${AUTH_SECRET:?AUTH_SECRET is required; run bash install.sh or set it in .env}"
+      AUTH_URL: "${AUTH_URL:-http://localhost:3456}"
+      TRADEPILOT_ADMIN_EMAIL: "${TRADEPILOT_ADMIN_EMAIL:?TRADEPILOT_ADMIN_EMAIL is required; run bash install.sh or set it in .env}"
+      TRADEPILOT_ADMIN_PASSWORD: "${TRADEPILOT_ADMIN_PASSWORD:?TRADEPILOT_ADMIN_PASSWORD is required; run bash install.sh or set it in .env}"
+      OPENMONTAGE_WORKER_URL: http://video-worker:8787
+      MONEYPRINTERTURBO_URL: http://moneyprinterturbo:8080
+      FIRECRAWL_API_URL: "${FIRECRAWL_API_URL:-}"
+      FIRECRAWL_API_KEY: "${FIRECRAWL_API_KEY:-}"
     restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+
+  video-worker:
+    build:
+      context: .
+      target: runner
+    command: ["node", "workers/openmontage-adapter/server.mjs"]
+    expose:
+      - "8787"
+    volumes:
+      - video_worker_data:/app/openmontage-workspace
+    environment:
+      OPENMONTAGE_ADAPTER_PORT: "8787"
+      OPENMONTAGE_ADAPTER_HOST: "0.0.0.0"
+      OPENMONTAGE_WORKSPACE: /app/openmontage-workspace
+      OPENMONTAGE_PUBLIC_URL: http://video-worker:8787
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8787/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+
+  moneyprinterturbo:
+    image: ghcr.io/harry0703/moneyprinterturbo:v1.3.2
+    command: ["python3", "main.py"]
+    expose:
+      - "8080"
+    volumes:
+      - ./deploy/moneyprinterturbo/config.toml:/MoneyPrinterTurbo/config.toml:ro
+      - moneyprinterturbo_storage:/MoneyPrinterTurbo/storage
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/api/v1/tasks?page=1&page_size=1', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 18
+      start_period: 20s
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+
+  redis:
+    image: public.ecr.aws/docker/library/redis:7.4-alpine
+    command: ["redis-server", "--appendonly", "yes", "--requirepass", "tradepilot-video"]
+    expose:
+      - "6379"
+    volumes:
+      - moneyprinterturbo_redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "tradepilot-video", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
 
 volumes:
   tradepilot_data:
+  video_worker_data:
+  moneyprinterturbo_storage:
+  moneyprinterturbo_redis:
