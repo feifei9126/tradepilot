@@ -1,17 +1,27 @@
 {
-  "name": "TradePilot - AI外贸跟单助手",
+  "name": "TradePilot - 开源 AI 外贸 CRM 与订单管理系统",
   "short_name": "TradePilot",
-  "description": "面向小型外贸公司的AI驱动型跟单管理系统",
+  "description": "客户、询盘、报价、履约、AI 模型与产品视频的一体化自托管外贸工作台",
   "start_url": "/app",
   "display": "standalone",
-  "background_color": "#ffffff",
-  "theme_color": "#2563eb",
-  "orientation": "portrait",
+  "background_color": "#f4f7fa",
+  "theme_color": "#17212b",
+  "orientation": "any",
   "icons": [
-    { "src": "/icon-192x192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
-    { "src": "/icon-512x512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+    {
+      "src": "/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
   ],
-  "categories": ["business", "productivity"],
+  "categories": ["business", "productivity", "finance"],
   "lang": "zh-CN",
   "prefer_related_applications": false,
   "scope": "/"

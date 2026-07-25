@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { signIn } from "next-auth/react";
 import {
@@ -19,7 +20,7 @@ import { Label } from "@/components/ui/label";
 export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState("demo@tradepilot.dev");
-  const [password, setPassword] = useState("password");
+  const [password, setPassword] = useState("12345678");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -184,8 +185,18 @@ export default function LoginPage() {
             </Button>
           </form>
 
+          <p className="mt-5 text-center text-sm text-[#637181]">
+            需要团队账号？{" "}
+            <Link
+              href="/auth/register"
+              className="font-semibold text-[#1769e0] hover:underline"
+            >
+              创建工作区
+            </Link>
+          </p>
+
           <div className="mt-6 border-t pt-5 text-xs leading-5 text-[#637181]">
-            本地开发环境已预填演示账号。正式部署必须通过环境变量设置独立管理员密码。
+            演示环境已预填测试账号。正式部署请设置独立管理员密码或连接数据库注册团队账号。
           </div>
         </div>
       </section>

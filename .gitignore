@@ -1,5 +1,9 @@
 node_modules/
 .next/
+.open-next/
+.wrangler/
+.dev.vars*
+!.dev.vars.example
 .env
 .env.local
 .env.*

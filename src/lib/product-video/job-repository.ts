@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
-import { dirname, join, resolve } from "node:path";
+import { dirname, join } from "node:path";
 
 import type { StoredProductVideoJob } from "../store";
 
@@ -11,7 +11,9 @@ export class ProductVideoJobRepository {
 
   private async readJobs(): Promise<StoredProductVideoJob[]> {
     try {
-      const parsed: unknown = JSON.parse(await readFile(this.filePath, "utf8"));
+      const parsed: unknown = JSON.parse(
+        await readFile(/* turbopackIgnore: true */ this.filePath, "utf8"),
+      );
       return Array.isArray(parsed) ? parsed as StoredProductVideoJob[] : [];
     } catch (error: unknown) {
       if ((error as NodeJS.ErrnoException).code === "ENOENT") return [];
@@ -78,7 +80,7 @@ export class ProductVideoJobRepository {
   }
 }
 
-const dataDirectory = resolve(process.env.TRADEPILOT_DATA_DIR || join(process.cwd(), "data"));
+const dataDirectory = process.env.TRADEPILOT_DATA_DIR || "data";
 export const productVideoJobs = new ProductVideoJobRepository(
   join(dataDirectory, "product-video-jobs.json"),
 );

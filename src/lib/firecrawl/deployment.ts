@@ -115,7 +115,10 @@ export function canDeployFirecrawlFromBrowser(
 export async function readFirecrawlDeploymentStatus() {
   try {
     const parsed = JSON.parse(
-      await readFile(getFirecrawlDeploymentPaths().status, "utf8"),
+      await readFile(
+        /* turbopackIgnore: true */ getFirecrawlDeploymentPaths().status,
+        "utf8",
+      ),
     ) as Partial<FirecrawlDeploymentStatus>;
     if (
       typeof parsed.phase !== "string" ||
@@ -160,7 +163,10 @@ export async function writeFirecrawlDeploymentStatus(
 
 export async function readFirecrawlDeploymentLog(maxLines = 80) {
   try {
-    const content = await readFile(getFirecrawlDeploymentPaths().log, "utf8");
+    const content = await readFile(
+      /* turbopackIgnore: true */ getFirecrawlDeploymentPaths().log,
+      "utf8",
+    );
     return content
       .replace(/\u001b\[[0-9;]*m/g, "")
       .split(/\r?\n/)

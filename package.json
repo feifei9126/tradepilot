@@ -2,13 +2,44 @@
   "name": "tradepilot",
   "version": "0.1.0",
   "private": true,
+  "description": "开源 AI 外贸 CRM、订单履约与产品视频工作台，支持 BYOK、Ollama、Firecrawl、MoneyPrinterTurbo、OpenMontage 和 Docker 自托管。",
+  "keywords": [
+    "ai-crm",
+    "foreign-trade",
+    "trade-management",
+    "order-management",
+    "cross-border",
+    "self-hosted",
+    "ollama",
+    "firecrawl",
+    "product-video",
+    "nextjs"
+  ],
+  "homepage": "https://tradepilot.us.kg/",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/feifei9126/tradepilot.git"
+  },
+  "bugs": {
+    "url": "https://github.com/feifei9126/tradepilot/issues"
+  },
+  "license": "AGPL-3.0",
+  "author": "TradePilot Contributors",
   "scripts": {
     "dev": "next dev -p 3458",
     "build": "next build",
     "start": "node scripts/start-local.mjs",
+    "start:web": "next start",
     "lint": "eslint",
     "test": "tsx --test tests/product-video/*.test.ts tests/firecrawl/*.test.ts tests/business/*.test.ts",
     "deploy": "bash install.sh",
+    "deploy:docker": "bash install.sh",
+    "deploy:cloudflare": "opennextjs-cloudflare build && opennextjs-cloudflare deploy",
+    "preview:cloudflare": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
+    "upload:cloudflare": "opennextjs-cloudflare build && opennextjs-cloudflare upload",
+    "cf-typegen": "wrangler types --env-interface CloudflareEnv cloudflare-env.d.ts",
+    "cfbuild": "opennextjs-cloudflare build",
+    "db:init": "node scripts/init-db.mjs",
     "firecrawl:deploy": "node scripts/deploy-firecrawl.mjs",
     "video-worker": "node workers/openmontage-adapter/server.mjs"
   },
@@ -18,6 +49,7 @@
     "@ffmpeg-installer/ffmpeg": "^1.1.0",
     "@hookform/resolvers": "^5.4.0",
     "@neondatabase/serverless": "^1.1.0",
+    "@opennextjs/cloudflare": "^1.19.11",
     "@tanstack/react-query": "^5.101.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
@@ -54,6 +86,10 @@
     "eslint-config-next": "16.2.6",
     "tailwindcss": "^4",
     "tsx": "^4.22.4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "wrangler": "^4.103.0"
+  },
+  "engines": {
+    "node": ">=22"
   }
 }

@@ -1,118 +1,127 @@
 <p align="center">
-  <img src="https://img.shields.io/github/license/feifei9126/tradepilot" alt="License">
-  <img src="https://img.shields.io/badge/Next.js-16-black" alt="Next.js">
-  <img src="https://img.shields.io/badge/PRs-welcome-brightgreen" alt="PRs Welcome">
+  <img src="public/icon-192x192.png" width="88" alt="TradePilot logo" />
 </p>
 
-<h1 align="center">TradePilot · 开源 AI 外贸管理平台</h1>
+<h1 align="center">TradePilot</h1>
 
 <p align="center">
-  <strong>面向 1-5 人小型外贸公司<br/>
-  开源免费 · 自配 AI · 一键部署 · 可继续二次开发</strong>
+  <strong>开源 AI 外贸 CRM、订单履约与产品视频工作台</strong>
 </p>
 
 <p align="center">
-  <i>年费 ¥0 vs 竞品 ¥5,000-30,000/年</i>
+  客户 · 询盘 · 报价 · 订单 · 出货 · AI 模型 · 产品视频
+</p>
+
+<p align="center">
+  <a href="https://tradepilot.us.kg/"><strong>在线演示</strong></a>
+  ·
+  <a href="#快速部署"><strong>快速部署</strong></a>
+  ·
+  <a href="#产品视频工作流"><strong>视频工作流</strong></a>
+  ·
+  <a href="https://github.com/feifei9126/tradepilot/issues"><strong>反馈问题</strong></a>
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/github/license/feifei9126/tradepilot" alt="AGPL-3.0 license" />
+  <img src="https://img.shields.io/github/stars/feifei9126/tradepilot?style=flat" alt="GitHub stars" />
+  <img src="https://img.shields.io/github/last-commit/feifei9126/tradepilot" alt="Last commit" />
+  <img src="https://img.shields.io/badge/Next.js-16-111827" alt="Next.js 16" />
+  <img src="https://img.shields.io/badge/Docker-self--hosted-1769e0" alt="Docker self-hosted" />
 </p>
 
 ---
 
-## 📋 目录
+## 先看效果
 
-- [为什么选择 TradePilot？](#-为什么选择-tradepilot)
-- [功能一览](#-功能一览)
-- [快速开始](#-快速开始)
-- [技术栈](#-技术栈)
-- [项目结构](#-项目结构)
-- [截图](#-截图)
-- [与竞品对比](#-与竞品对比)
-- [贡献指南](#-贡献指南)
-- [许可证](#-许可证)
+[![TradePilot 全球贸易控制台](public/tradepilot-console.png)](https://tradepilot.us.kg/)
 
----
+| 在线演示 | 信息                                                   |
+| -------- | ------------------------------------------------------ |
+| 地址     | [https://tradepilot.us.kg/](https://tradepilot.us.kg/) |
+| 测试账号 | `demo@tradepilot.dev`                                  |
+| 测试密码 | `12345678`                                             |
 
-## 💡 为什么选择 TradePilot？
+TradePilot 面向 1-5 人外贸团队，把分散的客户资料、报价、订单、出货、AI 配置和产品内容生产放进同一个可自托管工作区。它不是只有一张 KPI 看板的演示项目，仓库同时包含业务 API、输入校验、测试、Docker 部署、视频 Worker 和第三方服务接入说明。
 
-### 痛点
+## 为什么是 TradePilot
 
-中国 50 万家外贸企业中，1-5 人小团队占绝大多数。他们面临的困境：
+| 你需要解决的问题           | TradePilot 的处理方式                                             |
+| -------------------------- | ----------------------------------------------------------------- |
+| 客户、询盘、报价和订单分散 | 用一条业务链关联客户、报价、订单、出货和单证草稿                  |
+| AI 平台被单一供应商锁定    | BYOK，自行配置 OpenAI、DeepSeek、通义千问、Ollama 或兼容 API      |
+| 产品网页和素材整理耗时     | Firecrawl 抓取产品资料、图片和视频，确认后再导入                  |
+| 产品视频制作链路割裂       | 本地 FFmpeg、MoneyPrinterTurbo、OpenMontage 三种生产路径统一管理  |
+| SaaS 数据与二次开发受限    | AGPL-3.0 开源，支持 Docker 自托管和源码级扩展                     |
+| 设置项容易配置失败         | 提供 Base URL、请求路径、模型映射、User-Agent、Headers 和代理覆盖 |
 
-| 问题          | 传统方案               | 我们的方案                     |
-| ------------- | ---------------------- | ------------------------------ |
-| **年费高昂**  | 小满 OKKI ¥20,000+/年  | **¥0（开源免费）**             |
-| **AI 被锁定** | 商业软件额外加收 AI 费 | **自带 API Key，用多少付多少** |
-| **部署复杂**  | 需专业 IT 团队         | **bash install.sh 一键搞定**   |
-| **数据控制**  | 客户资料存第三方服务器 | **自行部署和管理运行环境**     |
-| **二次开发**  | 依赖厂商排期           | **源码可审查和修改**           |
+## 核心能力
 
-### 三大差异化
+### 外贸 CRM 与订单履约
 
-|    ⭐    | 能力         | 说明                                                       |
-| :------: | ------------ | ---------------------------------------------------------- |
-| **开源** | AGPL v3      | 代码完全公开，可审计、可定制、可私有部署                   |
-|  **AI**  | 自带 API Key | 支持 DeepSeek/OpenAI/通义千问/Ollama，费用由所选服务商决定 |
-| **部署** | 一键安装     | Docker Compose 构建并启动主站和视频 Worker                 |
+- 客户档案、联系人、标签、来源与跟进状态
+- 询盘创建、状态流转和 AI 回复草稿
+- 报价草稿、贸易术语、成本加价与人工接受确认
+- 报价转订单、订单进度、沟通记录和交期风险
+- 出货、物流、供应商、财务汇总与单证草稿
+- 基于真实业务记录生成的仪表盘、销售漏斗和待办提醒
 
----
+### AI 模型与 Ollama
 
-## ✨ 功能一览
+- 支持 OpenAI、DeepSeek、通义千问与 OpenAI 兼容服务
+- 支持 Ollama 本地模型检测、推荐模型和安装命令
+- 可配置完整 API 请求地址、模型映射和自定义请求头
+- 支持自定义 User-Agent、本地代理与请求地址覆盖
+- API Key 保存在当前浏览器，通过 TradePilot 服务端发起请求
 
-### CRM 核心
+### Firecrawl 产品采集
 
-- **客户管理** — 360° 客户档案、联系人、跟进时间线、标签分组
-- **询盘管理** — 多渠道来源、状态流转、AI 回复草稿
-- **报价管理** — AI 报价草稿、状态确认、接受后转订单
-- **订单管理** — 订单进度、沟通记录、出货与单证草稿
+- 从公开产品页提取名称、描述、规格、图片和视频
+- 导入前预览与人工确认，不直接污染产品数据
+- 抓取到的视频可进入 MoneyPrinterTurbo 重新编排
+- 本地环境提供 Docker 检测、部署进度、日志和连接验证
 
-### 邮件中心
+### 产品视频工作流
 
-- **邮件工作台** — 示例邮件查看、本地草稿与客户关联；真实收发需另接 IMAP/SMTP Worker
-- **AI 辅助** — AI 邮件与回复草稿
-- **邮箱设置** — 保存非敏感 IMAP/SMTP 连接参数草稿；当前未内置收发 Worker
+| 模式        | 适合场景           | 运行方式                                       |
+| ----------- | ------------------ | ---------------------------------------------- |
+| 本地快速    | 内部确认、快速样片 | FFmpeg Worker 生成可播放 MP4                   |
+| AI 自动成片 | 社媒推广、客户介绍 | MoneyPrinterTurbo 处理配音、字幕、音乐和多素材 |
+| 高级制作    | 品牌项目、复杂镜头 | OpenMontage 命令适配器接入自定义流水线         |
 
-### 文档与单证
+产品视频页包含引擎健康状态、素材输入、任务队列、进度、预览、下载、批量选择和删除。任务数据可写入持久卷，服务重启后仍可查询。
 
-- **单证草稿** — 商业发票、装箱单和形式发票的 HTML 预览与下载
-- **使用边界** — 卖方、包装、支付等缺失字段需人工补全，对外使用前必须核对
+## 快速部署
 
-### AI 能力
+### Docker 一键部署
 
-- **AI 邮件** — 根据上下文自动生成开发信
-- **AI 客户导入** — 从聊天文本提取客户资料
-- **AI 跟单建议** — 基于订单状态推荐下一步
-- **AI 产品资料** — 根据产品名生成可编辑的资料草稿
-- **支持模型** — DeepSeek、GPT-4o、通义千问、Ollama（本地）
-- **产品视频** — 本地 FFmpeg、MoneyPrinterTurbo AI 自动成片与 OpenMontage 高级制作
-
-### 数据决策
-
-- **仪表盘** — 基于当前内存业务记录生成 KPI、销售漏斗和交付提醒
-- **汇率参考** — 通过 Frankfurter/ECB 获取公开参考汇率；请求失败时不伪造数据
-
-### 扩展能力
-
-- **插件开发** — 创建和审查插件源码骨架；当前版本不自动加载第三方运行时代码
-- **侧栏定制** — 菜单排序、显示隐藏
-
----
-
-## 🚀 快速开始
-
-### 方式一：Docker 一键部署（推荐，¥0）
+前置条件：Docker Desktop，或已启用 Compose 插件的 Docker Engine。
 
 ```bash
-# 安装 Docker（如已安装可跳过）
-curl -fsSL https://get.docker.com | bash
-
-# 下载并启动 TradePilot
 git clone https://github.com/feifei9126/tradepilot.git
 cd tradepilot
 bash install.sh
 ```
 
-安装完成后打开 `http://localhost:3456`。脚本会生成随机管理员密码、写入项目 `.env`，并在终端显示登录账号和密码。
+安装器会：
 
-### 方式二：本地开发运行
+1. 生成认证密钥和随机管理员密码。
+2. 构建并启动 TradePilot 与本地视频 Worker。
+3. 在后台启动 MoneyPrinterTurbo 和 Redis。
+4. 在终端输出登录账号、密码和服务状态命令。
+
+完成后访问 [http://localhost:3456](http://localhost:3456)。
+
+常用命令：
+
+```bash
+docker compose ps
+docker compose logs -f
+docker compose restart
+docker compose down
+```
+
+### 本地开发
 
 ```bash
 git clone https://github.com/feifei9126/tradepilot.git
@@ -121,162 +130,149 @@ npm install
 npm run dev
 ```
 
-本地开发未配置管理员环境变量时，可使用 `demo@tradepilot.dev` / `password`；生产模式必须配置 `TRADEPILOT_ADMIN_EMAIL` 和 `TRADEPILOT_ADMIN_PASSWORD`。
+开发地址为 [http://localhost:3458](http://localhost:3458)。未配置环境变量时使用演示账号 `demo@tradepilot.dev` / `12345678`。
 
-本机已经使用 PM2 常驻运行时，执行 `./start.sh` 只会重启现有 TradePilot 实例，不会重复创建进程。需要进入 Next.js 开发模式时，先执行 `pm2 stop tradepilot`，避免与常驻服务争用端口和 `.next` 构建目录。
-
-### 方式三：云服务器部署
-
-购买一台 2 核 4G 云服务器（腾讯云/阿里云轻量应用服务器 ¥68/月起），SSH 登录后执行方式一的命令即可。
-
-### 配置 AI
-
-启动后，进入「设置 → AI 提供商」，填入你的 API Key：
-
-```
-DeepSeek：   sk-xxxx（按服务商当前规则计费）
-OpenAI：     sk-xxxx（按量付费）
-通义千问：   按服务商当前规则计费
-Ollama：     模型本地运行，硬件和电力成本自理
-```
-
-### 配置产品视频
-
-Docker 一键脚本先启动 TradePilot 和本地 FFmpeg Worker，再在后台启动 MoneyPrinterTurbo 和 Redis。主站无需等待 AI 视频镜像下载；连接状态可在产品视频页查看，失败后也可以单独重试。产品视频任务保存在持久卷中，服务重启后仍可查询、预览和删除。
+生产运行：
 
 ```bash
-bash install.sh
+npm run build
+npm start
 ```
 
-产品视频页提供三种引擎：
+`npm start` 会同时管理 Next.js 和本地视频 Worker；无需再开第二个终端。只启动网页可设置 `TRADEPILOT_START_VIDEO_WORKER=false`。
 
-- `本地快速`：用 FFmpeg 和产品图片生成基础验证成片。
-- `AI 自动成片`：MoneyPrinterTurbo 生成配音、字幕、背景音乐和多素材短视频。
-- `高级制作`：通过 OpenMontage 命令流水线完成复杂镜头与动效。
+### Cloudflare Workers
 
-本地 Node.js 开发时，执行 `npm start` 会自动启动网页和本地 FFmpeg Worker，不需要第二个终端。MoneyPrinterTurbo 推荐通过 Docker Compose 启动：
+仓库保留 OpenNext + Wrangler 部署配置。数据库连接和认证信息必须使用 Cloudflare Secrets，禁止写入 `wrangler.jsonc`：
 
 ```bash
-docker compose up -d moneyprinterturbo
+npm install
+npx wrangler secret put DATABASE_URL
+npx wrangler secret put AUTH_SECRET
+npx wrangler secret put TRADEPILOT_ADMIN_EMAIL
+npx wrangler secret put TRADEPILOT_ADMIN_PASSWORD
+npm run deploy:cloudflare
 ```
 
-需要单独调试 Worker 时执行：
+初始化 PostgreSQL / Neon 表和管理员账号：
 
 ```bash
-npm run video-worker
+DATABASE_URL='postgresql://...' \
+TRADEPILOT_ADMIN_EMAIL='admin@example.com' \
+TRADEPILOT_ADMIN_PASSWORD='replace-with-a-strong-password' \
+npm run db:init
 ```
 
-单独启动 Web 时设置：
+Cloudflare Workers 不运行 Docker、FFmpeg 或本地文件系统任务。使用 Cloudflare 部署时，需要把 Firecrawl、MoneyPrinterTurbo 和 OpenMontage Worker 部署为独立服务，再通过环境变量连接。完整产品视频能力优先推荐 Docker 部署。
+
+## 工作流
+
+```mermaid
+flowchart LR
+  A[公开产品页] --> B[Firecrawl 预览]
+  B --> C[产品目录]
+  C --> D[询盘与报价]
+  D --> E[订单与履约]
+  C --> F[产品视频]
+  F --> G[本地 FFmpeg]
+  F --> H[MoneyPrinterTurbo]
+  F --> I[OpenMontage]
+  J[OpenAI / DeepSeek / 通义千问 / Ollama] --> D
+  J --> F
+```
+
+## 配置
+
+复制环境变量模板：
 
 ```bash
-OPENMONTAGE_WORKER_URL=http://localhost:8787
+cp .env.example .env
 ```
 
-MoneyPrinterTurbo 使用私有 Docker 网络，不要把 8080 端口直接暴露到公网。跨服务器部署必须增加 HTTPS 和访问控制。
+关键配置：
 
-详细说明见 [MoneyPrinterTurbo 集成文档](docs/moneyprinterturbo-product-video.md)、[OpenMontage 集成文档](docs/openmontage-product-video.md)和 [Firecrawl 产品媒体采集](docs/firecrawl-product-media.md)。
+| 变量                        | 用途                                        |
+| --------------------------- | ------------------------------------------- |
+| `AUTH_SECRET`               | NextAuth 会话签名密钥，生产环境必须随机生成 |
+| `TRADEPILOT_ADMIN_EMAIL`    | 部署管理员邮箱                              |
+| `TRADEPILOT_ADMIN_PASSWORD` | 部署管理员密码                              |
+| `DATABASE_URL`              | 可选，启用 PostgreSQL / Neon 注册账号       |
+| `TRADEPILOT_DATA_DIR`       | 产品视频任务持久化目录                      |
+| `OPENMONTAGE_WORKER_URL`    | OpenMontage / 本地 FFmpeg Worker 地址       |
+| `MONEYPRINTERTURBO_URL`     | MoneyPrinterTurbo API 地址                  |
+| `FIRECRAWL_API_URL`         | Firecrawl Cloud 或自托管 API 地址           |
+| `FIRECRAWL_API_KEY`         | Firecrawl API Key                           |
 
-### 配置 Firecrawl 产品采集
+## 数据与功能边界
 
-Firecrawl 把公开商品网页转换成可确认的产品资料、图片和视频素材；抓到的视频可在产品视频页交给 MoneyPrinterTurbo 重新编排。进入「产品」→「Firecrawl 抓取」，页面会说明完整流程，并提供环境检测、后台部署进度、日志和连接验证。
+开源项目的可信度来自边界清楚，而不是功能列表越长越好：
 
-本机部署只需先启动 Docker Desktop，再点击「一键部署 Firecrawl」。命令行兜底方式：
+- 客户、询盘、报价和订单的默认演示数据保存在进程内，服务重启后恢复种子数据。
+- PostgreSQL / Neon 当前用于注册账号；业务多租户持久化仍需要继续接入。
+- 邮件中心保存草稿和非敏感连接参数，真实 IMAP/SMTP 收发需要独立 Worker。
+- 单证为可下载的业务草稿，对外使用前必须核对卖方、包装、支付和合规字段。
+- 插件通过源码目录与脚本管理，不在生产环境执行未经审查的第三方运行时代码。
+- AI 输出、抓取内容和视频脚本都应由业务人员确认后使用。
 
-```bash
-npm run firecrawl:deploy
-```
+## 技术栈
 
-安装器固定使用官方 `v2.11.0` 完整 Compose，并在启动后执行真实抓取验证。已有 Firecrawl Cloud 或自托管服务仍可通过 `FIRECRAWL_API_URL`、`FIRECRAWL_API_KEY` 配置，环境变量优先于本机托管配置。详细前置条件、Docker 场景和故障排查见 [Firecrawl 产品媒体采集](docs/firecrawl-product-media.md)。
+| 层级      | 技术                                           |
+| --------- | ---------------------------------------------- |
+| Web       | Next.js 16、React 19、TypeScript、Tailwind CSS |
+| UI        | Base UI、Lucide、Motion                        |
+| Auth / DB | NextAuth、Drizzle ORM、Neon PostgreSQL         |
+| AI        | OpenAI 兼容请求层、Ollama                      |
+| 采集      | Firecrawl                                      |
+| 视频      | FFmpeg、MoneyPrinterTurbo、OpenMontage Adapter |
+| 部署      | Docker Compose、OpenNext、Cloudflare Workers   |
+| 测试      | Node Test Runner、TSX                          |
 
----
+## 项目结构
 
-## 📦 技术栈
-
-| 层级         | 技术                              | 说明                                       |
-| ------------ | --------------------------------- | ------------------------------------------ |
-| **前端框架** | Next.js 16 + React 19             | 全栈 React 框架                            |
-| **UI 组件**  | shadcn/ui + Tailwind CSS          | 美观、可定制                               |
-| **数据存储** | 进程内业务数据 + 视频任务文件仓库 | CRM 演示数据重启后复位；视频任务写入持久卷 |
-| **AI 引擎**  | OpenAI 兼容请求层                 | 支持多提供商、自定义地址和 Ollama          |
-| **容器化**   | Docker + Docker Compose           | 一键部署                                   |
-| **包管理**   | npm                               |                                            |
-
----
-
-## 📁 项目结构
-
-```
+```text
 tradepilot/
-├── src/
-│   ├── app/
-│   │   ├── api/          # 46 个 API 路由
-│   │   └── app/          # 28 个页面
-│   ├── components/       # 24 个组件
-│   ├── lib/              # 13 个模块
-│   └── db/schema/        # 14 个数据表
-├── plugins/              # 插件源码骨架（当前不自动加载运行）
-├── Dockerfile
+├── src/app/                 # 页面与 API 路由
+├── src/components/          # 业务组件与 UI 基础组件
+├── src/lib/                 # AI、业务、采集、视频与安全逻辑
+├── tests/                   # 业务、Firecrawl、产品视频测试
+├── workers/openmontage-adapter/
+├── docs/                    # 集成与部署说明
 ├── docker-compose.yml
 ├── install.sh
-└── README.md
+└── wrangler.jsonc
 ```
 
----
+深入文档：
 
-## 📊 与竞品对比
+- [Firecrawl 产品媒体采集](docs/firecrawl-product-media.md)
+- [MoneyPrinterTurbo 产品视频](docs/moneyprinterturbo-product-video.md)
+- [OpenMontage 产品视频](docs/openmontage-product-video.md)
+- [架构说明](ARCHITECTURE.md)
+- [贡献指南](CONTRIBUTING.md)
+- [安全策略](SECURITY.md)
 
-| 对比项      |   OKKI   | 富通天下 | 孚盟软件 |    **TradePilot**     |
-| ----------- | :------: | :------: | :------: | :-------------------: |
-| 软件许可费  | 商业订阅 | 商业订阅 | 商业订阅 | **AGPL v3，无许可费** |
-| 开源        |    ❌    |    ❌    |    ❌    |    **✅ AGPL v3**     |
-| 数据自主    | ❌ SaaS  | ❌ SaaS  | ❌ SaaS  |     **✅ 自部署**     |
-| AI 自配 Key |    ❌    |    ❌    |    ❌    |        **✅**         |
-| 客户管理    |    ✅    |    ✅    |    ✅    |        **✅**         |
-| 邮件管理    |    ✅    |    ✅    |    ✅    |        **✅**         |
-| 报价单      |    ✅    |    ✅    |    ✅    |        **✅**         |
-| 订单管理    |    ✅    |    ✅    |    ✅    |        **✅**         |
-| 多币种      |    ✅    |    ✅    |    ✅    |  **🚧 数据模型预留**  |
-| 单证生成    |    ✅    |    ✅    |    ❌    |      **⚡ 基础**      |
-| 插件扩展    |    ❌    |    ❌    |    ❌    |  **🚧 源码骨架管理**  |
-| 部署方式    | 注册即用 | 注册即用 | 注册即用 | **Docker / 本机脚本** |
-
----
-
-## 🤝 贡献指南
-
-我们欢迎任何形式的贡献！请阅读 [CONTRIBUTING.md](CONTRIBUTING.md) 了解如何参与。
-
-### 贡献方式
-
-- 🐛 **提交 Issue** — 报告 Bug 或提出功能建议
-- 📝 **完善文档** — 改进 README、添加教程
-- 💻 **提交代码** — 修复 Bug、开发新功能
-- 🌐 **翻译** — 添加多语言支持
-
-### 开发环境
+## 验证
 
 ```bash
-git clone https://github.com/feifei9126/tradepilot.git
-cd tradepilot
-npm install
-npx next dev -p 3456
+npm test
+npm run lint
+npm run build
 ```
 
----
+当前测试覆盖报价转订单、出货状态联动、输入完整性、Webhook 鉴权、Ollama 地址安全、Firecrawl SSRF 防护、视频任务持久化和 Worker 资产地址约束。
 
-## 📄 许可证
+## 适用场景
 
-本项目采用 **AGPL v3** 协议开源。
+TradePilot 适合寻找以下方案的开发者和小型团队：开源外贸 CRM、外贸订单管理系统、跨境贸易管理、自托管 CRM、私有化 AI 跟单、Ollama 外贸应用、Firecrawl 商品采集，以及产品视频自动生成工作流。
 
-- ✅ 个人和商业用户可免费使用、修改、部署
-- ✅ 修改后的代码如果作为网络服务提供，需要开源
-- ❌ 不允许闭源的 SaaS 化商业利用而不回馈社区
+## 参与项目
 
----
+- 使用问题与功能建议：[GitHub Issues](https://github.com/feifei9126/tradepilot/issues)
+- 提交代码前阅读：[CONTRIBUTING.md](CONTRIBUTING.md)
+- 安全问题请按：[SECURITY.md](SECURITY.md)
 
-<p align="center">
-  <b>TradePilot</b> — 让小型外贸公司用极低成本享受大公司级别的数字化工具<br/>
-  <a href="https://github.com/feifei9126/tradepilot">GitHub</a> ·
-  <a href="#-快速开始">快速开始</a> ·
-  <a href="https://github.com/feifei9126/tradepilot/issues">反馈</a>
-</p>
+如果这个项目解决了你的实际问题，可以在 GitHub 点 Star，帮助更多需要开源外贸管理工具的团队发现它。
+
+## License
+
+TradePilot 使用 [GNU AGPL-3.0](LICENSE) 许可证。通过网络提供修改后的版本时，请遵守 AGPL-3.0 的源代码开放要求。

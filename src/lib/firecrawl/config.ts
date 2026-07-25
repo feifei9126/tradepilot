@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { join } from "node:path";
 
 export type FirecrawlManagedConfig = {
   managed: true;
@@ -11,9 +11,7 @@ export type FirecrawlManagedConfig = {
 type FirecrawlEnvironment = Readonly<Record<string, string | undefined>>;
 
 export function getTradePilotDataDirectory() {
-  return resolve(
-    process.env.TRADEPILOT_DATA_DIR || join(process.cwd(), "data"),
-  );
+  return process.env.TRADEPILOT_DATA_DIR || "data";
 }
 
 export function getFirecrawlManagedConfigPath() {
@@ -47,7 +45,7 @@ export function readManagedFirecrawlConfig(
 ): FirecrawlManagedConfig | null {
   try {
     const parsed = JSON.parse(
-      readFileSync(filePath, "utf8"),
+      readFileSync(/* turbopackIgnore: true */ filePath, "utf8"),
     ) as Partial<FirecrawlManagedConfig>;
     if (
       parsed.managed !== true ||
