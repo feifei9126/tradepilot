@@ -19,6 +19,8 @@ const requiredOxideWasmPackages = [
   "node_modules/@tailwindcss/oxide-wasm32-wasi/node_modules/tslib",
 ];
 
+const officialNpmRegistry = "https://registry.npmjs.org/";
+
 async function readLockPackages() {
   const lockFile = new URL("../../package-lock.json", import.meta.url);
   const lock = JSON.parse(await readFile(lockFile, "utf8"));
@@ -32,6 +34,18 @@ test("package lock includes native dependencies for Cloudflare Linux builds", as
   );
 
   assert.deepEqual(missingPackages, []);
+});
+
+test("Cloudflare native dependencies resolve from the official npm registry", async () => {
+  const packages = await readLockPackages();
+  const nonOfficialPackages = requiredLinuxPackages.filter((packagePath) => {
+    const resolved = packages[packagePath]?.resolved;
+    return (
+      typeof resolved !== "string" || !resolved.startsWith(officialNpmRegistry)
+    );
+  });
+
+  assert.deepEqual(nonOfficialPackages, []);
 });
 
 test("package lock includes the Tailwind Oxide WASM dependency closure", async () => {
