@@ -32,6 +32,7 @@
     "start:web": "next start",
     "lint": "eslint",
     "test": "tsx --test tests/product-video/*.test.ts tests/firecrawl/*.test.ts tests/business/*.test.ts tests/build/*.test.mjs",
+    "precfbuild": "node scripts/ensure-cloudflare-native-deps.mjs",
     "deploy": "bash install.sh",
     "deploy:docker": "bash install.sh",
     "deploy:cloudflare": "opennextjs-cloudflare build && opennextjs-cloudflare deploy",
