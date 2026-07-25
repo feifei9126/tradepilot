@@ -4,6 +4,7 @@
   "name": "tradepilot",
   "compatibility_date": "2026-06-20",
   "compatibility_flags": ["nodejs_compat"],
+  "keep_vars": true,
   "assets": {
     "directory": ".open-next/assets",
     "binding": "ASSETS",
