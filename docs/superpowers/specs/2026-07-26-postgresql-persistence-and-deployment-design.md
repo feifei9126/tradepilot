@@ -1,7 +1,7 @@
 # TradePilot PostgreSQL 持久化与一键部署设计
 
 - 日期：2026-07-26
-- 状态：设计已确认，待书面规格审查
+- 状态：已实现并验证（2026-07-26；真实 Docker 容器启动/重启测试需在安装 Docker 的环境执行）
 - 范围：客户、产品、询盘、报价、订单、物流，以及这些流程直接依赖的导入、导出、认证租户和部署能力
 
 ## 1. 背景
@@ -255,18 +255,19 @@ tradepilot app
 
 Cloudflare Worker 无法可靠地替用户自动创建第三方 PostgreSQL，因此“一键部署”定义为一个本地引导命令，而不是承诺完全无人值守的网页按钮。用户可选择 Neon 或任意支持 TLS 的 PostgreSQL 连接串。
 
-新增 `npm run setup:cloudflare`，依次完成：
+实现的 `npm run setup:cloudflare` 依次完成：
 
-1. 检查 Node、Wrangler 登录状态和目标 Worker；
-2. 提示用户粘贴 PostgreSQL/Neon `DATABASE_URL`，只在当前进程中使用；
-3. 安全读取管理员邮箱和密码，密码输入不回显；
-4. 检查连接和数据库权限；
-5. 执行 migrate、bootstrap 和可选 seed；
-6. 生成或读取 `AUTH_SECRET`；
-7. 通过 `wrangler secret put` 设置 `DATABASE_URL` 和 `AUTH_SECRET`；
-8. 构建并部署 Worker；
-9. 请求公开健康端点，确认数据库、迁移和管理员状态；
-10. 打印 Cloudflare Dashboard 中仍需确认的域名和 Git 自动构建设置。
+1. 从交互输入或环境变量读取并校验 PostgreSQL/Neon `DATABASE_URL`；
+2. 安全读取管理员邮箱和密码，交互密码输入不回显；
+3. 执行 `db:status`、`db:migrate` 和 `db:bootstrap`；
+4. 仅在显式启用时执行 `db:seed`；
+5. 生成或读取 `AUTH_SECRET`；
+6. 通过 stdin 调用 `wrangler secret put` 设置 `DATABASE_URL` 和 `AUTH_SECRET`；
+7. 执行 OpenNext Cloudflare build 和 Wrangler deploy；
+8. 从部署输出取得 Worker URL，必要时提示输入 URL；
+9. 请求公开 `/api/health`，确认数据库、迁移和管理员状态。
+
+脚本支持交互模式、`--non-interactive`、`--dry-run`、显式 seed 开关和健康检查 URL。Wrangler 未登录、Worker 权限不足或目标配置错误由对应 build/deploy 步骤返回可操作的修复提示。
 
 脚本不得把连接串或密码写入 Git、命令日志或普通 Wrangler vars。自动 Git 构建只负责 build/deploy，数据库迁移由版本升级前运行引导命令或 CI 迁移任务完成。`keep_vars: true` 继续保留，防止部署覆盖 Dashboard 中已有的运行时 secret。
 

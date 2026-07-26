@@ -44,6 +44,8 @@
 
 TradePilot 面向 1-5 人外贸团队，把分散的客户资料、报价、订单、出货、AI 配置和产品内容生产放进同一个可自托管工作区。它不是只有一张 KPI 看板的演示项目，仓库同时包含业务 API、输入校验、测试、Docker 部署、视频 Worker 和第三方服务接入说明。
 
+生产环境必须配置 PostgreSQL（Neon 或其他兼容 PostgreSQL 的服务），不会降级到内存数据。本地 `npm run dev` 在没有 `DATABASE_URL` 时使用隔离的内存演示模式；配置 `DATABASE_URL` 后，本地开发也会直接使用 PostgreSQL。
+
 ## 为什么是 TradePilot
 
 | 你需要解决的问题           | TradePilot 的处理方式                                             |
@@ -105,10 +107,12 @@ bash install.sh
 
 安装器会：
 
-1. 生成认证密钥和随机管理员密码。
-2. 构建并启动 TradePilot 与本地视频 Worker。
-3. 在后台启动 MoneyPrinterTurbo 和 Redis。
-4. 在终端输出登录账号、密码和服务状态命令。
+1. 生成认证密钥、PostgreSQL 密码和随机管理员密码，并保存到本机 `.env`。
+2. 构建并启动 PostgreSQL，执行迁移和管理员初始化。
+3. 启动 TradePilot 与本地视频 Worker。
+4. 在后台启动 MoneyPrinterTurbo 和 Redis，并输出登录账号、密码和服务状态命令。
+
+生产数据库默认是空的。只有显式设置 `TRADEPILOT_SEED_DEMO=true`，初始化时才会写入演示客户、产品、询盘、报价、订单和物流记录。
 
 完成后访问 [http://localhost:3456](http://localhost:3456)。
 
@@ -130,7 +134,7 @@ npm install
 npm run dev
 ```
 
-开发地址为 [http://localhost:3458](http://localhost:3458)。未配置环境变量时使用演示账号 `demo@tradepilot.dev` / `12345678`。
+开发地址为 [http://localhost:3458](http://localhost:3458)。`npm run dev` 未配置 `DATABASE_URL` 时使用内存演示账号 `demo@tradepilot.dev` / `12345678`；这组账号不会进入生产数据库。
 
 生产运行：
 
@@ -143,25 +147,22 @@ npm start
 
 ### Cloudflare Workers
 
-仓库保留 OpenNext + Wrangler 部署配置。数据库连接和认证信息必须使用 Cloudflare Secrets，禁止写入 `wrangler.jsonc`：
+Cloudflare Workers 生产环境必须使用 PostgreSQL/Neon。推荐使用引导命令，它会在本地执行连接检查、迁移、管理员 bootstrap、secret 设置、构建、部署和健康检查：
 
 ```bash
 npm install
-npx wrangler secret put DATABASE_URL
-npx wrangler secret put AUTH_SECRET
-npx wrangler secret put TRADEPILOT_ADMIN_EMAIL
-npx wrangler secret put TRADEPILOT_ADMIN_PASSWORD
-npm run deploy:cloudflare
+npm run setup:cloudflare
 ```
 
-初始化 PostgreSQL / Neon 表和管理员账号：
+也可以先预览命令而不触碰数据库或 Worker：
 
 ```bash
-DATABASE_URL='postgresql://...' \
-TRADEPILOT_ADMIN_EMAIL='admin@example.com' \
-TRADEPILOT_ADMIN_PASSWORD='replace-with-a-strong-password' \
-npm run db:init
+npm run setup:cloudflare -- --dry-run
 ```
+
+连接串、`AUTH_SECRET` 和其他运行时凭据必须保存在 Wrangler/Cloudflare Secrets，禁止写入 `wrangler.jsonc`。`TRADEPILOT_ADMIN_EMAIL` 与 `TRADEPILOT_ADMIN_PASSWORD` 只用于本地 bootstrap；初始化完成后密码不会上传到 Worker，可从本地环境中删除。生产默认不导入演示业务数据；需要时在引导命令前设置 `TRADEPILOT_SEED_DEMO=true`。
+
+Cloudflare Git 自动构建只负责构建和部署，不会替你运行数据库迁移。升级版本时，先在可访问数据库的环境运行 `npm run db:migrate`（或再次运行引导命令），再触发 Git 构建。
 
 Cloudflare Workers 不运行 Docker、FFmpeg 或本地文件系统任务。使用 Cloudflare 部署时，需要把 Firecrawl、MoneyPrinterTurbo 和 OpenMontage Worker 部署为独立服务，再通过环境变量连接。完整产品视频能力优先推荐 Docker 部署。
 
@@ -195,8 +196,9 @@ cp .env.example .env
 | --------------------------- | ------------------------------------------- |
 | `AUTH_SECRET`               | NextAuth 会话签名密钥，生产环境必须随机生成 |
 | `TRADEPILOT_ADMIN_EMAIL`    | 部署管理员邮箱                              |
-| `TRADEPILOT_ADMIN_PASSWORD` | 部署管理员密码                              |
-| `DATABASE_URL`              | 可选，启用 PostgreSQL / Neon 注册账号       |
+| `TRADEPILOT_ADMIN_PASSWORD` | 首次 bootstrap 使用的管理员密码             |
+| `DATABASE_URL`              | 生产必填；Neon 或其他兼容 PostgreSQL 的连接串 |
+| `TRADEPILOT_SEED_DEMO`      | 显式设为 `true` 才导入演示业务数据           |
 | `TRADEPILOT_DATA_DIR`       | 产品视频任务持久化目录                      |
 | `OPENMONTAGE_WORKER_URL`    | OpenMontage / 本地 FFmpeg Worker 地址       |
 | `MONEYPRINTERTURBO_URL`     | MoneyPrinterTurbo API 地址                  |
@@ -207,8 +209,9 @@ cp .env.example .env
 
 开源项目的可信度来自边界清楚，而不是功能列表越长越好：
 
-- 客户、询盘、报价和订单的默认演示数据保存在进程内，服务重启后恢复种子数据。
-- PostgreSQL / Neon 当前用于注册账号；业务多租户持久化仍需要继续接入。
+- 客户、产品、询盘、报价、订单、物流和单据在生产环境通过租户隔离的 PostgreSQL 仓库持久化。
+- 只有本地无数据库开发模式使用内存演示数据；生产默认空库，演示 seed 必须显式开启。
+- 客户批量导入在数据库事务中整批提交或回滚；客户和产品导出只查询当前租户。
 - 邮件中心保存草稿和非敏感连接参数，真实 IMAP/SMTP 收发需要独立 Worker。
 - 单证为可下载的业务草稿，对外使用前必须核对卖方、包装、支付和合规字段。
 - 插件通过源码目录与脚本管理，不在生产环境执行未经审查的第三方运行时代码。
@@ -244,6 +247,7 @@ tradepilot/
 
 深入文档：
 
+- [PostgreSQL 部署、升级与故障排查](docs/postgresql-deployment.md)
 - [Firecrawl 产品媒体采集](docs/firecrawl-product-media.md)
 - [MoneyPrinterTurbo 产品视频](docs/moneyprinterturbo-product-video.md)
 - [OpenMontage 产品视频](docs/openmontage-product-video.md)
@@ -255,9 +259,15 @@ tradepilot/
 
 ```bash
 npm test
+npm run test:db
+npm run test:deploy
 npm run lint
+npx tsc --noEmit
 npm run build
+npm run cfbuild
 ```
+
+`npm run test:db` 和 `npm run test:coverage` 需要可写的测试 PostgreSQL；例如先设置 `TRADEPILOT_TEST_DATABASE_URL`，再运行对应命令。它们不会使用生产数据库凭据。
 
 当前测试覆盖报价转订单、出货状态联动、输入完整性、Webhook 鉴权、Ollama 地址安全、Firecrawl SSRF 防护、视频任务持久化和 Worker 资产地址约束。
 
