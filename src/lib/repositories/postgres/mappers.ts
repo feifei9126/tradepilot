@@ -1,20 +1,30 @@
 import { BusinessError } from "@/lib/business/errors";
 import type {
   StoredContact,
+  StoredInquiry,
+  StoredLineItem,
+  StoredOrder,
   StoredProduct,
   StoredProductMedia,
+  StoredQuotation,
 } from "@/lib/business/types";
 import type {
   communications,
   contactPersons,
   contacts,
+  inquiries,
+  orders,
   products,
+  quotations,
 } from "@/db/schema";
 
 type ContactRow = typeof contacts.$inferSelect;
 type ContactPersonRow = typeof contactPersons.$inferSelect;
 type CommunicationRow = typeof communications.$inferSelect;
 type ProductRow = typeof products.$inferSelect;
+type InquiryRow = typeof inquiries.$inferSelect;
+type QuotationRow = typeof quotations.$inferSelect;
+type OrderRow = typeof orders.$inferSelect;
 
 export function decimalNumber(value: string | number | null | undefined) {
   if (value == null) return 0;
@@ -84,6 +94,71 @@ function mediaItems(value: unknown): StoredProductMedia[] {
   });
 }
 
+export function lineItems(value: unknown): StoredLineItem[] {
+  if (!Array.isArray(value)) {
+    throw new BusinessError(
+      "DATABASE_SCHEMA_OUTDATED",
+      "数据库业务明细字段无效",
+      503,
+    );
+  }
+  return value.map((item) => {
+    if (!item || typeof item !== "object") {
+      throw new BusinessError(
+        "DATABASE_SCHEMA_OUTDATED",
+        "数据库业务明细字段无效",
+        503,
+      );
+    }
+    const record = item as Record<string, unknown>;
+    if (
+      typeof record.productName !== "string" ||
+      !Number.isFinite(Number(record.quantity))
+    ) {
+      throw new BusinessError(
+        "DATABASE_SCHEMA_OUTDATED",
+        "数据库业务明细字段无效",
+        503,
+      );
+    }
+    return {
+      productId:
+        typeof record.productId === "string" ? record.productId : undefined,
+      productName: record.productName,
+      quantity: Number(record.quantity),
+      unit: typeof record.unit === "string" ? record.unit : undefined,
+      unitPrice:
+        record.unitPrice == null ? undefined : decimalNumber(record.unitPrice as string | number),
+      amount:
+        record.amount == null ? undefined : decimalNumber(record.amount as string | number),
+    };
+  });
+}
+
+function orderCommunications(value: unknown): StoredOrder["comms"] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((item) => {
+    if (!item || typeof item !== "object") return [];
+    const record = item as Record<string, unknown>;
+    if (
+      typeof record.from !== "string" ||
+      typeof record.date !== "string" ||
+      typeof record.channel !== "string" ||
+      typeof record.text !== "string"
+    ) {
+      return [];
+    }
+    return [
+      {
+        from: record.from,
+        date: record.date,
+        channel: record.channel,
+        text: record.text,
+      },
+    ];
+  });
+}
+
 export function mapContact(
   row: ContactRow,
   personRows: ContactPersonRow[] = [],
@@ -140,6 +215,65 @@ export function mapProduct(row: ProductRow): StoredProduct {
     warehouse: row.warehouse || undefined,
     source: row.source || undefined,
     media: mediaItems(row.media),
+  };
+}
+
+export function mapInquiry(row: InquiryRow): StoredInquiry {
+  return {
+    id: row.id,
+    customer: row.customerName,
+    contactId: row.contactId || undefined,
+    subject: row.subject || "",
+    content: row.rawText || "",
+    source: row.source || "",
+    status:
+      row.status === "quoted" ||
+      row.status === "converted" ||
+      row.status === "lost"
+        ? row.status
+        : "pending",
+    aiReply: row.aiReply || undefined,
+    createdAt: isoDate(row.createdAt) || "",
+  };
+}
+
+export function mapQuotation(
+  row: QuotationRow,
+  contactName: string,
+  orderId: string | null = null,
+): StoredQuotation {
+  return {
+    id: row.id,
+    no: row.quotationNo,
+    contactId: row.contactId,
+    contactName,
+    items: lineItems(row.itemsJson),
+    totalAmount: decimalNumber(row.totalAmount),
+    currency: row.currency || "USD",
+    tradeTerm: row.tradeTerm || "FOB",
+    status: row.status || "draft",
+    aiGenerated: Boolean(row.aiGenerated),
+    createdAt: isoDate(row.createdAt) || "",
+    orderId,
+  };
+}
+
+export function mapOrder(row: OrderRow, contactName: string): StoredOrder {
+  return {
+    id: row.id,
+    no: row.orderNo,
+    contactId: row.contactId,
+    contactName,
+    quotationId: row.quotationId || undefined,
+    items: lineItems(row.itemsJson),
+    totalAmount: decimalNumber(row.totalAmount),
+    currency: row.currency || "USD",
+    status: row.status || "confirmed",
+    deliveryDate: isoDate(row.deliveryDate),
+    progressPercent: row.progressPercent || 0,
+    tradeTerm: row.tradeTerm || undefined,
+    comms: orderCommunications(row.commsJson),
+    createdAt: isoDate(row.createdAt) || "",
   };
 }
 

@@ -5,7 +5,10 @@ import { BusinessError } from "@/lib/business/errors";
 
 import type { BusinessRepository } from "../contracts";
 import { createContactRepository } from "./contacts";
+import { createInquiryRepository } from "./inquiries";
+import { createOrderRepository } from "./orders";
 import { createProductRepository } from "./products";
+import { createQuotationRepository } from "./quotations";
 
 type Database = PostgresJsDatabase<typeof import("@/db/schema")>;
 
@@ -24,24 +27,9 @@ export function createPostgresRepository(
   return {
     contacts: createContactRepository(db, context),
     products: createProductRepository(db, context),
-    inquiries: {
-      list: async () => pending(),
-      get: async () => pending(),
-      create: async () => pending(),
-      update: async () => pending(),
-    },
-    quotations: {
-      list: async () => pending(),
-      get: async () => pending(),
-      create: async () => pending(),
-      updateStatus: async () => pending(),
-    },
-    orders: {
-      list: async () => pending(),
-      get: async () => pending(),
-      createFromQuotation: async () => pending(),
-      update: async () => pending(),
-    },
+    inquiries: createInquiryRepository(db, context),
+    quotations: createQuotationRepository(db, context),
+    orders: createOrderRepository(db, context),
     shipments: {
       list: async () => pending(),
       get: async () => pending(),

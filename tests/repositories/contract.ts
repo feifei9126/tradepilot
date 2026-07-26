@@ -74,7 +74,7 @@ export async function runContactsProductsContract(
   return { companyA, companyB, contact, product };
 }
 
-export async function runRepositoryContract(createRepository: RepositoryFactory) {
+export async function runSalesContract(createRepository: RepositoryFactory) {
   const { companyA, companyB, contact, product } =
     await runContactsProductsContract(createRepository);
 
@@ -116,6 +116,21 @@ export async function runRepositoryContract(createRepository: RepositoryFactory)
   assert.equal(order.totalAmount, quotation.totalAmount);
   assert.match(order.no, /^ORD-\d{4}-\d{3}$/);
   assert.equal(await companyB.orders.get(order.id), null);
+
+  return {
+    companyA,
+    companyB,
+    contact,
+    product,
+    inquiry,
+    quotation,
+    order,
+  };
+}
+
+export async function runRepositoryContract(createRepository: RepositoryFactory) {
+  const { companyA, companyB, contact, order } =
+    await runSalesContract(createRepository);
 
   const shipment = await companyA.shipments.create({
     orderId: order.id,
