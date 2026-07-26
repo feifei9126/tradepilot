@@ -64,6 +64,7 @@ test("Resend account input does not accept SMTP or IMAP configuration", () => {
     email: "mail@example.com",
     provider: "resend",
     apiKey: "re_test_key",
+    webhookSecret: "whsec_test_secret",
   });
 
   assert.equal(account.provider, "resend");
@@ -71,7 +72,10 @@ test("Resend account input does not accept SMTP or IMAP configuration", () => {
   assert.equal(account.smtpPort, null);
   assert.equal(account.imapHost, null);
   assert.equal(account.imapPort, null);
-  assert.deepEqual(account.credentials, { apiKey: "re_test_key" });
+  assert.deepEqual(account.credentials, {
+    apiKey: "re_test_key",
+    webhookSecret: "whsec_test_secret",
+  });
 
   validationError(() =>
     parseEmailAccountInput({

@@ -88,6 +88,24 @@ function optionalCredential(
   return value;
 }
 
+function optionalCredentialIfPresent(
+  input: Record<string, unknown>,
+  name: string,
+  maxLength: number,
+) {
+  const nested = input.credentials && typeof input.credentials === "object" && !Array.isArray(input.credentials)
+    ? input.credentials as Record<string, unknown>
+    : {};
+  const raw = input[name] === undefined ? nested[name] : input[name];
+  if (raw === undefined) return undefined;
+  if (typeof raw !== "string") return invalid(`Email ${name} is invalid`);
+  const value = raw.trim();
+  if (!value || value.length > maxLength || /[\0\r\n]/.test(value)) {
+    return invalid(`Email ${name} is invalid`);
+  }
+  return value;
+}
+
 export function normalizeEmailAddress(value: unknown) {
   if (typeof value !== "string") return invalid("Email address is invalid");
   const email = value.trim().toLowerCase();
@@ -264,6 +282,7 @@ export function parseEmailAccountInput(
     if (hasConnectionValue(input)) {
       return invalid("Resend accounts cannot include SMTP or IMAP settings");
     }
+    const webhookSecret = optionalCredentialIfPresent(input, "webhookSecret", 4_096);
     return {
       name,
       email,
@@ -276,7 +295,10 @@ export function parseEmailAccountInput(
       imapSecure: true,
       imapMailbox: null,
       status,
-      credentials: { apiKey: optionalCredential(input, "apiKey", 4_096) },
+      credentials: {
+        apiKey: optionalCredential(input, "apiKey", 4_096),
+        ...(webhookSecret ? { webhookSecret } : {}),
+      },
     };
   }
 
