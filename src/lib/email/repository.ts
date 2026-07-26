@@ -229,7 +229,7 @@ export function createMemoryEmailRepository(): EmailRepository {
       return clone(input);
     },
     async leaseOutbox({ now, leasedUntil, limit }) {
-      const leased = [...outbox.values()].filter((item) => (item.status === "pending" || item.status === "retry") && item.nextAttemptAt <= now && (!item.leasedUntil || item.leasedUntil <= now)).slice(0, limit).map((item) => ({ ...item, status: "leased", leasedUntil, updatedAt: now }));
+      const leased = [...outbox.values()].filter((item) => (item.status === "pending" || item.status === "retry" || item.status === "leased") && item.nextAttemptAt <= now && (!item.leasedUntil || item.leasedUntil <= now)).slice(0, limit).map((item) => ({ ...item, status: "leased", leasedUntil, updatedAt: now }));
       leased.forEach((item) => outbox.set(item.id, item));
       return clone(leased);
     },
@@ -372,7 +372,7 @@ export function createPostgresEmailRepository(db: Database): EmailRepository {
     },
     async leaseOutbox({ now, leasedUntil, limit }) {
       return db.transaction(async (transaction) => {
-        const rows = await transaction.select().from(emailOutbox).where(and(inArray(emailOutbox.status, ["pending", "retry"]), lte(emailOutbox.nextAttemptAt, new Date(now)), or(isNull(emailOutbox.leasedUntil), lte(emailOutbox.leasedUntil, new Date(now))))).orderBy(asc(emailOutbox.nextAttemptAt)).for("update", { skipLocked: true }).limit(limit);
+        const rows = await transaction.select().from(emailOutbox).where(and(inArray(emailOutbox.status, ["pending", "retry", "leased"]), lte(emailOutbox.nextAttemptAt, new Date(now)), or(isNull(emailOutbox.leasedUntil), lte(emailOutbox.leasedUntil, new Date(now))))).orderBy(asc(emailOutbox.nextAttemptAt)).for("update", { skipLocked: true }).limit(limit);
         if (!rows.length) return [];
         const updated = await transaction.update(emailOutbox).set({ status: "leased", leasedUntil: new Date(leasedUntil), updatedAt: new Date(now) }).where(inArray(emailOutbox.id, rows.map((row) => row.id))).returning();
         return updated.map(mapOutbox);

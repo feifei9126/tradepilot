@@ -138,3 +138,28 @@ test("outbox retries temporary failures with the documented backoff and does not
   assert.equal(stored?.attemptCount, 1);
   assert.equal(stored?.lastError?.includes("re_outbox_secret"), false);
 });
+
+test("outbox leases can be reclaimed after a worker lease expires", async () => {
+  const repository = createMemoryEmailRepository();
+  const account = testAccount();
+  account.encryptedCredentials = JSON.stringify(await sealSecret(JSON.stringify({ apiKey: "re_lease_secret" }), CREDENTIALS_KEY, { companyId: COMPANY_ID, recordId: ACCOUNT_ID, purpose: "email" }));
+  await repository.createAccount(account);
+  await repository.enqueue(createOutboxItem({
+    companyId: COMPANY_ID,
+    accountId: ACCOUNT_ID,
+    idempotencyKey: "outbox-lease-expiry",
+    payload: { to: "buyer@example.com", subject: "Quote", text: "Hello", html: "<p>Hello</p>" },
+    createdBy: null,
+    status: "leased",
+    nextAttemptAt: new Date(0).toISOString(),
+    leasedUntil: new Date(1_000).toISOString(),
+  }));
+  const leased = await repository.leaseOutbox({
+    now: new Date(2_000).toISOString(),
+    leasedUntil: new Date(3_000).toISOString(),
+    limit: 1,
+  });
+  assert.equal(leased.length, 1);
+  assert.equal(leased[0]?.status, "leased");
+  assert.equal(leased[0]?.leasedUntil, new Date(3_000).toISOString());
+});
