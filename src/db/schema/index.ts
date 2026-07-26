@@ -8,6 +8,7 @@ export { quotations } from "./quotations";
 export { orders, orderMilestones } from "./orders";
 export { shipments, documents } from "./shipments";
 export { communications } from "./communications";
+export { documentSequences } from "./document_sequences";
 export { aiSuggestions } from "./ai_suggestions";
 export { aiProviderConfigs, aiTaskMappings } from "./ai_config";
 export { systemSettings } from "./settings";
