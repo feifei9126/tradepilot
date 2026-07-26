@@ -33,6 +33,11 @@ const coreTables = [
   "email_attachments",
   "email_outbox",
   "email_events",
+  "payment_accounts",
+  "payment_requests",
+  "payment_attempts",
+  "payment_provider_events",
+  "payment_refunds",
 ];
 
 async function existingTables(sql: Sql) {
@@ -96,6 +101,12 @@ test("migrates an empty database with tenant-safe constraints", async () => {
       "email_events_provider_event_unique",
       "email_outbox_company_idempotency_unique",
       "email_outbox_status_attempt_idx",
+      "payment_accounts_company_public_id_unique",
+      "payment_accounts_public_id_unique",
+      "payment_requests_token_hash_unique",
+      "payment_attempts_company_idempotency_unique",
+      "payment_events_provider_event_unique",
+      "payment_refunds_company_idempotency_unique",
     ]) {
       assert.ok(indexes.has(indexName), `missing index ${indexName}`);
     }

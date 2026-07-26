@@ -56,6 +56,7 @@ export const DEFAULT_ORDER = [
   "/app/suppliers",
   "/app/email",
   "/app/email/settings",
+  "/app/settings/payments",
   "/app/bind",
   "/app/messages",
   "/app/leads",

@@ -182,6 +182,12 @@ const allNavItems: NavItem[] = [
     group: "system",
   },
   {
+    href: "/app/settings/payments",
+    labelKey: "nav.finance",
+    icon: DollarSign,
+    group: "system",
+  },
+  {
     href: "/app/settings",
     labelKey: "nav.settings",
     icon: SettingsIcon,

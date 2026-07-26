@@ -23,3 +23,7 @@ export { emailThreads } from "./email_threads";
 export { emailMessages, emailAttachments } from "./email_messages";
 export { emailOutbox } from "./email_outbox";
 export { emailEvents } from "./email_events";
+export { paymentAccounts } from "./payment_accounts";
+export { paymentRequests, paymentAttempts } from "./payment_requests";
+export { paymentProviderEvents } from "./payment_events";
+export { paymentRefunds } from "./payment_refunds";

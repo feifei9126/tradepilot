@@ -26,6 +26,7 @@ import {
   RefreshCw,
   Sparkles,
   Settings2,
+  CreditCard,
 } from "lucide-react";
 import Link from "next/link";
 import { useState, useEffect } from "react";
@@ -290,6 +291,23 @@ export default function OrderDetailPage() {
     }
   }
 
+  async function createOrderPaymentLink() {
+    if (!order) return;
+    try {
+      const response = await fetch(`/api/orders/${order.id}/payment-requests`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ amount: String(order.totalAmount), currency: order.currency || "USD" }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "鏀舵閾炬帴鍒涘缓澶辫触");
+      await navigator.clipboard.writeText(`${window.location.origin}${data.url}`);
+      toast.success("鏀舵閾炬帴宸插鍒?");
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message : "鏀舵閾炬帴鍒涘缓澶辫触");
+    }
+  }
+
   if (loading)
     return (
       <div className="p-8 text-center text-muted-foreground">加载中...</div>
@@ -548,6 +566,9 @@ export default function OrderDetailPage() {
 
       {/* Action Buttons */}
       <div className="flex gap-2 flex-wrap">
+        <Button variant="outline" onClick={createOrderPaymentLink}>
+          <CreditCard className="h-4 w-4 mr-2" /> 鍒涘缓鏀舵閾炬帴
+        </Button>
         <Button variant="outline" onClick={openProgressEditor}>
           <Settings2 className="h-4 w-4 mr-2" /> 更新订单进度
         </Button>

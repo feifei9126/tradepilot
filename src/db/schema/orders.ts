@@ -34,6 +34,8 @@ export const orders = pgTable(
     itemsJson: jsonb("items_json").notNull().default([]),
     totalAmount: decimal("total_amount", { precision: 12, scale: 2 }),
     currency: varchar("currency", { length: 3 }).default("USD"),
+    paymentStatus: varchar("payment_status", { length: 24 }).default("unpaid").notNull(),
+    amountPaidMinor: integer("amount_paid_minor").default(0).notNull(),
     tradeTerm: varchar("trade_term", { length: 10 }).default("FOB"),
     paymentTerm: varchar("payment_term", { length: 50 }),
     depositPct: decimal("deposit_pct", { precision: 5, scale: 2 }),
