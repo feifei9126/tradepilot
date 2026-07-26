@@ -39,7 +39,7 @@ export async function GET(request: Request) {
   try {
     const context = await authorizeEmailContext(
       requireBusinessContext(request),
-      "email:use",
+      "email:configure",
     );
     if (resolveStorageMode() === "memory") {
       return NextResponse.json({ accounts: [], mode: "local-draft" });

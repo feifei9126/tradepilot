@@ -90,6 +90,8 @@ test("invalid mailbox addresses are rejected", () => {
     "plain-address",
     "missing@domain",
     "two@@example.com",
+    "foo.@example.com",
+    `${"a".repeat(65)}@example.com`,
     "sales @example.com",
     "sales@ example.com",
     "sales@例子.com",

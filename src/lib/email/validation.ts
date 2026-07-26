@@ -91,12 +91,16 @@ function optionalCredential(
 export function normalizeEmailAddress(value: unknown) {
   if (typeof value !== "string") return invalid("Email address is invalid");
   const email = value.trim().toLowerCase();
+  const at = email.lastIndexOf("@");
+  const local = at > 0 ? email.slice(0, at) : "";
   if (
     !email ||
     email.length > 255 ||
+    local.length > 64 ||
     !EMAIL_PATTERN.test(email) ||
-    email.startsWith(".") ||
-    email.includes("..")
+    local.startsWith(".") ||
+    local.endsWith(".") ||
+    local.includes("..")
   ) {
     return invalid("Email address is invalid");
   }
