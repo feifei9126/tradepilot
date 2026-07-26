@@ -27,6 +27,9 @@
     "nodemailer": "^7.0.3",
     "postal-mime": "^2.4.4",
     "sanitize-html": "^2.17.0"
+  },
+  "devDependencies": {
+    "@types/sanitize-html": "^2.16.0"
   }
 }
 ```

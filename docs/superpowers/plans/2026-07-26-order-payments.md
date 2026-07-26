@@ -23,7 +23,8 @@
 ```ts
 test("money uses minor units and rejects over-collection", () => {
   assert.equal(toMinorUnits("12.30", "USD"), 1230);
-  assert.equal(toMinorUnits("12.3", "JPY"), 12);
+  assert.equal(toMinorUnits("12", "JPY"), 12);
+  assert.throws(() => toMinorUnits("12.3", "JPY"), /precision/);
   assert.throws(() => toMinorUnits("-1", "USD"), /positive/);
   assert.throws(() => assertCollectable({ paid: 900, pending: 200, total: 1000 }), /exceed/);
 });
