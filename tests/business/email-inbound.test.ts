@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHmac } from "node:crypto";
 import test from "node:test";
 
 import { createMemoryEmailRepository } from "../../src/lib/email/repository";
@@ -6,6 +7,7 @@ import {
   ingestInboundEmail,
   normalizeCloudflareInboundEmail,
   normalizeInboundEmail,
+  verifyResendWebhookSignature,
 } from "../../src/lib/email/inbound";
 
 const COMPANY_ID = "10000000-0000-4000-8000-000000000001";
@@ -94,4 +96,22 @@ test("Cloudflare Email Routing input maps to the same normalized structure", asy
   assert.equal(normalized.from[0]?.email, "buyer@example.com");
   assert.equal(normalized.to[0]?.email, "sales@example.com");
   assert.equal(normalized.textBody, "Body");
+});
+
+test("Svix webhook signatures require a valid timestamp window", () => {
+  const rawBody = JSON.stringify({ id: "evt_1" });
+  const id = "msg_1";
+  const timestamp = "1751371200";
+  const secret = `whsec_${Buffer.from("webhook-secret").toString("base64")}`;
+  const signature = createHmac("sha256", Buffer.from("webhook-secret"))
+    .update(`${id}.${timestamp}.${rawBody}`)
+    .digest("base64");
+  const headers = {
+    "svix-id": id,
+    "svix-timestamp": timestamp,
+    "svix-signature": `v1,${signature}`,
+  };
+  assert.equal(verifyResendWebhookSignature({ rawBody, headers, secret, now: 1751371200 }), true);
+  assert.equal(verifyResendWebhookSignature({ rawBody, headers, secret, now: 1751371801 }), false);
+  assert.equal(verifyResendWebhookSignature({ rawBody: `${rawBody}x`, headers, secret, now: 1751371200 }), false);
 });

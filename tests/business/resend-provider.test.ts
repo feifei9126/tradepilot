@@ -1,10 +1,43 @@
 import assert from "node:assert/strict";
+import { sealSecret } from "../../src/lib/security/envelope";
 import test from "node:test";
 
 import {
   ResendEmailProvider,
   type ResendProviderError,
 } from "../../src/lib/email/providers/resend";
+import { createMemoryEmailRepository } from "../../src/lib/email/repository";
+import { createOutboxItem, OUTBOX_RETRY_DELAYS_MS, processEmailOutbox } from "../../src/lib/email/outbox";
+
+const COMPANY_ID = "10000000-0000-4000-8000-000000000101";
+const ACCOUNT_ID = "10000000-0000-4000-8000-000000000102";
+const CREDENTIALS_KEY = Buffer.alloc(32, 9).toString("base64url");
+
+function testAccount() {
+  const now = new Date(0).toISOString();
+  return {
+    id: ACCOUNT_ID,
+    companyId: COMPANY_ID,
+    name: "Sales",
+    email: "sales@example.com",
+    provider: "resend" as const,
+    smtpHost: null,
+    smtpPort: null,
+    smtpSecure: true,
+    imapHost: null,
+    imapPort: null,
+    imapSecure: true,
+    imapMailbox: null,
+    encryptedCredentials: "",
+    credentialsConfigured: true,
+    status: "active" as const,
+    healthStatus: "unknown" as const,
+    lastError: null,
+    syncCursor: {},
+    createdAt: now,
+    updatedAt: now,
+  };
+}
 
 test("Resend provider sends the validated message and returns external id", async () => {
   const apiKey = "re_test_secret_value";
@@ -12,7 +45,7 @@ test("Resend provider sends the validated message and returns external id", asyn
   const provider = new ResendEmailProvider({
     apiKey,
     fetch: async (url, init) => {
-      request = { url: String(url), init };
+      request = { url: String(url), init: init || {} };
       return new Response(JSON.stringify({ id: "resend_123" }), { status: 200 });
     },
   });
@@ -73,4 +106,35 @@ test("Resend provider treats ordinary client errors as permanent", async () => {
       return true;
     },
   );
+});
+
+test("outbox retries temporary failures with the documented backoff and does not log secrets", async () => {
+  const repository = createMemoryEmailRepository();
+  const account = testAccount();
+  account.encryptedCredentials = JSON.stringify(await sealSecret(JSON.stringify({ apiKey: "re_outbox_secret" }), CREDENTIALS_KEY, { companyId: COMPANY_ID, recordId: ACCOUNT_ID, purpose: "email" }));
+  await repository.createAccount(account);
+  const item = createOutboxItem({
+    companyId: COMPANY_ID,
+    accountId: ACCOUNT_ID,
+    idempotencyKey: "outbox-1",
+    payload: { to: "buyer@example.com", subject: "Quote", text: "Hello", html: "<p>Hello</p>" },
+    createdBy: null,
+    nextAttemptAt: new Date(0).toISOString(),
+  });
+  await repository.enqueue(item);
+  const now = new Date(0);
+  const results = await processEmailOutbox({
+    repository,
+    now,
+    credentialsKey: CREDENTIALS_KEY,
+    adapterForAccount: async () => ({
+      send: async () => {
+        throw new Error("temporary transport failure");
+      },
+    }),
+  });
+  assert.equal(results[0]?.status, "retry");
+  const stored = (await repository.leaseOutbox({ now: new Date(now.getTime() + OUTBOX_RETRY_DELAYS_MS[0]).toISOString(), leasedUntil: new Date(now.getTime() + 10_000).toISOString(), limit: 1 }))[0];
+  assert.equal(stored?.attemptCount, 1);
+  assert.equal(stored?.lastError?.includes("re_outbox_secret"), false);
 });
