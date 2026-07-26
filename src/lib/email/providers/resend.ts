@@ -86,6 +86,7 @@ export class ResendEmailProvider {
           Accept: "application/json",
           "Content-Type": "application/json",
           Authorization: `Bearer ${this.apiKey}`,
+          ...(input.idempotencyKey ? { "Idempotency-Key": input.idempotencyKey } : {}),
         },
         body: JSON.stringify(requestBody(input)),
       });

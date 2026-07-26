@@ -135,4 +135,5 @@ export interface EmailRepository {
   leaseOutbox(input: { now: string; leasedUntil: string; limit: number }): Promise<EmailOutboxItem[]>;
   markOutbox(companyId: string, id: string, patch: Partial<EmailOutboxItem>): Promise<EmailOutboxItem | null>;
   recordProviderEvent(input: ProviderEmailEvent): Promise<{ event: ProviderEmailEvent; created: boolean }>;
+  markProviderEventProcessed(provider: string, providerEventId: string, processedAt: string): Promise<ProviderEmailEvent | null>;
 }

@@ -9,6 +9,7 @@ export interface SendEmailInput {
   cc?: EmailAddressInput;
   bcc?: EmailAddressInput;
   replyTo?: EmailAddressInput;
+  idempotencyKey?: string;
 }
 
 export interface ProviderSendResult {

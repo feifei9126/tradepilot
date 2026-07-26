@@ -109,13 +109,14 @@ export async function normalizeInboundEmail(input: InboundNormalizationOptions):
   const bcc = flattenAddresses(parsed.bcc);
   const subject = safeHeader(parsed.subject, 500);
   const date = parsed.date || headerValue(parsed, "date");
-  const receivedAt = date && !Number.isNaN(Date.parse(date)) ? new Date(date).toISOString() : new Date().toISOString();
+  const parsedDate = date && !Number.isNaN(Date.parse(date)) ? new Date(date).toISOString() : null;
+  const receivedAt = parsedDate || new Date().toISOString();
   const textBody = typeof parsed.text === "string" ? parsed.text.trim() || null : null;
   const htmlBody = sanitizeInboundHtml(typeof parsed.html === "string" ? parsed.html : null);
   const providerMessageId = input.providerMessageId?.trim() || parsed.messageId?.trim() || null;
   const normalizedMessageKey = providerMessageId
     ? `message:${providerMessageId}`
-    : digestFallback(input.accountId, from, date, subject, textBody || htmlBody || "");
+    : digestFallback(input.accountId, from, parsedDate || "", subject, textBody || htmlBody || "");
 
   return {
     companyId: input.companyId,
@@ -156,11 +157,22 @@ function synthesizedMime(input: CloudflareInboundOptions) {
     ...(input.cc || headers.cc ? [`Cc: ${addressHeader(input.cc) || headers.cc}`] : []),
     ...(input.bcc || headers.bcc ? [`Bcc: ${addressHeader(input.bcc) || headers.bcc}`] : []),
     `Subject: ${input.subject || headers.subject || ""}`,
-    `Date: ${input.date || headers.date || new Date().toUTCString()}`,
+    ...(input.date || headers.date ? [`Date: ${input.date || headers.date}`] : []),
     ...(input.messageId || headers["message-id"] ? [`Message-ID: ${input.messageId || headers["message-id"]}`] : []),
-    "Content-Type: text/plain; charset=utf-8",
+    input.html !== undefined ? "Content-Type: multipart/alternative; boundary=tradepilot-cloudflare" : "Content-Type: text/plain; charset=utf-8",
     "",
-    input.text || "",
+    ...(input.html !== undefined ? [
+      "--tradepilot-cloudflare",
+      "Content-Type: text/plain; charset=utf-8",
+      "",
+      input.text || "",
+      "--tradepilot-cloudflare",
+      "Content-Type: text/html; charset=utf-8",
+      "",
+      input.html || "",
+      "--tradepilot-cloudflare--",
+      "",
+    ] : [input.text || ""]),
   ];
   return lines.join("\r\n");
 }
@@ -198,8 +210,11 @@ export async function ingestInboundEmail(input: IngestInboundOptions) {
   const provider = input.provider || "resend";
   const providerEventId = input.providerEventId?.trim() || undefined;
   const normalized = await normalizeInboundEmail(input);
-  const message = await input.repository.insertInboundMessage(normalized);
   if (providerEventId) {
+    // Provider event IDs are the strongest retry key. This also prevents a
+    // changed webhook body from creating a second message while a prior
+    // attempt is still pending.
+    normalized.normalizedMessageKey = `event:${provider}:${providerEventId}`;
     const recorded = await input.repository.recordProviderEvent({
       id: randomUUID(),
       companyId: input.companyId,
@@ -211,8 +226,14 @@ export async function ingestInboundEmail(input: IngestInboundOptions) {
       receivedAt: new Date().toISOString(),
       processedAt: null,
     });
-    return { created: recorded.created, event: recorded.event, message };
+    if (!recorded.created && recorded.event.processedAt) {
+      return { created: false, event: recorded.event, message: null };
+    }
+    const message = await input.repository.insertInboundMessage(normalized);
+    const processedEvent = await input.repository.markProviderEventProcessed(provider, providerEventId, new Date().toISOString());
+    return { created: recorded.created, event: processedEvent || recorded.event, message };
   }
+  const message = await input.repository.insertInboundMessage(normalized);
   return { created: true, event: null, message };
 }
 
@@ -231,13 +252,14 @@ function header(headers: ResendSignatureHeaders | Headers, name: string) {
 function webhookKey(secret: string) {
   if (!secret.startsWith("whsec_")) return Buffer.from(secret);
   const encoded = secret.slice("whsec_".length);
+  if (!/^[A-Za-z0-9+/]+={0,2}$/.test(encoded)) return null;
   try {
     const decoded = Buffer.from(encoded, "base64");
-    if (decoded.length > 0) return decoded;
+    if (decoded.length > 0 && decoded.toString("base64").replace(/=+$/, "") === encoded.replace(/=+$/, "")) return decoded;
   } catch {
     // Fall through to raw secret for local/test deployments.
   }
-  return Buffer.from(secret);
+  return null;
 }
 
 export function verifyResendWebhookSignature(options: {
@@ -255,7 +277,9 @@ export function verifyResendWebhookSignature(options: {
   const tolerance = options.toleranceSeconds ?? DEFAULT_WEBHOOK_TOLERANCE_SECONDS;
   if (!id || !timestamp || !signature || !/^\d+$/.test(timestamp) || !Number.isSafeInteger(timestampNumber) || Math.abs(now - timestampNumber) > tolerance) return false;
   const signed = `${id}.${timestamp}.${options.rawBody}`;
-  const expected = createHmac("sha256", webhookKey(options.secret)).update(signed).digest("base64");
+  const key = webhookKey(options.secret);
+  if (!key) return false;
+  const expected = createHmac("sha256", key).update(signed).digest("base64");
   return signature.split(/\s+/).some((candidate) => {
     const [version, supplied] = candidate.split(",", 2);
     if (version !== "v1" || !supplied) return false;

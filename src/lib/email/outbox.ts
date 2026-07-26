@@ -47,7 +47,7 @@ function addressValue(value: unknown, field: string): string | string[] {
   throw new ProviderSendError("PROVIDER_INVALID_REQUEST", `Email ${field} is invalid`, false);
 }
 
-function sendPayload(payload: Record<string, unknown>, account: EmailAccount): SendEmailInput {
+function sendPayload(payload: Record<string, unknown>, account: EmailAccount, idempotencyKey: string): SendEmailInput {
   const from = typeof payload.from === "string" && payload.from.trim() ? payload.from.trim() : account.email;
   const subject = typeof payload.subject === "string" ? payload.subject.trim().slice(0, 500) : "";
   const html = typeof payload.html === "string" ? payload.html : "";
@@ -61,6 +61,7 @@ function sendPayload(payload: Record<string, unknown>, account: EmailAccount): S
     subject,
     html,
     text,
+    idempotencyKey,
   };
   if (payload.cc !== undefined) result.cc = addressValue(payload.cc, "cc");
   if (payload.bcc !== undefined) result.bcc = addressValue(payload.bcc, "bcc");
@@ -88,8 +89,12 @@ function failure(error: unknown) {
   return new ProviderSendError("PROVIDER_NETWORK_ERROR", "Email delivery failed", true);
 }
 
-function safeErrorMessage(error: ProviderSendError) {
-  return error.message.slice(0, 500);
+function safeErrorMessage(error: ProviderSendError, credentials: Record<string, string>) {
+  let message = error.message;
+  for (const secret of Object.values(credentials)) {
+    if (secret.length >= 4) message = message.split(secret).join("[redacted]");
+  }
+  return message.slice(0, 500);
 }
 
 async function adapterFor(options: OutboxProcessorOptions, account: EmailAccount, credentials: Record<string, string>) {
@@ -124,12 +129,14 @@ export async function processEmailOutbox(options: OutboxProcessorOptions) {
   const results: Array<{ id: string; status: string; externalId?: string | null; errorCode?: string | null }> = [];
 
   for (const item of items) {
+    let deliveryCredentials: Record<string, string> = {};
     try {
       const accounts = await options.repository.listAccounts(item.companyId);
       const account = accountFor(accounts, item);
       const credentials = await openEmailAccountCredentials(account, credentialsKey!);
+      deliveryCredentials = credentials;
       const adapter = await adapterFor(options, account, credentials);
-      const payload = sendPayload(objectValue(item.payload), account);
+      const payload = sendPayload(objectValue(item.payload), account, item.idempotencyKey);
       const sent = await adapter.send(payload);
       const updated = await options.repository.markOutbox(item.companyId, item.id, {
         status: "sent",
@@ -152,7 +159,7 @@ export async function processEmailOutbox(options: OutboxProcessorOptions) {
         nextAttemptAt,
         leasedUntil: null,
         lastErrorCode: providerError.code,
-        lastError: safeErrorMessage(providerError),
+        lastError: safeErrorMessage(providerError, deliveryCredentials),
       });
       results.push({ id: item.id, status: updated?.status || (canRetry ? "retry" : "failed"), errorCode: providerError.code });
     }

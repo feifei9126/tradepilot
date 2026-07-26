@@ -82,6 +82,23 @@ test("provider events are idempotent and do not insert inbound message twice", a
   assert.equal((await repository.listMessages(COMPANY_ID, { accountId: ACCOUNT_ID })).length, 1);
 });
 
+test("provider event is claimed before message insertion and body changes stay idempotent", async () => {
+  const repository = createMemoryEmailRepository();
+  const input = {
+    companyId: COMPANY_ID,
+    accountId: ACCOUNT_ID,
+    provider: "resend" as const,
+    providerEventId: "evt_stable",
+    rawMime: "From: buyer@example.com\r\nTo: sales@example.com\r\nSubject: First\r\n\r\nOne",
+  };
+  const first = await ingestInboundEmail({ ...input, repository });
+  const second = await ingestInboundEmail({ ...input, rawMime: input.rawMime.replace("First", "Changed").replace("One", "Two"), repository });
+  assert.equal(first.created, true);
+  assert.equal(second.created, false);
+  assert.equal(second.message, null);
+  assert.equal((await repository.listMessages(COMPANY_ID, { accountId: ACCOUNT_ID })).length, 1);
+});
+
 test("Cloudflare Email Routing input maps to the same normalized structure", async () => {
   const normalized = await normalizeCloudflareInboundEmail({
     companyId: COMPANY_ID,
@@ -96,6 +113,28 @@ test("Cloudflare Email Routing input maps to the same normalized structure", asy
   assert.equal(normalized.from[0]?.email, "buyer@example.com");
   assert.equal(normalized.to[0]?.email, "sales@example.com");
   assert.equal(normalized.textBody, "Body");
+});
+
+test("HTML-only Cloudflare input without a date has a stable fallback key", async () => {
+  const first = await normalizeCloudflareInboundEmail({
+    companyId: COMPANY_ID,
+    accountId: ACCOUNT_ID,
+    from: "buyer@example.com",
+    to: "sales@example.com",
+    subject: "HTML only",
+    html: "<p>Hello</p>",
+  });
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  const second = await normalizeCloudflareInboundEmail({
+    companyId: COMPANY_ID,
+    accountId: ACCOUNT_ID,
+    from: "buyer@example.com",
+    to: "sales@example.com",
+    subject: "HTML only",
+    html: "<p>Hello</p>",
+  });
+  assert.equal(first.normalizedMessageKey, second.normalizedMessageKey);
+  assert.equal(first.htmlBody, "<p>Hello</p>");
 });
 
 test("Svix webhook signatures require a valid timestamp window", () => {

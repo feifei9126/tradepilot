@@ -247,6 +247,14 @@ export function createMemoryEmailRepository(): EmailRepository {
       events.set(key, clone(input));
       return { event: clone(input), created: true };
     },
+    async markProviderEventProcessed(provider, providerEventId, processedAt) {
+      const key = `${provider}:${providerEventId}`;
+      const current = events.get(key);
+      if (!current) return null;
+      const updated = { ...current, processedAt };
+      events.set(key, updated);
+      return clone(updated);
+    },
   };
 }
 
@@ -401,6 +409,10 @@ export function createPostgresEmailRepository(db: Database): EmailRepository {
       const [existing] = await db.select().from(emailEvents).where(and(eq(emailEvents.provider, input.provider), eq(emailEvents.providerEventId, input.providerEventId))).limit(1);
       if (!existing) throw new BusinessError("CONFLICT", "Email event conflict", 409);
       return { event: mapEvent(existing), created: false };
+    },
+    async markProviderEventProcessed(provider, providerEventId, processedAt) {
+      const [row] = await db.update(emailEvents).set({ processedAt: new Date(processedAt) }).where(and(eq(emailEvents.provider, provider), eq(emailEvents.providerEventId, providerEventId))).returning();
+      return row ? mapEvent(row) : null;
     },
   };
 }

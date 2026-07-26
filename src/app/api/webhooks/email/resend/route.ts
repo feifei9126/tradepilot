@@ -50,6 +50,10 @@ function eventData(payload: Record<string, unknown>) {
   return recordValue(payload.data);
 }
 
+function isInboundEvent(value: string) {
+  return /^(email\.(received|inbound)|inbound\.)/i.test(value);
+}
+
 export async function POST(request: NextRequest) {
   const rawBody = await request.text();
   if (!rawBody || rawBody.length > 5_000_000) return NextResponse.json({ error: "Invalid webhook payload", code: "VALIDATION_ERROR" }, { status: 400 });
@@ -66,7 +70,7 @@ export async function POST(request: NextRequest) {
     const selected = await selectAccount(payload);
     if (!selected) return NextResponse.json({ error: "Webhook account is invalid", code: "UNAUTHORIZED" }, { status: 401 });
     const credentials = await openEmailAccountCredentials(selected.account, requireEmailCredentialsKey());
-    const secret = credentials.webhookSecret || process.env.RESEND_WEBHOOK_SECRET;
+    const secret = credentials.webhookSecret;
     if (!secret || !verifyResendWebhookSignature({ rawBody, headers: request.headers, secret })) {
       return NextResponse.json({ error: "Webhook signature is invalid", code: "UNAUTHORIZED" }, { status: 401 });
     }
@@ -74,6 +78,21 @@ export async function POST(request: NextRequest) {
     const data = eventData(payload);
     const eventId = firstString(request.headers.get("svix-id"), payload.id, payload.event_id, data.id, data.email_id);
     if (!eventId) return NextResponse.json({ error: "Webhook event id is required", code: "VALIDATION_ERROR" }, { status: 400 });
+    const eventType = firstString(payload.type, payload.event, "email.received");
+    if (!isInboundEvent(eventType)) {
+      const recorded = await selected.repository.recordProviderEvent({
+        id: crypto.randomUUID(),
+        companyId: selected.account.companyId,
+        accountId: selected.account.id,
+        provider: "resend",
+        providerEventId: eventId,
+        eventType,
+        payload: safeEventPayload(payload),
+        receivedAt: new Date().toISOString(),
+        processedAt: new Date().toISOString(),
+      });
+      return NextResponse.json({ ok: true, duplicate: !recorded.created });
+    }
     const raw = typeof data.raw === "string" ? data.raw : typeof data.rawMime === "string" ? data.rawMime : undefined;
     const normalized = raw
       ? await ingestInboundEmail({
@@ -83,7 +102,7 @@ export async function POST(request: NextRequest) {
         threadId: firstString(data.threadId, data.thread_id) || undefined,
         provider: "resend",
         providerEventId: eventId,
-        eventType: firstString(payload.type, payload.event, "email.received"),
+        eventType,
         eventPayload: safeEventPayload(payload),
         providerMessageId: firstString(data.messageId, data.message_id, data.email_id) || null,
         rawMime: raw,
@@ -95,14 +114,17 @@ export async function POST(request: NextRequest) {
         threadId: firstString(data.threadId, data.thread_id) || undefined,
         provider: "resend",
         providerEventId: eventId,
-        eventType: firstString(payload.type, payload.event, "email.received"),
+        eventType,
         eventPayload: safeEventPayload(payload),
         providerMessageId: firstString(data.messageId, data.message_id, data.email_id) || null,
         rawMime: await normalizedMime(data, selected.account),
       });
     return NextResponse.json({ ok: true, duplicate: !normalized.created });
-  } catch {
-    return NextResponse.json({ error: "Webhook could not be processed", code: "VALIDATION_ERROR" }, { status: 400 });
+  } catch (error) {
+    if (error instanceof SyntaxError || (error && typeof error === "object" && "code" in error && String((error as { code?: unknown }).code) === "VALIDATION_ERROR")) {
+      return NextResponse.json({ error: "Webhook payload is invalid", code: "VALIDATION_ERROR" }, { status: 400 });
+    }
+    return NextResponse.json({ error: "Webhook could not be processed", code: "INTERNAL_ERROR" }, { status: 500 });
   }
 }
 
