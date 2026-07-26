@@ -1,10 +1,11 @@
+import NextAuth from "next-auth";
 import { NextResponse } from "next/server";
 
-import { auth } from "@/lib/auth";
+import { authConfig } from "@/lib/auth-config";
 import { injectBusinessContextHeaders } from "@/lib/business/context";
 
+const { auth } = NextAuth(authConfig);
 const PUBLIC_API_PREFIXES = ["/api/auth/"];
-
 const PUBLIC_API_PATHS = new Set([
   "/api/network",
   "/api/bind/confirm",
