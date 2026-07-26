@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { injectBusinessContextHeaders } from "@/lib/business/context";
 import { auth } from "@/lib/auth";
 
 const PUBLIC_API_PREFIXES = ["/api/auth/"];
@@ -9,6 +10,7 @@ const PUBLIC_API_PATHS = new Set([
   "/api/bind/confirm",
   "/api/webhook/incoming",
   "/api/build/status",
+  "/api/health",
 ]);
 
 export default auth((request) => {
@@ -19,7 +21,14 @@ export default auth((request) => {
   ) {
     return NextResponse.next();
   }
-  if (request.auth) return NextResponse.next();
+  if (request.auth?.user) {
+    const headers = injectBusinessContextHeaders(request.headers, {
+      userId: request.auth.user.id || "",
+      companyId: request.auth.user.companyId || "",
+      role: request.auth.user.role || "member",
+    });
+    return NextResponse.next({ request: { headers } });
+  }
   if (pathname.startsWith("/api/")) {
     return NextResponse.json({ error: "请先登录" }, { status: 401 });
   }
