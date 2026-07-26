@@ -29,18 +29,17 @@ function safeEventPayload(value: Record<string, unknown>) {
   };
 }
 
-function identify(payload: Record<string, unknown>, request: NextRequest) {
+function identify(payload: Record<string, unknown>) {
   const data = recordValue(payload.data);
   const metadata = recordValue(data.metadata);
-  const query = request.nextUrl.searchParams;
   return {
-    companyId: firstString(payload.companyId, payload.company_id, data.companyId, data.company_id, metadata.companyId, query.get("companyId")),
-    accountId: firstString(payload.accountId, payload.account_id, data.accountId, data.account_id, metadata.accountId, query.get("accountId")),
+    companyId: firstString(payload.companyId, payload.company_id, data.companyId, data.company_id, metadata.companyId),
+    accountId: firstString(payload.accountId, payload.account_id, data.accountId, data.account_id, metadata.accountId),
   };
 }
 
-async function selectAccount(payload: Record<string, unknown>, request: NextRequest) {
-  const ids = identify(payload, request);
+async function selectAccount(payload: Record<string, unknown>) {
+  const ids = identify(payload);
   if (!ids.companyId || !ids.accountId) return null;
   const repository = getPostgresEmailRepository();
   const account = (await repository.listAccounts(ids.companyId)).find((candidate) => candidate.id === ids.accountId && candidate.provider === "resend" && candidate.status === "active");
@@ -64,7 +63,7 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const selected = await selectAccount(payload, request);
+    const selected = await selectAccount(payload);
     if (!selected) return NextResponse.json({ error: "Webhook account is invalid", code: "UNAUTHORIZED" }, { status: 401 });
     const credentials = await openEmailAccountCredentials(selected.account, requireEmailCredentialsKey());
     const secret = credentials.webhookSecret || process.env.RESEND_WEBHOOK_SECRET;
