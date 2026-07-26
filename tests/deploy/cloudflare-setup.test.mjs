@@ -6,6 +6,7 @@ import { runCloudflareSetup } from "../../scripts/setup-cloudflare.mjs";
 const databaseUrl = "postgresql://deploy-user:deploy-password@neon.example/tradepilot?sslmode=require";
 const adminPassword = "admin-password-that-must-not-leak";
 const authSecret = "auth-secret-that-must-not-leak";
+const credentialsKey = "credentials-key-that-must-not-leak";
 
 function setupInput(overrides = {}) {
   return {
@@ -13,6 +14,7 @@ function setupInput(overrides = {}) {
     TRADEPILOT_ADMIN_EMAIL: "admin@example.com",
     TRADEPILOT_ADMIN_PASSWORD: adminPassword,
     AUTH_SECRET: authSecret,
+    TRADEPILOT_CREDENTIALS_KEY: credentialsKey,
     TRADEPILOT_HEALTH_URL: "https://tradepilot.example.workers.dev",
     ...overrides,
   };
@@ -35,7 +37,7 @@ test("Cloudflare setup dry-run lists safe ordered steps without executing comman
   assert.equal(calls.length, 0);
   const output = logs.join("\n");
   assert.deepEqual(
-    ["status", "migrate", "bootstrap", "secret DATABASE_URL", "secret AUTH_SECRET", "build", "deploy", "health"].map(
+    ["status", "migrate", "bootstrap", "secret DATABASE_URL", "secret AUTH_SECRET", "secret TRADEPILOT_CREDENTIALS_KEY", "secret TRADEPILOT_CRON_SECRET", "build", "deploy", "health"].map(
       (step) => output.indexOf(step),
     ).every((index) => index >= 0),
     true,
@@ -44,11 +46,14 @@ test("Cloudflare setup dry-run lists safe ordered steps without executing comman
   assert.ok(output.indexOf("migrate") < output.indexOf("bootstrap"));
   assert.ok(output.indexOf("bootstrap") < output.indexOf("secret DATABASE_URL"));
   assert.ok(output.indexOf("secret AUTH_SECRET") < output.indexOf("build"));
+  assert.ok(output.indexOf("secret TRADEPILOT_CREDENTIALS_KEY") < output.indexOf("build"));
+  assert.ok(output.indexOf("secret TRADEPILOT_CRON_SECRET") < output.indexOf("build"));
   assert.ok(output.indexOf("build") < output.indexOf("deploy"));
   assert.ok(output.indexOf("deploy") < output.indexOf("health"));
   assert.equal(output.includes(databaseUrl), false);
   assert.equal(output.includes(adminPassword), false);
   assert.equal(output.includes(authSecret), false);
+  assert.equal(output.includes(credentialsKey), false);
 });
 
 test("Cloudflare setup keeps credentials out of argv and verifies health", async () => {
@@ -82,6 +87,8 @@ test("Cloudflare setup keeps credentials out of argv and verifies health", async
       "npm run db:bootstrap",
       "npx wrangler secret put DATABASE_URL",
       "npx wrangler secret put AUTH_SECRET",
+      "npx wrangler secret put TRADEPILOT_CREDENTIALS_KEY",
+      "npx wrangler secret put TRADEPILOT_CRON_SECRET",
       "npm run cfbuild",
       "npx wrangler deploy",
     ],
@@ -90,14 +97,18 @@ test("Cloudflare setup keeps credentials out of argv and verifies health", async
   assert.equal(argv.includes(databaseUrl), false);
   assert.equal(argv.includes(adminPassword), false);
   assert.equal(argv.includes(authSecret), false);
+  assert.equal(argv.includes(credentialsKey), false);
   assert.equal(calls[3].options.input, `${databaseUrl}\n`);
   assert.equal(calls[4].options.input, `${authSecret}\n`);
+  assert.equal(calls[5].options.input, `${credentialsKey}\n`);
+  assert.match(calls[6].options.input, /^[A-Za-z0-9_-]{43}\n$/);
   assert.equal(calls[2].options.env.TRADEPILOT_ADMIN_PASSWORD, adminPassword);
   assert.equal(calls[2].options.env.DATABASE_URL, databaseUrl);
   const output = logs.join("\n");
   assert.equal(output.includes(databaseUrl), false);
   assert.equal(output.includes(adminPassword), false);
   assert.equal(output.includes(authSecret), false);
+  assert.equal(output.includes(credentialsKey), false);
   assert.deepEqual(healthRequests, ["https://tradepilot.example.workers.dev/api/health"]);
   assert.equal(result.health.ok, true);
 });

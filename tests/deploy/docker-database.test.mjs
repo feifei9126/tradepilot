@@ -38,7 +38,7 @@ test("Docker Compose starts PostgreSQL, initializes it, then starts TradePilot",
   const compose = parse(
     await readFile(path.join(root, "docker-compose.yml"), "utf8"),
   );
-  const { postgres, "db-init": dbInit, tradepilot } = compose.services;
+  const { postgres, "db-init": dbInit, tradepilot, "mail-worker": mailWorker } = compose.services;
   assert.ok(postgres);
   assert.match(postgres.image, /postgres:17-alpine$/);
   assert.ok(postgres.healthcheck?.test);
@@ -69,6 +69,10 @@ test("Docker Compose starts PostgreSQL, initializes it, then starts TradePilot",
     /b\.status\s*!==\s*["']ok["']/,
   );
   assert.ok(compose.volumes.tradepilot_postgres !== undefined);
+  assert.ok(mailWorker);
+  assert.equal(mailWorker.depends_on["db-init"].condition, "service_completed_successfully");
+  assert.match(parseEnvironment(mailWorker.environment).DATABASE_URL, /@postgres:5432\/tradepilot$/);
+  assert.match(parseEnvironment(mailWorker.environment).TRADEPILOT_CREDENTIALS_KEY, /TRADEPILOT_CREDENTIALS_KEY/);
 });
 
 test("Docker image contains migration and bootstrap scripts", async () => {
@@ -119,13 +123,14 @@ test("shell installer bootstraps PostgreSQL without rotating existing secrets", 
     const firstEnvironment = parseEnvFile(firstContents);
     assert.match(firstEnvironment.AUTH_SECRET, /^[a-f0-9]{64}$/);
     assert.match(firstEnvironment.POSTGRES_PASSWORD, /^[a-f0-9]{32,}$/);
+    assert.match(firstEnvironment.TRADEPILOT_CREDENTIALS_KEY, /^[A-Za-z0-9_-]{43}$/);
     assert.match(firstEnvironment.TRADEPILOT_ADMIN_PASSWORD, /^[a-f0-9]{24,}$/);
     assert.equal(firstEnvironment.TRADEPILOT_ADMIN_EMAIL, "admin@tradepilot.local");
     assert.match(first.stdout, /docker compose up -d postgres/);
     assert.match(first.stdout, /docker compose run --rm db-init/);
     assert.match(
       first.stdout,
-      /docker compose up -d --build tradepilot video-worker/,
+      /docker compose up -d --build tradepilot mail-worker video-worker/,
     );
 
     const second = run();
@@ -171,9 +176,11 @@ test("Windows installer generates secrets and preserves them on rerun", async (t
     const firstEnvironment = parseEnvFile(firstContents);
     assert.match(firstEnvironment.AUTH_SECRET, /^[a-f0-9]{64}$/);
     assert.match(firstEnvironment.POSTGRES_PASSWORD, /^[a-f0-9]{32,}$/);
+    assert.match(firstEnvironment.TRADEPILOT_CREDENTIALS_KEY, /^[A-Za-z0-9_-]{43}$/);
     assert.match(firstEnvironment.TRADEPILOT_ADMIN_PASSWORD, /^[a-f0-9]{24,}$/);
     assert.match(first.stdout, /docker compose up -d postgres/);
     assert.match(first.stdout, /docker compose run --rm db-init/);
+    assert.match(first.stdout, /docker compose up -d --build tradepilot mail-worker video-worker/);
 
     const second = run();
     assert.equal(second.status, 0, second.stderr || second.stdout);

@@ -163,3 +163,58 @@ test("outbox leases can be reclaimed after a worker lease expires", async () => 
   assert.equal(leased[0]?.status, "leased");
   assert.equal(leased[0]?.leasedUntil, new Date(3_000).toISOString());
 });
+
+test("successful outbox delivery creates a sent message", async () => {
+  const repository = createMemoryEmailRepository();
+  const account = testAccount();
+  account.encryptedCredentials = JSON.stringify(await sealSecret(JSON.stringify({ apiKey: "re_sent_secret" }), CREDENTIALS_KEY, { companyId: COMPANY_ID, recordId: ACCOUNT_ID, purpose: "email" }));
+  await repository.createAccount(account);
+  await repository.enqueue(createOutboxItem({
+    companyId: COMPANY_ID,
+    accountId: ACCOUNT_ID,
+    idempotencyKey: "outbox-sent",
+    payload: {
+      threadId: "10000000-0000-4000-8000-000000000109",
+      from: "sales@example.com",
+      to: ["buyer@example.com"],
+      subject: "Quote",
+      text: "Hello",
+      html: "<p>Hello</p>",
+    },
+    createdBy: null,
+    nextAttemptAt: new Date(0).toISOString(),
+  }));
+
+  const results = await processEmailOutbox({
+    repository,
+    now: new Date(0),
+    credentialsKey: CREDENTIALS_KEY,
+    providers: ["resend"],
+    adapterForAccount: async () => ({ send: async () => ({ externalId: "resend-sent-1" }) }),
+  });
+
+  assert.equal(results[0]?.status, "sent");
+  const messages = await repository.listMessages(COMPANY_ID, { accountId: ACCOUNT_ID, folder: "sent" });
+  assert.equal(messages.length, 1);
+  assert.equal(messages[0]?.externalId, "resend-sent-1");
+  assert.equal(messages[0]?.status, "sent");
+});
+
+test("outbox leasing can be restricted to the worker's provider", async () => {
+  const repository = createMemoryEmailRepository();
+  const resend = testAccount();
+  resend.encryptedCredentials = JSON.stringify(await sealSecret(JSON.stringify({ apiKey: "re_filter_secret" }), CREDENTIALS_KEY, { companyId: COMPANY_ID, recordId: ACCOUNT_ID, purpose: "email" }));
+  const smtpId = "10000000-0000-4000-8000-000000000103";
+  await repository.createAccount(resend);
+  await repository.createAccount({ ...resend, id: smtpId, email: "smtp@example.com", provider: "smtp_imap", encryptedCredentials: JSON.stringify(await sealSecret(JSON.stringify({ username: "smtp@example.com", password: "secret" }), CREDENTIALS_KEY, { companyId: COMPANY_ID, recordId: smtpId, purpose: "email" })) });
+  for (const [accountId, idempotencyKey] of [[ACCOUNT_ID, "resend-only"], [smtpId, "smtp-only"]]) {
+    await repository.enqueue(createOutboxItem({ companyId: COMPANY_ID, accountId, idempotencyKey, payload: { threadId: crypto.randomUUID(), to: "buyer@example.com", subject: "Quote", text: "Hello" }, createdBy: null, nextAttemptAt: new Date(0).toISOString() }));
+  }
+  let sends = 0;
+  const results = await processEmailOutbox({ repository, now: new Date(0), credentialsKey: CREDENTIALS_KEY, providers: ["resend"], adapterForAccount: async () => ({ send: async () => { sends += 1; return { externalId: "sent" }; } }) });
+
+  assert.equal(results.length, 1);
+  assert.equal(sends, 1);
+  const smtpItems = await repository.leaseOutbox({ now: new Date(0).toISOString(), leasedUntil: new Date(1_000).toISOString(), limit: 10, providers: ["smtp_imap"] });
+  assert.deepEqual(smtpItems.map((item) => item.accountId), [smtpId]);
+});

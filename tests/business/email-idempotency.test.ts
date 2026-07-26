@@ -29,3 +29,70 @@ test("same provider message id is stored once per account", async () => {
   assert.equal(first.id, second.id);
   assert.equal((await repository.listMessages(input.companyId, { accountId: input.accountId })).length, 1);
 });
+
+test("a provided thread id cannot cross email accounts", async () => {
+  const repository = createMemoryEmailRepository();
+  const base = {
+    companyId: "10000000-0000-4000-8000-000000000001",
+    threadId: "10000000-0000-4000-8000-000000000099",
+    providerMessageId: null,
+    direction: "inbound" as const,
+    folder: "inbox" as const,
+    from: [{ email: "buyer@example.com" }],
+    to: [{ email: "sales@example.com" }],
+    cc: [], bcc: [], subject: "Thread", textBody: "Body", htmlBody: null,
+  };
+  await repository.insertInboundMessage({ ...base, accountId: "10000000-0000-4000-8000-000000000002", normalizedMessageKey: "one" });
+  await assert.rejects(() => repository.insertInboundMessage({ ...base, accountId: "10000000-0000-4000-8000-000000000003", normalizedMessageKey: "two" }), /does not belong/i);
+  assert.equal((await repository.listMessages(base.companyId)).length, 1);
+});
+
+test("outbound drafts are visible in the draft folder", async () => {
+  const repository = createMemoryEmailRepository();
+  const companyId = "10000000-0000-4000-8000-000000000011";
+  const accountId = "10000000-0000-4000-8000-000000000012";
+  const now = new Date(0).toISOString();
+  await repository.createAccount({
+    id: accountId,
+    companyId,
+    name: "Sales",
+    email: "sales@example.com",
+    provider: "resend",
+    smtpHost: null,
+    smtpPort: null,
+    smtpSecure: true,
+    imapHost: null,
+    imapPort: null,
+    imapSecure: true,
+    imapMailbox: null,
+    encryptedCredentials: "sealed",
+    credentialsConfigured: true,
+    status: "active",
+    healthStatus: "unknown",
+    lastError: null,
+    syncCursor: {},
+    createdAt: now,
+    updatedAt: now,
+  });
+
+  const draft = await repository.saveOutboundMessage({
+    companyId,
+    accountId,
+    threadId: "10000000-0000-4000-8000-000000000013",
+    normalizedMessageKey: "draft:one",
+    externalId: null,
+    folder: "draft",
+    from: [{ email: "sales@example.com" }],
+    to: [{ email: "buyer@example.com" }],
+    cc: [],
+    bcc: [],
+    subject: "Draft quote",
+    textBody: "Draft body",
+    htmlBody: null,
+    status: "draft",
+    sentAt: null,
+  });
+
+  assert.equal(draft.folder, "draft");
+  assert.deepEqual((await repository.listMessages(companyId, { folder: "draft" })).map((message) => message.id), [draft.id]);
+});
