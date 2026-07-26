@@ -173,6 +173,7 @@ export async function updateEmailAccount(
     ...(patch.username !== undefined ? { username: patch.username } : {}),
     ...(patch.password !== undefined ? { password: patch.password } : {}),
     ...(patch.apiKey !== undefined ? { apiKey: patch.apiKey } : {}),
+    ...(patch.webhookSecret !== undefined ? { webhookSecret: patch.webhookSecret } : {}),
   };
   const parsed = parseEmailAccountInput(merged);
   const encryptedCredentials = await sealedCredentials(parsed.credentials, key, current);

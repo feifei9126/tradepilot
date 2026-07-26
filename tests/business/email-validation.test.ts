@@ -7,6 +7,7 @@ import { createMemoryEmailRepository } from "../../src/lib/email/repository";
 import {
   createEmailAccount,
   openEmailAccountCredentials,
+  updateEmailAccount,
 } from "../../src/lib/email/service";
 import {
   MAX_EMAIL_ATTACHMENT_BYTES,
@@ -240,6 +241,24 @@ test("account credentials are sealed with tenant and account AAD", async () => {
       error instanceof BusinessError &&
       error.code === "CREDENTIALS_DECRYPT_FAILED",
   );
+});
+
+test("account updates replace a top-level Resend webhook secret", async () => {
+  const repository = createMemoryEmailRepository();
+  const key = new Uint8Array(32).fill(8);
+  const actor = {
+    companyId: "10000000-0000-4000-8000-000000000011",
+    userId: "10000000-0000-4000-8000-000000000012",
+  };
+  const created = await createEmailAccount(
+    repository,
+    actor,
+    { name: "Transactional", email: "mail@example.com", provider: "resend", apiKey: "re_test_key", webhookSecret: "whsec_old" },
+    key,
+  );
+  await updateEmailAccount(repository, actor, created.id, { webhookSecret: "whsec_new" }, key);
+  const stored = (await repository.listAccounts(actor.companyId))[0];
+  assert.deepEqual(await openEmailAccountCredentials(stored, key), { apiKey: "re_test_key", webhookSecret: "whsec_new" });
 });
 
 test("local demo mode saves drafts but reports unconfigured sending", async () => {
