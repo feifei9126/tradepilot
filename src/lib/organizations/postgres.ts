@@ -1,11 +1,17 @@
 import { and, asc, eq } from "drizzle-orm";
 import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
 
-import { organizationInvitations, organizationMemberships } from "@/db/schema";
+import {
+  companies,
+  organizationInvitations,
+  organizationMemberships,
+} from "@/db/schema";
+import { BusinessError } from "@/lib/business/errors";
 
 import type {
   OrganizationInvitation,
   OrganizationMembership,
+  OrganizationSummary,
   OrganizationStore,
 } from "./types";
 
@@ -75,6 +81,27 @@ export function createPostgresOrganizationStore(db: Database): OrganizationStore
         .orderBy(asc(organizationMemberships.createdAt));
       return rows.map(mapMembership);
     },
+    async listOrganizationsForUser(userId): Promise<OrganizationSummary[]> {
+      const rows = await db
+        .select({
+          companyId: organizationMemberships.companyId,
+          name: companies.name,
+          slug: companies.slug,
+          role: organizationMemberships.role,
+          status: organizationMemberships.status,
+        })
+        .from(organizationMemberships)
+        .innerJoin(companies, eq(companies.id, organizationMemberships.companyId))
+        .where(eq(organizationMemberships.userId, userId))
+        .orderBy(asc(companies.name));
+      return rows.map((row) => ({
+        companyId: row.companyId,
+        name: row.name,
+        slug: row.slug,
+        role: role(row.role),
+        status: status(row.status),
+      }));
+    },
     async createMembership(input) {
       const [row] = await db
         .insert(organizationMemberships)
@@ -125,6 +152,14 @@ export function createPostgresOrganizationStore(db: Database): OrganizationStore
         .returning();
       return mapInvitation(row);
     },
+    async listInvitations(companyId) {
+      const rows = await db
+        .select()
+        .from(organizationInvitations)
+        .where(eq(organizationInvitations.companyId, companyId))
+        .orderBy(asc(organizationInvitations.createdAt));
+      return rows.map(mapInvitation);
+    },
     async getInvitationByTokenHash(tokenHash) {
       const [row] = await db
         .select()
@@ -132,6 +167,90 @@ export function createPostgresOrganizationStore(db: Database): OrganizationStore
         .where(eq(organizationInvitations.tokenHash, tokenHash))
         .limit(1);
       return row ? mapInvitation(row) : null;
+    },
+    async consumeInvitation({ tokenHash, email, userId, now }) {
+      return db.transaction(async (transaction) => {
+        const [invitationRow] = await transaction
+          .select()
+          .from(organizationInvitations)
+          .where(eq(organizationInvitations.tokenHash, tokenHash))
+          .for("update")
+          .limit(1);
+        const invitation = invitationRow ? mapInvitation(invitationRow) : null;
+        if (!invitation) {
+          throw new BusinessError(
+            "INVITATION_NOT_FOUND",
+            "Invitation not found",
+            404,
+          );
+        }
+        if (invitation.acceptedAt) {
+          throw new BusinessError(
+            "INVITATION_CONSUMED",
+            "Invitation has already been used",
+            409,
+          );
+        }
+        if (invitation.revokedAt) {
+          throw new BusinessError(
+            "INVITATION_REVOKED",
+            "Invitation has been revoked",
+            409,
+          );
+        }
+        if (new Date(invitation.expiresAt).getTime() <= new Date(now).getTime()) {
+          throw new BusinessError(
+            "INVITATION_EXPIRED",
+            "Invitation has expired",
+            410,
+          );
+        }
+        if (invitation.email !== email) {
+          throw new BusinessError(
+            "INVITATION_EMAIL_MISMATCH",
+            "Invitation email does not match",
+            403,
+          );
+        }
+        const existing = await transaction
+          .select()
+          .from(organizationMemberships)
+          .where(
+            and(
+              eq(organizationMemberships.companyId, invitation.companyId),
+              eq(organizationMemberships.userId, userId),
+            ),
+          )
+          .limit(1);
+        const [membershipRow] = existing.length
+          ? await transaction
+              .update(organizationMemberships)
+              .set({ role: invitation.role, status: "active", updatedAt: new Date(now) })
+              .where(
+                and(
+                  eq(organizationMemberships.companyId, invitation.companyId),
+                  eq(organizationMemberships.userId, userId),
+                ),
+              )
+              .returning()
+          : await transaction
+              .insert(organizationMemberships)
+              .values({
+                companyId: invitation.companyId,
+                userId,
+                role: invitation.role,
+                status: "active",
+                createdBy: invitation.invitedBy,
+                createdAt: new Date(now),
+                updatedAt: new Date(now),
+              })
+              .returning();
+        await transaction
+          .update(organizationInvitations)
+          .set({ acceptedAt: new Date(now) })
+          .where(eq(organizationInvitations.id, invitation.id));
+        return mapMembership(membershipRow);
+      });
     },
     async updateInvitation(id, patch) {
       const [row] = await db

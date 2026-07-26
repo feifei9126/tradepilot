@@ -13,6 +13,14 @@ export interface OrganizationMembership {
   updatedAt: string;
 }
 
+export interface OrganizationSummary {
+  companyId: string;
+  name: string;
+  slug: string;
+  role: OrganizationMembership["role"];
+  status: OrganizationMembership["status"];
+}
+
 export interface OrganizationInvitation {
   id: string;
   companyId: string;
@@ -40,6 +48,7 @@ export interface OrganizationStore {
     userId: string,
   ): Promise<OrganizationMembership | null>;
   listMemberships(companyId: string): Promise<OrganizationMembership[]>;
+  listOrganizationsForUser(userId: string): Promise<OrganizationSummary[]>;
   createMembership(input: OrganizationMembership): Promise<OrganizationMembership>;
   updateMembership(
     companyId: string,
@@ -49,7 +58,14 @@ export interface OrganizationStore {
   createInvitation(
     input: OrganizationInvitation,
   ): Promise<OrganizationInvitation>;
+  listInvitations(companyId: string): Promise<OrganizationInvitation[]>;
   getInvitationByTokenHash(tokenHash: string): Promise<OrganizationInvitation | null>;
+  consumeInvitation(input: {
+    tokenHash: string;
+    email: string;
+    userId: string;
+    now: string;
+  }): Promise<OrganizationMembership>;
   updateInvitation(
     id: string,
     patch: Partial<OrganizationInvitation>,

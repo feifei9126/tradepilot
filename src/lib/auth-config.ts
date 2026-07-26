@@ -7,10 +7,21 @@ export const authConfig = {
   pages: { signIn: "/auth/login" },
   providers: [],
   callbacks: {
-    async jwt({ token, user }) {
+    async jwt({ token, user, trigger, session }) {
       if (user) {
         token.companyId = user.companyId;
         token.role = user.role;
+      }
+      if (trigger === "update" && session && typeof session === "object") {
+        const update = session as {
+          companyId?: unknown;
+          role?: unknown;
+          user?: { companyId?: unknown; role?: unknown };
+        };
+        const companyId = update.companyId ?? update.user?.companyId;
+        const role = update.role ?? update.user?.role;
+        if (typeof companyId === "string") token.companyId = companyId;
+        if (typeof role === "string") token.role = role;
       }
       return token;
     },
