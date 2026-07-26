@@ -15,6 +15,13 @@
       "when": 1785056064088,
       "tag": "0001_organization_memberships",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1785059533304,
+      "tag": "0002_email_workspace",
+      "breakpoints": true
     }
   ]
 }

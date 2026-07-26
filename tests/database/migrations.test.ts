@@ -27,6 +27,12 @@ const coreTables = [
   "document_sequences",
   "organization_memberships",
   "organization_invitations",
+  "email_accounts",
+  "email_threads",
+  "email_messages",
+  "email_attachments",
+  "email_outbox",
+  "email_events",
 ];
 
 async function existingTables(sql: Sql) {
@@ -61,6 +67,7 @@ async function constraintDefinitions(sql: Sql) {
 test("migrates an empty database with tenant-safe constraints", async () => {
   await withCleanDatabase(databaseUrl, async ({ sql, migrate }) => {
     await migrate();
+    await migrate();
 
     const tables = await existingTables(sql);
     for (const tableName of coreTables) {
@@ -84,6 +91,11 @@ test("migrates an empty database with tenant-safe constraints", async () => {
       "organization_invitations_token_hash_unique",
       "organization_memberships_user_status_idx",
       "organization_memberships_company_role_idx",
+      "email_accounts_company_email_unique",
+      "email_messages_account_key_unique",
+      "email_events_provider_event_unique",
+      "email_outbox_company_idempotency_unique",
+      "email_outbox_status_attempt_idx",
     ]) {
       assert.ok(indexes.has(indexName), `missing index ${indexName}`);
     }
@@ -104,6 +116,14 @@ test("migrates an empty database with tenant-safe constraints", async () => {
     assert.match(
       constraints.get("documents_company_shipment_fk") || "",
       /FOREIGN KEY \(company_id, shipment_id\) REFERENCES shipments\(company_id, id\)/,
+    );
+    assert.match(
+      constraints.get("email_messages_company_account_fk") || "",
+      /FOREIGN KEY \(company_id, account_id\) REFERENCES email_accounts\(company_id, id\)/,
+    );
+    assert.match(
+      constraints.get("email_attachments_company_message_fk") || "",
+      /FOREIGN KEY \(company_id, message_id\) REFERENCES email_messages\(company_id, id\)/,
     );
   });
 });

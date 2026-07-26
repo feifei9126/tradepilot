@@ -18,3 +18,8 @@ export {
   organizationRoles,
 } from "./organization_memberships";
 export { organizationInvitations } from "./organization_invitations";
+export { emailAccounts } from "./email_accounts";
+export { emailThreads } from "./email_threads";
+export { emailMessages, emailAttachments } from "./email_messages";
+export { emailOutbox } from "./email_outbox";
+export { emailEvents } from "./email_events";
