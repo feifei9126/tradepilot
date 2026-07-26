@@ -114,6 +114,7 @@ git commit -m "feat(org): add membership and invitation persistence"
 **文件：**
 - 创建：`src/lib/organizations/permissions.ts`
 - 创建：`src/lib/organizations/access.ts`
+- 创建：`src/lib/organizations/postgres.ts`
 - 创建：`src/lib/security/envelope.ts`
 - 创建：`tests/business/secret-envelope.test.ts`
 - 修改：`src/lib/business/context.ts`
