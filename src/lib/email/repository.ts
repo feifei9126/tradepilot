@@ -180,6 +180,18 @@ export function createMemoryEmailRepository(): EmailRepository {
     async listMessages(companyId, options = {}) {
       return clone([...messages.values()].filter((item) => item.companyId === companyId && (!options.accountId || item.accountId === options.accountId) && (!options.threadId || item.threadId === options.threadId) && (!options.folder || item.folder === options.folder)).sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, options.limit || 100));
     },
+    async updateMessage(companyId, id, patch) {
+      const current = messages.get(id);
+      if (!current || current.companyId !== companyId) return null;
+      const updated = {
+        ...current,
+        ...(patch.isRead !== undefined ? { isRead: patch.isRead } : {}),
+        ...(patch.isStarred !== undefined ? { isStarred: patch.isStarred } : {}),
+        updatedAt: new Date().toISOString(),
+      };
+      messages.set(id, updated);
+      return clone(updated);
+    },
     async insertInboundMessage(input) {
       const existing = [...messages.values()].find((item) => item.companyId === input.companyId && item.accountId === input.accountId && item.normalizedMessageKey === input.normalizedMessageKey);
       if (existing) return clone(existing);
@@ -293,6 +305,14 @@ export function createPostgresEmailRepository(db: Database): EmailRepository {
       if (options.folder) where.push(eq(emailMessages.folder, options.folder));
       const rows = await db.select().from(emailMessages).where(and(...where)).orderBy(desc(emailMessages.createdAt)).limit(options.limit || 100);
       return rows.map(mapMessage);
+    },
+    async updateMessage(companyId, id, patch) {
+      const [row] = await db.update(emailMessages).set({
+        ...(patch.isRead !== undefined ? { isRead: patch.isRead } : {}),
+        ...(patch.isStarred !== undefined ? { isStarred: patch.isStarred } : {}),
+        updatedAt: new Date(),
+      }).where(and(eq(emailMessages.companyId, companyId), eq(emailMessages.id, id))).returning();
+      return row ? mapMessage(row) : null;
     },
     async insertInboundMessage(input) {
       return db.transaction(async (transaction) => {

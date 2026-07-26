@@ -1,79 +1,118 @@
 import { NextResponse } from "next/server";
-import { isValidEmail } from "@/lib/validation";
 
-interface EmailAccountDraft {
-  id: string;
-  name: string;
-  email: string;
-  imapHost: string;
-  imapPort: number;
-  smtpHost: string;
-  smtpPort: number;
-  username: string;
-  createdAt: string;
-}
+import { requireBusinessContext } from "@/lib/business/context";
+import { BusinessError, businessErrorResponse } from "@/lib/business/errors";
+import { resolveStorageMode } from "@/lib/business/runtime";
+import {
+  authorizeEmailContext,
+  getPostgresEmailRepository,
+} from "@/lib/email/runtime";
+import {
+  createEmailAccount,
+  requireEmailCredentialsKey,
+  updateEmailAccount,
+} from "@/lib/email/service";
+import { parseEmailAccountInput } from "@/lib/email/validation";
+import { toEmailAccountView } from "@/lib/email/views";
 
-const accounts: EmailAccountDraft[] = [];
-function validPort(value: unknown, fallback: number) {
-  const port = value === undefined || value === "" ? fallback : Number(value);
-  return Number.isInteger(port) && port >= 1 && port <= 65_535 ? port : null;
-}
-
-function validHost(value: string) {
-  return value.length <= 253 && !/\s|\/|^https?:/i.test(value);
-}
-
-export async function GET() {
-  return NextResponse.json({ accounts, mode: "configuration-draft" });
-}
-
-export async function POST(req: Request) {
-  const body = await req.json();
-  const name = typeof body.name === "string" ? body.name.trim() : "";
-  const email =
-    typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
-  const imapHost =
-    typeof body.imapHost === "string" ? body.imapHost.trim() : "";
-  const smtpHost =
-    typeof body.smtpHost === "string" ? body.smtpHost.trim() : "";
-  const username =
-    typeof body.username === "string" ? body.username.trim() : "";
-  const imapPort = validPort(body.imapPort, 993);
-  const smtpPort = validPort(body.smtpPort, 465);
-  if (!name || !email || !imapHost || !smtpHost) {
-    return NextResponse.json(
-      { error: "显示名称、邮箱和服务器地址必填" },
-      { status: 400 },
-    );
+async function readJson(request: Request) {
+  try {
+    return await request.json() as unknown;
+  } catch {
+    throw new BusinessError("VALIDATION_ERROR", "Request body must be valid JSON", 400);
   }
+}
+
+function duplicateAccountError(error: unknown) {
   if (
-    name.length > 100 ||
-    username.length > 320 ||
-    !isValidEmail(email) ||
-    !validHost(imapHost) ||
-    !validHost(smtpHost) ||
-    imapPort === null ||
-    smtpPort === null
+    error &&
+    typeof error === "object" &&
+    "code" in error &&
+    String(error.code) === "23505"
   ) {
-    return NextResponse.json(
-      { error: "邮箱、服务器地址或端口格式无效" },
-      { status: 400 },
+    return new BusinessError("CONFLICT", "Email account already exists", 409);
+  }
+  return error;
+}
+
+export async function GET(request: Request) {
+  try {
+    const context = await authorizeEmailContext(
+      requireBusinessContext(request),
+      "email:use",
     );
+    if (resolveStorageMode() === "memory") {
+      return NextResponse.json({ accounts: [], mode: "local-draft" });
+    }
+    const accounts = await getPostgresEmailRepository().listAccounts(context.companyId);
+    return NextResponse.json({
+      accounts: accounts.map(toEmailAccountView),
+      mode: "configured",
+    });
+  } catch (error) {
+    return businessErrorResponse(error);
   }
-  if (accounts.some((account) => account.email === email)) {
-    return NextResponse.json({ error: "该邮箱参数已经保存" }, { status: 409 });
+}
+
+export async function POST(request: Request) {
+  try {
+    const context = await authorizeEmailContext(
+      requireBusinessContext(request),
+      "email:configure",
+    );
+    const body = await readJson(request);
+    if (resolveStorageMode() === "memory") {
+      parseEmailAccountInput(body);
+      throw new BusinessError(
+        "PROVIDER_NOT_CONFIGURED",
+        "Email accounts require PostgreSQL; local mode only saves message drafts",
+        503,
+      );
+    }
+    const account = await createEmailAccount(
+      getPostgresEmailRepository(),
+      context,
+      body,
+      requireEmailCredentialsKey(),
+    );
+    return NextResponse.json({ ok: true, account, mode: "configured" }, { status: 201 });
+  } catch (error) {
+    return businessErrorResponse(duplicateAccountError(error));
   }
-  const account: EmailAccountDraft = {
-    id: crypto.randomUUID(),
-    name,
-    email,
-    imapHost,
-    imapPort,
-    smtpHost,
-    smtpPort,
-    username: username || email,
-    createdAt: new Date().toISOString(),
-  };
-  accounts.push(account);
-  return NextResponse.json({ ok: true, account, mode: "configuration-draft" });
+}
+
+export async function PATCH(request: Request) {
+  try {
+    const context = await authorizeEmailContext(
+      requireBusinessContext(request),
+      "email:configure",
+    );
+    const body = await readJson(request);
+    if (!body || typeof body !== "object" || Array.isArray(body)) {
+      throw new BusinessError("VALIDATION_ERROR", "Email account input is invalid", 400);
+    }
+    const id = typeof (body as Record<string, unknown>).id === "string"
+      ? (body as Record<string, unknown>).id as string
+      : "";
+    if (!id.trim() || id.length > 100) {
+      throw new BusinessError("VALIDATION_ERROR", "Email account id is invalid", 400);
+    }
+    if (resolveStorageMode() === "memory") {
+      throw new BusinessError(
+        "PROVIDER_NOT_CONFIGURED",
+        "Email accounts require PostgreSQL; local mode only saves message drafts",
+        503,
+      );
+    }
+    const account = await updateEmailAccount(
+      getPostgresEmailRepository(),
+      context,
+      id.trim(),
+      body,
+      requireEmailCredentialsKey(),
+    );
+    return NextResponse.json({ ok: true, account, mode: "configured" });
+  } catch (error) {
+    return businessErrorResponse(duplicateAccountError(error));
+  }
 }

@@ -1,5 +1,14 @@
 import { NextResponse } from "next/server";
-import { store } from "@/lib/store";
+
+import { requireBusinessContext } from "@/lib/business/context";
+import { BusinessError, businessErrorResponse } from "@/lib/business/errors";
+import { DEMO_COMPANY_ID, resolveStorageMode } from "@/lib/business/runtime";
+import {
+  authorizeEmailContext,
+  getPostgresEmailRepository,
+} from "@/lib/email/runtime";
+import type { EmailMessage } from "@/lib/email/types";
+import { parseEmailMessageInput } from "@/lib/email/validation";
 
 interface LocalEmailRecord {
   id: string;
@@ -18,8 +27,7 @@ interface LocalEmailRecord {
   createdAt: string;
 }
 
-// Sample records keep the email workspace testable without claiming IMAP is connected.
-const emailRecords: LocalEmailRecord[] = [
+const sampleRecords: LocalEmailRecord[] = [
   {
     id: "e1",
     accountId: "sample",
@@ -32,7 +40,7 @@ const emailRecords: LocalEmailRecord[] = [
     folder: "inbox",
     isRead: false,
     isStarred: true,
-    labels: ["示例", "询盘"],
+    labels: ["demo", "inquiry"],
     contactId: "c1",
     createdAt: "2026-06-15T09:23:00Z",
   },
@@ -48,48 +56,109 @@ const emailRecords: LocalEmailRecord[] = [
     folder: "inbox",
     isRead: false,
     isStarred: false,
-    labels: ["示例", "样品"],
+    labels: ["demo", "sample"],
     contactId: "c2",
     createdAt: "2026-06-14T14:15:00Z",
   },
 ];
 
-export async function GET(req: Request) {
-  const url = new URL(req.url);
-  const folder = url.searchParams.get("folder") || "inbox";
-  const query = (url.searchParams.get("q") || "").toLowerCase();
-  let filtered = emailRecords.filter((email) => email.folder === folder);
-  if (query) {
-    filtered = filtered.filter(
-      (email) =>
-        email.subject.toLowerCase().includes(query) ||
-        email.from.toLowerCase().includes(query) ||
-        email.body.toLowerCase().includes(query),
-    );
+const localRecords = new Map<string, LocalEmailRecord[]>();
+
+function recordsForCompany(companyId: string) {
+  let records = localRecords.get(companyId);
+  if (!records) {
+    records = companyId === DEMO_COMPANY_ID ? structuredClone(sampleRecords) : [];
+    localRecords.set(companyId, records);
   }
-  return NextResponse.json({ emails: filtered, mode: "local-draft" });
+  return records;
 }
 
-export async function POST(req: Request) {
+async function readJson(request: Request) {
   try {
-    const payload = await req.json();
-    const to = typeof payload.to === "string" ? payload.to.trim() : "";
-    const subject =
-      typeof payload.subject === "string" ? payload.subject.trim() : "";
-    if (!to || !subject) {
-      return NextResponse.json({ error: "收件人和主题必填" }, { status: 400 });
+    return await request.json() as unknown;
+  } catch {
+    throw new BusinessError("VALIDATION_ERROR", "Request body must be valid JSON", 400);
+  }
+}
+
+function firstAddress(addresses: { email: string }[]) {
+  return addresses[0]?.email || "";
+}
+
+function messageView(message: EmailMessage): LocalEmailRecord {
+  return {
+    id: message.id,
+    accountId: message.accountId,
+    messageId: message.providerMessageId || message.externalId || message.id,
+    from: firstAddress(message.from),
+    to: firstAddress(message.to),
+    subject: message.subject,
+    body: message.textBody || "",
+    date: message.receivedAt || message.sentAt || message.createdAt,
+    folder: message.folder,
+    isRead: message.isRead,
+    isStarred: message.isStarred,
+    labels: [],
+    createdAt: message.createdAt,
+  };
+}
+
+function filteredRecords(
+  records: LocalEmailRecord[],
+  folder: string,
+  query: string,
+) {
+  return records.filter((email) =>
+    email.folder === folder &&
+    (!query ||
+      email.subject.toLowerCase().includes(query) ||
+      email.from.toLowerCase().includes(query) ||
+      email.body.toLowerCase().includes(query)),
+  );
+}
+
+export async function GET(request: Request) {
+  try {
+    const context = await authorizeEmailContext(
+      requireBusinessContext(request),
+      "email:use",
+    );
+    const url = new URL(request.url);
+    const folder = url.searchParams.get("folder") || "inbox";
+    const query = (url.searchParams.get("q") || "").trim().toLowerCase();
+    if (resolveStorageMode() === "memory") {
+      return NextResponse.json({
+        emails: filteredRecords(recordsForCompany(context.companyId), folder, query),
+        mode: "local-draft",
+      });
     }
-    const body = typeof payload.body === "string" ? payload.body : "";
-    if (to.length > 1_000 || subject.length > 500 || body.length > 100_000) {
-      return NextResponse.json(
-        { error: "草稿内容超出长度限制" },
-        { status: 413 },
-      );
-    }
-    if (payload.action !== "save-draft") {
-      return NextResponse.json(
-        { error: "SMTP 尚未连接，当前只支持保存本地草稿" },
-        { status: 503 },
+
+    const accountId = url.searchParams.get("accountId")?.trim() || undefined;
+    const messages = await getPostgresEmailRepository().listMessages(
+      context.companyId,
+      { accountId, folder, limit: 200 },
+    );
+    return NextResponse.json({
+      emails: filteredRecords(messages.map(messageView), folder, query),
+      mode: "configured",
+    });
+  } catch (error) {
+    return businessErrorResponse(error);
+  }
+}
+
+export async function POST(request: Request) {
+  try {
+    const context = await authorizeEmailContext(
+      requireBusinessContext(request),
+      "email:use",
+    );
+    const parsed = parseEmailMessageInput(await readJson(request));
+    if (resolveStorageMode() !== "memory" || parsed.action === "send") {
+      throw new BusinessError(
+        "PROVIDER_NOT_CONFIGURED",
+        "Email delivery is not configured",
+        503,
       );
     }
 
@@ -99,54 +168,57 @@ export async function POST(req: Request) {
       accountId: "local",
       messageId: crypto.randomUUID(),
       from: "local-draft",
-      to,
-      subject,
-      body,
+      to: parsed.to.map((address) => address.email).join(", "),
+      subject: parsed.subject,
+      body: parsed.body,
       date: now,
       folder: "draft",
       isRead: true,
       isStarred: false,
-      labels: ["本地草稿"],
+      labels: ["local-draft"],
       createdAt: now,
     };
-    emailRecords.unshift(email);
+    recordsForCompany(context.companyId).unshift(email);
     return NextResponse.json({ ok: true, email, mode: "local-draft" });
-  } catch {
-    return NextResponse.json({ error: "草稿保存失败" }, { status: 400 });
+  } catch (error) {
+    return businessErrorResponse(error);
   }
 }
 
-export async function PATCH(req: Request) {
+export async function PATCH(request: Request) {
   try {
-    const payload = (await req.json()) as {
-      id?: string;
-      isRead?: boolean;
-      contactId?: string;
-    };
-    const email = emailRecords.find((item) => item.id === payload.id);
-    if (!email)
-      return NextResponse.json({ error: "邮件不存在" }, { status: 404 });
-    let changed = false;
-    if (typeof payload.isRead === "boolean") {
-      email.isRead = payload.isRead;
-      changed = true;
+    const context = await authorizeEmailContext(
+      requireBusinessContext(request),
+      "email:use",
+    );
+    const body = await readJson(request);
+    if (!body || typeof body !== "object" || Array.isArray(body)) {
+      throw new BusinessError("VALIDATION_ERROR", "Email update is invalid", 400);
     }
-    if (typeof payload.contactId === "string") {
-      const contactId = payload.contactId.trim();
-      if (contactId && !store.contacts.get(contactId)) {
-        return NextResponse.json({ error: "关联客户不存在" }, { status: 400 });
-      }
-      email.contactId = contactId || undefined;
-      changed = true;
+    const input = body as Record<string, unknown>;
+    const id = typeof input.id === "string" ? input.id.trim() : "";
+    const isRead = typeof input.isRead === "boolean" ? input.isRead : undefined;
+    const isStarred = typeof input.isStarred === "boolean" ? input.isStarred : undefined;
+    if (!id || id.length > 100 || (isRead === undefined && isStarred === undefined)) {
+      throw new BusinessError("VALIDATION_ERROR", "Email update is invalid", 400);
     }
-    if (!changed) {
-      return NextResponse.json(
-        { error: "没有可更新的邮件字段" },
-        { status: 400 },
-      );
+
+    if (resolveStorageMode() === "memory") {
+      const email = recordsForCompany(context.companyId).find((item) => item.id === id);
+      if (!email) throw new BusinessError("NOT_FOUND", "Email message not found", 404);
+      if (isRead !== undefined) email.isRead = isRead;
+      if (isStarred !== undefined) email.isStarred = isStarred;
+      return NextResponse.json({ email, mode: "local-draft" });
     }
-    return NextResponse.json({ email });
-  } catch {
-    return NextResponse.json({ error: "更新邮件失败" }, { status: 400 });
+
+    const message = await getPostgresEmailRepository().updateMessage(
+      context.companyId,
+      id,
+      { isRead, isStarred },
+    );
+    if (!message) throw new BusinessError("NOT_FOUND", "Email message not found", 404);
+    return NextResponse.json({ email: messageView(message), mode: "configured" });
+  } catch (error) {
+    return businessErrorResponse(error);
   }
 }

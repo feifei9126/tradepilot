@@ -129,6 +129,7 @@ export interface EmailRepository {
   deactivateAccount(companyId: string, id: string): Promise<EmailAccount | null>;
   listThreads(companyId: string, options?: { accountId?: string; limit?: number }): Promise<EmailThread[]>;
   listMessages(companyId: string, options?: { accountId?: string; threadId?: string; folder?: string; limit?: number }): Promise<EmailMessage[]>;
+  updateMessage(companyId: string, id: string, patch: Pick<Partial<EmailMessage>, "isRead" | "isStarred">): Promise<EmailMessage | null>;
   insertInboundMessage(input: InboundEmailInput): Promise<EmailMessage>;
   enqueue(input: EmailOutboxItem): Promise<EmailOutboxItem>;
   leaseOutbox(input: { now: string; leasedUntil: string; limit: number }): Promise<EmailOutboxItem[]>;

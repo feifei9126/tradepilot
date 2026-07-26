@@ -7,7 +7,7 @@ import { POST as createInquiry } from "../../src/app/api/inquiries/route";
 import { POST as createMessage } from "../../src/app/api/messages/route";
 import { POST as createProduct } from "../../src/app/api/products/route";
 import { POST as createProductVideo } from "../../src/app/api/product-videos/route";
-import { businessRequest } from "../helpers/business-context";
+import { businessRequest, demoBusinessContext } from "../helpers/business-context";
 import { contextA, contextB } from "../repositories/contract";
 
 function jsonRequest(
@@ -89,7 +89,8 @@ test("email account drafts validate email addresses and ports", async () => {
       imapPort: 70_000,
       smtpHost: "smtp.example.com",
       smtpPort: 465,
-    }),
+      password: "application-password",
+    }, demoBusinessContext),
   );
 
   assert.equal(response.status, 400);
