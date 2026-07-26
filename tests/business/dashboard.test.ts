@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
+import { GET as getDashboard } from "../../src/app/api/dashboard/route";
 import { buildDashboard } from "../../src/lib/dashboard";
+import { getBusinessRepository } from "../../src/lib/repositories";
+import { businessRequest } from "../helpers/business-context";
+import { contextA, contextB } from "../repositories/contract";
 
 const input = {
   contacts: [
@@ -109,4 +113,33 @@ test("dashboard keeps mixed-currency order totals separate", () => {
     USD: 100,
     EUR: 50,
   });
+});
+
+test("dashboard route derives data only from the current tenant", async () => {
+  const repository = await getBusinessRepository(contextA);
+  const contact = await repository.contacts.create({ name: "Dashboard Customer" });
+  const quotation = await repository.quotations.create({
+    contactId: contact.id,
+    items: [{ productName: "Dashboard Product", quantity: 2, unitPrice: 50 }],
+    currency: "USD",
+    tradeTerm: "FOB",
+    aiGenerated: false,
+  });
+  await repository.quotations.updateStatus(quotation.id, "accepted");
+  await repository.orders.createFromQuotation({
+    quotationId: quotation.id,
+    deliveryDate: "2026-09-01",
+  });
+
+  const companyAResponse = await getDashboard(
+    businessRequest("http://localhost/api/dashboard", {}, contextA),
+  );
+  const companyBResponse = await getDashboard(
+    businessRequest("http://localhost/api/dashboard", {}, contextB),
+  );
+  const companyA = await companyAResponse.json();
+  const companyB = await companyBResponse.json();
+  assert.equal(companyA.summary.revenue, 100);
+  assert.equal(companyB.summary.revenue, 0);
+  assert.equal(companyB.summary.contacts, 0);
 });

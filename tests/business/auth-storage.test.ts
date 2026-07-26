@@ -16,10 +16,7 @@ const mutableEnvironment = process.env as unknown as Record<
   string,
   string | undefined
 >;
-
-if (!databaseUrl) {
-  throw new Error("TRADEPILOT_TEST_DATABASE_URL is required for auth tests");
-}
+const databaseTest = databaseUrl ? test : test.skip;
 
 function restoreEnvironment(
   values: Record<string, string | undefined>,
@@ -46,8 +43,8 @@ test("development memory mode only accepts the fixed demo account", async () => 
   );
 });
 
-test("production requires database users and ignores plaintext admin shortcuts", async () => {
-  await withCleanDatabase(databaseUrl, async ({ databaseUrl, migrate }) => {
+databaseTest("production requires database users and ignores plaintext admin shortcuts", async () => {
+  await withCleanDatabase(databaseUrl!, async ({ databaseUrl, migrate }) => {
     await migrate();
     const password = "database-password-123";
     const admin = await bootstrapAdmin({

@@ -183,7 +183,7 @@ export function createShipmentRepository(
             throw new BusinessError("CONFLICT", "物流状态不能回退", 409);
           }
           const [order] = await transaction
-            .select({ id: orders.id })
+            .select({ id: orders.id, status: orders.status })
             .from(orders)
             .where(
               and(
@@ -195,6 +195,9 @@ export function createShipmentRepository(
             .limit(1);
           if (!order) {
             throw new BusinessError("CONFLICT", "关联订单不存在", 409);
+          }
+          if (order.status === "cancelled") {
+            throw new BusinessError("CONFLICT", "已取消订单不能推进出货", 409);
           }
           await transaction
             .update(shipments)

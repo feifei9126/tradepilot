@@ -1,46 +1,58 @@
 import { NextRequest, NextResponse } from "next/server";
-import { store } from "@/lib/store";
 import {
   AIRequestConfigError,
   AIUpstreamError,
   callChatCompletion,
 } from "@/lib/ai/chat-completions";
+import { requireBusinessContext } from "@/lib/business/context";
+import { BusinessError, businessErrorResponse } from "@/lib/business/errors";
+import { getBusinessRepository } from "@/lib/repositories";
 
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const { id } = await params;
-  const inquiry = store.inquiries.get(id);
-  if (!inquiry) return NextResponse.json({ error: "未找到" }, { status: 404 });
-  return NextResponse.json(inquiry);
+  try {
+    const repository = await getBusinessRepository(requireBusinessContext(req));
+    const { id } = await params;
+    const inquiry = await repository.inquiries.get(id);
+    if (!inquiry) return NextResponse.json({ error: "未找到" }, { status: 404 });
+    return NextResponse.json(inquiry);
+  } catch (error) {
+    return businessErrorResponse(error);
+  }
 }
 
 export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const { id } = await params;
-  const body = await req.json();
-  const patch: {
-    status?: "pending" | "quoted" | "converted" | "lost";
-    aiReply?: string;
-  } = {};
-  if (["pending", "quoted", "converted", "lost"].includes(body.status)) {
-    patch.status = body.status;
+  try {
+    const repository = await getBusinessRepository(requireBusinessContext(req));
+    const { id } = await params;
+    const body = await req.json();
+    const patch: {
+      status?: "pending" | "quoted" | "converted" | "lost";
+      aiReply?: string;
+    } = {};
+    if (["pending", "quoted", "converted", "lost"].includes(body.status)) {
+      patch.status = body.status;
+    }
+    if (typeof body.aiReply === "string") {
+      patch.aiReply = body.aiReply.trim().slice(0, 20_000);
+    }
+    if (Object.keys(patch).length === 0) {
+      return NextResponse.json(
+        { error: "没有可更新的询盘字段" },
+        { status: 400 },
+      );
+    }
+    const updated = await repository.inquiries.update(id, patch);
+    if (!updated) return NextResponse.json({ error: "未找到" }, { status: 404 });
+    return NextResponse.json(updated);
+  } catch (error) {
+    return businessErrorResponse(error);
   }
-  if (typeof body.aiReply === "string") {
-    patch.aiReply = body.aiReply.trim().slice(0, 20_000);
-  }
-  if (Object.keys(patch).length === 0) {
-    return NextResponse.json(
-      { error: "没有可更新的询盘字段" },
-      { status: 400 },
-    );
-  }
-  const updated = store.inquiries.update(id, patch);
-  if (!updated) return NextResponse.json({ error: "未找到" }, { status: 404 });
-  return NextResponse.json(updated);
 }
 
 // Generate an AI reply draft. The route never sends a message to the customer.
@@ -48,13 +60,13 @@ export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const { id } = await params;
-  const inquiry = store.inquiries.get(id);
-  if (!inquiry) return NextResponse.json({ error: "未找到" }, { status: 404 });
-
-  const body = await req.json();
-
-  const systemPrompt = `你是一位专业的外贸跟单助手。客户发来询盘，请根据以下信息生成专业、礼貌的英文回复。
+  try {
+    const repository = await getBusinessRepository(requireBusinessContext(req));
+    const { id } = await params;
+    const inquiry = await repository.inquiries.get(id);
+    if (!inquiry) return NextResponse.json({ error: "未找到" }, { status: 404 });
+    const body = await req.json();
+    const systemPrompt = `你是一位专业的外贸跟单助手。客户发来询盘，请根据以下信息生成专业、礼貌的英文回复。
 询盘客户: ${inquiry.customer}
 询盘主题: ${inquiry.subject}
 询盘内容: ${inquiry.content}
@@ -65,7 +77,6 @@ export async function POST(
 3. 结尾引导客户下一步行动
 4. 保持在 150-200 词以内`;
 
-  try {
     const { data } = await callChatCompletion({
       ...body,
       messages: [
@@ -82,7 +93,11 @@ export async function POST(
         { status: 502 },
       );
     }
-    store.inquiries.update(id, { aiReply: reply, status: "quoted" });
+    const updated = await repository.inquiries.update(id, {
+      aiReply: reply,
+      status: "quoted",
+    });
+    if (!updated) return NextResponse.json({ error: "未找到" }, { status: 404 });
 
     return NextResponse.json({ reply, status: "quoted" });
   } catch (error: unknown) {
@@ -95,8 +110,9 @@ export async function POST(
         { status: error.status },
       );
     }
+    if (error instanceof BusinessError) return businessErrorResponse(error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "AI 回复生成失败" },
+      { error: "AI 回复生成失败" },
       { status: 500 },
     );
   }

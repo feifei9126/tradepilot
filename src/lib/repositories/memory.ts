@@ -56,6 +56,14 @@ function sequenceNo(prefix: "QTN" | "ORD", records: { no: string }[]) {
   return `${prefix}-${year}-${String(nextSequence(records)).padStart(3, "0")}`;
 }
 
+const minimumOrderProgress: Record<string, number> = {
+  in_production: 30,
+  inspection: 70,
+  ready: 90,
+  shipped: 100,
+  completed: 100,
+};
+
 function createTenantRepository(state: DemoBusinessData): BusinessRepository {
   const contactById = (id: string) =>
     state.contacts.find((contact) => contact.id === id);
@@ -212,7 +220,11 @@ function createTenantRepository(state: DemoBusinessData): BusinessRepository {
         const index = findIndex(state.quotations, id);
         if (index < 0) throw new BusinessError("NOT_FOUND", "报价不存在", 404);
         if (state.orders.some((order) => order.quotationId === id)) {
-          throw new BusinessError("CONFLICT", "已转为订单的报价不能修改", 409);
+          throw new BusinessError(
+            "CONFLICT",
+            "已转为订单的报价不能再修改状态",
+            409,
+          );
         }
         state.quotations[index] = { ...state.quotations[index], status };
         return clone(state.quotations[index]);
@@ -253,7 +265,18 @@ function createTenantRepository(state: DemoBusinessData): BusinessRepository {
       update: async (id, patch) => {
         const index = findIndex(state.orders, id);
         if (index < 0) return null;
-        state.orders[index] = { ...state.orders[index], ...clone(patch), id };
+        const current = state.orders[index];
+        const status = patch.status ?? current.status;
+        const progressPercent = Math.max(
+          patch.progressPercent ?? current.progressPercent,
+          minimumOrderProgress[status] ?? 0,
+        );
+        state.orders[index] = {
+          ...current,
+          ...clone(patch),
+          id,
+          progressPercent,
+        };
         return clone(state.orders[index]);
       },
     },
@@ -296,6 +319,9 @@ function createTenantRepository(state: DemoBusinessData): BusinessRepository {
         }
         const orderIndex = findIndex(state.orders, shipment.orderId);
         if (orderIndex < 0) throw new BusinessError("CONFLICT", "关联订单不存在", 409);
+        if (state.orders[orderIndex].status === "cancelled") {
+          throw new BusinessError("CONFLICT", "已取消订单不能推进出货", 409);
+        }
         state.shipments[index] = { ...shipment, status };
         if (["departed", "in_transit"].includes(status)) {
           state.orders[orderIndex] = {

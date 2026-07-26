@@ -1,26 +1,34 @@
 import { NextRequest, NextResponse } from "next/server";
-import { store, type StoredOrder } from "@/lib/store";
+import { requireBusinessContext } from "@/lib/business/context";
+import { businessErrorResponse } from "@/lib/business/errors";
+import { getBusinessRepository } from "@/lib/repositories";
+import type { StoredOrder } from "@/lib/store";
 import { isValidIsoDate } from "@/lib/validation";
 
 export async function GET(
-  _req: Request,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const { id } = await params;
-  const order = store.orders.get(id);
-  if (!order) return NextResponse.json({ error: "未找到" }, { status: 404 });
-  return NextResponse.json(order);
+  try {
+    const repository = await getBusinessRepository(requireBusinessContext(req));
+    const { id } = await params;
+    const order = await repository.orders.get(id);
+    if (!order) return NextResponse.json({ error: "未找到" }, { status: 404 });
+    return NextResponse.json(order);
+  } catch (error) {
+    return businessErrorResponse(error);
+  }
 }
 
 export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const { id } = await params;
-  const existing = store.orders.get(id);
-  if (!existing) return NextResponse.json({ error: "未找到" }, { status: 404 });
-  const body = await req.json();
-  const patch: Partial<StoredOrder> = {};
+  try {
+    const repository = await getBusinessRepository(requireBusinessContext(req));
+    const { id } = await params;
+    const body = await req.json();
+    const patch: Partial<StoredOrder> = {};
   if (Array.isArray(body.comms)) {
     if (body.comms.length > 500)
       return NextResponse.json(
@@ -83,27 +91,15 @@ export async function PATCH(
   ) {
     patch.status = body.status;
   }
-  const effectiveStatus = patch.status || existing.status;
-  const minimumProgress: Record<string, number> = {
-    in_production: 30,
-    inspection: 70,
-    ready: 90,
-    shipped: 100,
-    completed: 100,
-  };
-  const statusMinimum = minimumProgress[effectiveStatus];
-  if (statusMinimum !== undefined) {
-    patch.progressPercent = Math.max(
-      patch.progressPercent ?? existing.progressPercent,
-      statusMinimum,
-    );
+    if (Object.keys(patch).length === 0)
+      return NextResponse.json(
+        { error: "没有可更新的订单字段" },
+        { status: 400 },
+      );
+    const updated = await repository.orders.update(id, patch);
+    if (!updated) return NextResponse.json({ error: "未找到" }, { status: 404 });
+    return NextResponse.json(updated);
+  } catch (error) {
+    return businessErrorResponse(error);
   }
-  if (Object.keys(patch).length === 0)
-    return NextResponse.json(
-      { error: "没有可更新的订单字段" },
-      { status: 400 },
-    );
-  const updated = store.orders.update(id, patch);
-  if (!updated) return NextResponse.json({ error: "未找到" }, { status: 404 });
-  return NextResponse.json(updated);
 }

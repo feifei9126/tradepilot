@@ -1,10 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import {
-  store,
-  type StoredDocument,
-  type StoredLineItem,
-  type StoredOrder,
-} from "@/lib/store";
+import { requireBusinessContext } from "@/lib/business/context";
+import { businessErrorResponse } from "@/lib/business/errors";
+import { getBusinessRepository } from "@/lib/repositories";
+import type {
+  StoredContact,
+  StoredDocument,
+  StoredLineItem,
+  StoredOrder,
+} from "@/lib/business/types";
 
 const DOC_TEMPLATES: Record<string, { label: string; desc: string }> = {
   commercial_invoice: { label: "商业发票 Commercial Invoice", desc: "CI" },
@@ -26,9 +29,10 @@ function escapeHtml(value: unknown) {
   );
 }
 
-function generateDocumentHTML(
+export function generateDocumentHTML(
   doc: StoredDocument,
   order: StoredOrder | null | undefined,
+  contact: StoredContact | null | undefined,
 ): string {
   const typeInfo = DOC_TEMPLATES[doc.type] || { label: doc.type, desc: "" };
   const items: StoredLineItem[] = order?.items || [];
@@ -38,7 +42,6 @@ function generateDocumentHTML(
   );
   const currency = escapeHtml(order?.currency || "USD");
   const now = new Date().toISOString().slice(0, 10);
-  const contact = order?.contactId ? store.contacts.get(order.contactId) : null;
 
   return `<!DOCTYPE html>
 <html><head><meta charset="utf-8"><title>${escapeHtml(typeInfo.label)} - ${escapeHtml(doc.orderNo)}</title>
@@ -116,23 +119,27 @@ function generateDocumentHTML(
 
 export async function GET(req: NextRequest) {
   try {
+    const repository = await getBusinessRepository(requireBusinessContext(req));
     const url = new URL(req.url);
     const id = url.searchParams.get("id");
     const download = url.searchParams.get("download") === "1";
     if (!id) {
-      // List all generated documents
-      const docs = store.documents
-        .list()
-        .filter((d) => d.status === "generated");
+      const docs = (await repository.documents.list()).filter(
+        (document) => document.status === "generated",
+      );
       return NextResponse.json({ documents: docs });
     }
 
-    const doc = store.documents.get(id);
+    const doc = await repository.documents.get(id);
     if (!doc)
       return NextResponse.json({ error: "文档未找到" }, { status: 404 });
 
-    const order = doc.orderId ? store.orders.get(doc.orderId) : null;
-    const html = generateDocumentHTML(doc, order);
+    const order = await repository.orders.get(doc.orderId);
+    if (!order) {
+      return NextResponse.json({ error: "关联订单未找到" }, { status: 409 });
+    }
+    const contact = await repository.contacts.get(order.contactId);
+    const html = generateDocumentHTML(doc, order, contact);
 
     const fileName = `${doc.type}_${doc.orderNo}`.replace(
       /[^a-zA-Z0-9._-]/g,
@@ -145,9 +152,6 @@ export async function GET(req: NextRequest) {
       },
     });
   } catch (error: unknown) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "文档预览失败" },
-      { status: 500 },
-    );
+    return businessErrorResponse(error);
   }
 }
