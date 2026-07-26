@@ -1,12 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
-import { store, type StoredProductVideoJob } from "@/lib/store";
+import { requireBusinessContext } from "@/lib/business/context";
+import { BusinessError, businessErrorResponse } from "@/lib/business/errors";
 import {
   createProductVideoJob,
   type ProductVideoCreateInput,
 } from "@/lib/product-video/engine";
 import { productVideoJobs } from "@/lib/product-video/job-repository";
 import { publicProductVideoJob } from "@/lib/product-video/public-job";
+import { getBusinessRepository } from "@/lib/repositories";
+import type { StoredProductVideoJob } from "@/lib/store";
 
 type CreateVideoRequest = ProductVideoCreateInput;
 
@@ -24,14 +27,23 @@ function badRequest(message: string) {
   return NextResponse.json({ error: message }, { status: 400 });
 }
 
-export async function GET() {
-  return NextResponse.json(
-    (await productVideoJobs.list()).map(publicProductVideoJob),
-  );
+export async function GET(req: NextRequest) {
+  try {
+    const context = requireBusinessContext(req);
+    return NextResponse.json(
+      (await productVideoJobs.list())
+        .filter((job) => job.companyId === context.companyId)
+        .map(publicProductVideoJob),
+    );
+  } catch (error) {
+    return businessErrorResponse(error);
+  }
 }
 
 export async function POST(req: NextRequest) {
   try {
+    const context = requireBusinessContext(req);
+    const repository = await getBusinessRepository(context);
     const body = (await req.json()) as CreateVideoRequest;
     if (!body.productId) return badRequest("请选择产品");
     if (!STYLES.has(body.style)) return badRequest("请选择有效的视频风格");
@@ -63,7 +75,7 @@ export async function POST(req: NextRequest) {
       return badRequest("MoneyPrinterTurbo 至少需要一个图片或视频素材");
     }
 
-    const product = store.products.get(body.productId);
+    const product = await repository.products.get(body.productId);
     if (!product)
       return NextResponse.json({ error: "产品不存在" }, { status: 404 });
 
@@ -82,6 +94,7 @@ export async function POST(req: NextRequest) {
     const now = new Date().toISOString();
     const job: StoredProductVideoJob = {
       id: `pv_${randomUUID()}`,
+      companyId: context.companyId,
       productId: product.id,
       productName: product.name,
       title: `${product.name} 产品视频`,
@@ -108,6 +121,7 @@ export async function POST(req: NextRequest) {
     await productVideoJobs.add(job);
     return NextResponse.json(publicProductVideoJob(job), { status: 201 });
   } catch (error: unknown) {
+    if (error instanceof BusinessError) return businessErrorResponse(error);
     return NextResponse.json(
       {
         error: error instanceof Error ? error.message : "创建产品视频任务失败",

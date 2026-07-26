@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
+import { requireBusinessContext } from "@/lib/business/context";
+import { BusinessError, businessErrorResponse } from "@/lib/business/errors";
 import { getWorkerAssetUrl } from "@/lib/product-video/engine";
 import { productVideoJobs } from "@/lib/product-video/job-repository";
 
@@ -17,11 +19,13 @@ async function proxyAsset(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const { id } = await params;
-  const job = await productVideoJobs.get(id);
-  if (!job) return NextResponse.json({ error: "任务不存在" }, { status: 404 });
-
   try {
+    const context = requireBusinessContext(req);
+    const { id } = await params;
+    const job = await productVideoJobs.get(id);
+    if (!job || job.companyId !== context.companyId) {
+      return NextResponse.json({ error: "任务不存在" }, { status: 404 });
+    }
     const kind = req.nextUrl.searchParams.get("kind") === "thumbnail" ? "thumbnail" : "video";
     const upstreamUrl = getWorkerAssetUrl(job, kind);
     const headers = new Headers();
@@ -50,6 +54,7 @@ async function proxyAsset(
       headers: responseHeaders,
     });
   } catch (error: unknown) {
+    if (error instanceof BusinessError) return businessErrorResponse(error);
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "读取成片失败" },
       { status: 502 },

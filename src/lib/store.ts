@@ -4,10 +4,8 @@ import type {
   StoredContact,
   StoredDocument,
   StoredInquiry,
-  StoredLineItem,
   StoredOrder,
   StoredProduct,
-  StoredProductMedia,
   StoredQuotation,
   StoredShipment,
 } from "@/lib/business/types";
@@ -31,6 +29,7 @@ export type ProductVideoPipeline =
 
 export interface StoredProductVideoJob {
   id: string;
+  companyId?: string;
   productId: string;
   productName: string;
   title: string;

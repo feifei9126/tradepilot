@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { randomUUID } from "node:crypto";
-import { store, type StoredContact } from "@/lib/store";
+
+import { requireBusinessContext } from "@/lib/business/context";
+import { BusinessError, businessErrorResponse } from "@/lib/business/errors";
+import type { ContactCreateInput } from "@/lib/business/types";
+import { getBusinessRepository } from "@/lib/repositories";
 import { isValidEmail } from "@/lib/validation";
 import {
   AIRequestConfigError,
@@ -19,24 +22,26 @@ interface ImportedContact {
 }
 
 export async function POST(req: NextRequest) {
-  const body = await req.json();
-  const chatText =
-    typeof body.chatText === "string" ? body.chatText.trim() : "";
-  const source =
-    typeof body.source === "string"
-      ? body.source.trim().slice(0, 100)
-      : "聊天导入";
+  try {
+    const repository = await getBusinessRepository(requireBusinessContext(req));
+    const body = await req.json();
+    const chatText =
+      typeof body.chatText === "string" ? body.chatText.trim() : "";
+    const source =
+      typeof body.source === "string"
+        ? body.source.trim().slice(0, 100)
+        : "聊天导入";
 
-  if (!chatText) {
-    return NextResponse.json({ error: "请提供聊天记录内容" }, { status: 400 });
-  }
-  if (chatText.length > 2 * 1024 * 1024) {
-    return NextResponse.json(
-      { error: "聊天记录内容不能超过 2 MB" },
-      { status: 413 },
-    );
-  }
-  const systemPrompt = `你是一位外贸数据录入专家。用户上传了${source || "聊天软件"}的聊天记录，请从中提取客户信息。
+    if (!chatText) {
+      return NextResponse.json({ error: "请提供聊天记录内容" }, { status: 400 });
+    }
+    if (chatText.length > 2 * 1024 * 1024) {
+      return NextResponse.json(
+        { error: "聊天记录内容不能超过 2 MB" },
+        { status: 413 },
+      );
+    }
+    const systemPrompt = `你是一位外贸数据录入专家。用户上传了${source || "聊天软件"}的聊天记录，请从中提取客户信息。
 
 请提取以下字段（JSON 格式）：
 {
@@ -61,7 +66,6 @@ export async function POST(req: NextRequest) {
 - notes 用中文总结聊天中的业务要点
 - 只返回 JSON，不要其他文字`;
 
-  try {
     const { data } = await callChatCompletion({
       ...body,
       messages: [
@@ -73,54 +77,74 @@ export async function POST(req: NextRequest) {
     });
 
     const content = data.choices?.[0]?.message?.content || "";
-    // Parse JSON from response (handle markdown code blocks)
     const jsonMatch = content.match(/\{[\s\S]*\}/);
     const parsed = (
       jsonMatch ? JSON.parse(jsonMatch[0]) : { contacts: [] }
     ) as { contacts?: ImportedContact[] };
 
-    // Save to store
-    const contacts = (Array.isArray(parsed.contacts) ? parsed.contacts : [])
-      .filter(
-        (contact) => typeof contact.name === "string" && contact.name.trim(),
-      )
-      .slice(0, 100);
+    const contacts = (Array.isArray(parsed.contacts) ? parsed.contacts : []).slice(
+      0,
+      100,
+    );
     if (contacts.length === 0) {
       return NextResponse.json(
-        { error: "AI 未提取到有效客户，请检查聊天内容后重试" },
+        {
+          error: "AI 未提取到有效客户，请检查聊天内容后重试",
+          contacts: [],
+          raw: content,
+          errors: ["未提取到客户记录"],
+        },
         { status: 422 },
       );
     }
 
-    const saved = contacts.map((c) => {
-      const contact: StoredContact = {
-        id: `c_${randomUUID()}`,
-        name: c.name!.trim().slice(0, 200),
+    const errors: string[] = [];
+    const inputs: ContactCreateInput[] = contacts.map((contact, index) => {
+      const name =
+        typeof contact.name === "string" ? contact.name.trim().slice(0, 200) : "";
+      const email = typeof contact.email === "string" ? contact.email.trim() : "";
+      if (!name) errors.push(`第 ${index + 1} 条客户缺少名称`);
+      if (email && !isValidEmail(email)) {
+        errors.push(`第 ${index + 1} 条客户邮箱格式无效`);
+      }
+      return {
+        name,
         country:
-          typeof c.country === "string" ? c.country.trim().slice(0, 100) : "",
+          typeof contact.country === "string"
+            ? contact.country.trim().slice(0, 100)
+            : "",
         source:
-          typeof c.source === "string" ? c.source.trim().slice(0, 100) : source,
-        tags: Array.isArray(c.tags)
-          ? c.tags
+          typeof contact.source === "string"
+            ? contact.source.trim().slice(0, 100)
+            : source,
+        tags: Array.isArray(contact.tags)
+          ? contact.tags
               .filter((tag): tag is string => typeof tag === "string")
               .map((tag) => tag.trim().slice(0, 100))
               .filter(Boolean)
               .slice(0, 20)
           : [],
         notes:
-          typeof c.notes === "string" ? c.notes.trim().slice(0, 10_000) : "",
-        email:
-          typeof c.email === "string" && isValidEmail(c.email.trim())
-            ? c.email.trim()
+          typeof contact.notes === "string"
+            ? contact.notes.trim().slice(0, 10_000)
             : "",
-        phone: typeof c.phone === "string" ? c.phone.trim().slice(0, 80) : "",
-        createdAt: new Date().toISOString().slice(0, 10),
+        email,
+        phone:
+          typeof contact.phone === "string"
+            ? contact.phone.trim().slice(0, 80)
+            : "",
       };
-      store.contacts.add(contact);
-      return contact;
     });
+    if (errors.length) {
+      return NextResponse.json(
+        { error: "部分客户数据无效，未写入任何记录", contacts: [], raw: content, errors },
+        { status: 422 },
+      );
+    }
 
-    return NextResponse.json({ contacts: saved, raw: content });
+    const saved = await repository.contacts.importBatch(inputs);
+
+    return NextResponse.json({ contacts: saved, raw: content, errors: [] });
   } catch (error: unknown) {
     if (error instanceof AIRequestConfigError) {
       return NextResponse.json({ error: error.message }, { status: 400 });
@@ -131,8 +155,9 @@ export async function POST(req: NextRequest) {
         { status: error.status },
       );
     }
+    if (error instanceof BusinessError) return businessErrorResponse(error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "聊天记录导入失败" },
+      { error: "聊天记录导入失败" },
       { status: 500 },
     );
   }

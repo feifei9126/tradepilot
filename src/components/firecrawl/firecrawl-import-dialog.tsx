@@ -48,6 +48,7 @@ type ImportPreview = Omit<FirecrawlImportedProduct, "id" | "source"> & {
   sourceUrl?: string;
   description?: string;
   category?: string;
+  confirmationToken?: string;
 };
 
 type FirecrawlHealth = {
@@ -281,12 +282,16 @@ export function FirecrawlImportDialog({
       });
       const data = (await response.json()) as {
         preview?: ImportPreview;
+        confirmationToken?: string;
         error?: string;
       };
-      if (!response.ok || !data.preview) {
+      if (!response.ok || !data.preview || !data.confirmationToken) {
         throw new Error(data.error || "抓取失败");
       }
-      setImportResult(data.preview);
+      setImportResult({
+        ...data.preview,
+        confirmationToken: data.confirmationToken,
+      });
       toast.success("抓取完成，请检查预览后确认");
     } catch (error: unknown) {
       toast.error(error instanceof Error ? error.message : "抓取失败");
@@ -302,7 +307,10 @@ export function FirecrawlImportDialog({
       const response = await fetch("/api/firecrawl/confirm", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ preview: importResult }),
+        body: JSON.stringify({
+          preview: importResult,
+          confirmationToken: importResult.confirmationToken,
+        }),
       });
       const data = (await response.json()) as {
         product?: FirecrawlImportedProduct;

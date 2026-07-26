@@ -4,6 +4,10 @@ import {
   scrapeWithFirecrawl,
   getFirecrawlConfig,
 } from "@/lib/firecrawl/client";
+import {
+  firecrawlConfirmationSecret,
+  signFirecrawlPreview,
+} from "@/lib/firecrawl/confirmation";
 import { normalizeFirecrawlProduct } from "@/lib/firecrawl/normalize";
 
 export async function POST(req: NextRequest) {
@@ -20,8 +24,13 @@ export async function POST(req: NextRequest) {
     }
 
     const data = await scrapeWithFirecrawl(sourceUrl);
+    const preview = normalizeFirecrawlProduct(data, sourceUrl);
     return NextResponse.json({
-      preview: normalizeFirecrawlProduct(data, sourceUrl),
+      preview,
+      confirmationToken: await signFirecrawlPreview(
+        preview,
+        firecrawlConfirmationSecret(),
+      ),
     });
   } catch (error: unknown) {
     return NextResponse.json(

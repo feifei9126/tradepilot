@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireBusinessContext } from "@/lib/business/context";
+import { BusinessError, businessErrorResponse } from "@/lib/business/errors";
 import {
   deleteProductVideoJob,
   refreshProductVideoJob,
@@ -30,14 +32,16 @@ export async function removeProductVideoJob(
 }
 
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const { id } = await params;
-  const job = await productVideoJobs.get(id);
-  if (!job) return NextResponse.json({ error: "任务不存在" }, { status: 404 });
-
   try {
+    const context = requireBusinessContext(req);
+    const { id } = await params;
+    const job = await productVideoJobs.get(id);
+    if (!job || job.companyId !== context.companyId) {
+      return NextResponse.json({ error: "任务不存在" }, { status: 404 });
+    }
     const update = await refreshProductVideoJob(job);
     if (update) {
       const refreshed = await productVideoJobs.update(id, update);
@@ -45,6 +49,7 @@ export async function GET(
     }
     return NextResponse.json(publicProductVideoJob(job));
   } catch (error: unknown) {
+    if (error instanceof BusinessError) return businessErrorResponse(error);
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "刷新任务状态失败" },
       { status: 502 },
@@ -53,12 +58,19 @@ export async function GET(
 }
 
 export async function DELETE(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const { id } = await params;
-  const job = await productVideoJobs.get(id);
-  if (!job) return NextResponse.json({ error: "任务不存在" }, { status: 404 });
+  try {
+    const context = requireBusinessContext(req);
+    const { id } = await params;
+    const job = await productVideoJobs.get(id);
+    if (!job || job.companyId !== context.companyId) {
+      return NextResponse.json({ error: "任务不存在" }, { status: 404 });
+    }
 
-  return NextResponse.json(await removeProductVideoJob(job));
+    return NextResponse.json(await removeProductVideoJob(job));
+  } catch (error) {
+    return businessErrorResponse(error);
+  }
 }
