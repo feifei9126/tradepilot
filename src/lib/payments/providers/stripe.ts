@@ -24,7 +24,17 @@ export class StripePaymentProvider implements PaymentProviderAdapter {
     const metadata = object.metadata && typeof object.metadata === "object" ? object.metadata as Record<string, unknown> : {};
     if (payload.type === "checkout.session.completed") return [{ providerEventId: payload.id || "", kind: "payment_succeeded", attemptId: typeof metadata.paymentAttemptId === "string" ? metadata.paymentAttemptId : undefined, providerTransactionId: typeof object.payment_intent === "string" ? object.payment_intent : typeof object.id === "string" ? object.id : undefined, amountMinor: typeof object.amount_total === "number" ? object.amount_total : undefined, currency: typeof object.currency === "string" ? object.currency.toUpperCase() : undefined, orderReference: typeof metadata.orderReference === "string" ? metadata.orderReference : undefined }];
     if (payload.type === "payment_intent.payment_failed") return [{ providerEventId: payload.id || "", kind: "payment_failed", attemptId: typeof metadata.paymentAttemptId === "string" ? metadata.paymentAttemptId : undefined, providerTransactionId: typeof object.id === "string" ? object.id : undefined, orderReference: typeof metadata.orderReference === "string" ? metadata.orderReference : undefined }];
-    if (payload.type === "charge.refunded") return [{ providerEventId: payload.id || "", kind: "refund_succeeded", providerTransactionId: typeof object.payment_intent === "string" ? object.payment_intent : undefined, refundAmountMinor: typeof object.amount_refunded === "number" ? object.amount_refunded : undefined }];
+    if (payload.type === "charge.refunded") {
+      const refunds = object.refunds && typeof object.refunds === "object" ? object.refunds as Record<string, unknown> : {};
+      const items = Array.isArray(refunds.data) ? refunds.data.filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === "object") : [];
+      if (items.length > 0) return items.flatMap((refund) => {
+        const refundId = typeof refund.id === "string" ? refund.id : "";
+        const status = typeof refund.status === "string" ? refund.status : "";
+        if (!refundId || !["succeeded", "failed", "canceled"].includes(status)) return [];
+        return [{ providerEventId: `${payload.id || "refund"}:${refundId}`, kind: status === "succeeded" ? "refund_succeeded" as const : "refund_failed" as const, providerTransactionId: typeof object.payment_intent === "string" ? object.payment_intent : undefined, refundId, refundAmountMinor: typeof refund.amount === "number" ? refund.amount : undefined }];
+      });
+      return [{ providerEventId: payload.id || "", kind: "refund_succeeded", providerTransactionId: typeof object.payment_intent === "string" ? object.payment_intent : undefined, refundAmountMinor: typeof object.amount_refunded === "number" ? object.amount_refunded : undefined }];
+    }
     return [];
   }
   async refund(input: { providerTransactionId: string; amountMinor: number; currency: string; idempotencyKey: string }) {

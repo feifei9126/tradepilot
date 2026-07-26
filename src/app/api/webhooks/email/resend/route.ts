@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getPostgresEmailRepository } from "@/lib/email/runtime";
 import { openEmailAccountCredentials, requireEmailCredentialsKey } from "@/lib/email/service";
 import { ingestInboundEmail, normalizeCloudflareInboundEmail, verifyResendWebhookSignature } from "@/lib/email/inbound";
+import { fetchResendReceivedEmail } from "@/lib/email/providers/resend";
 import type { EmailAccount } from "@/lib/email/types";
 
 export const runtime = "nodejs";
@@ -38,12 +39,29 @@ function identify(payload: Record<string, unknown>) {
   };
 }
 
+function recipientEmails(payload: Record<string, unknown>) {
+  const value = eventData(payload).to;
+  const entries = Array.isArray(value) ? value : typeof value === "string" ? value.split(",") : [];
+  return entries.flatMap((entry) => {
+    if (typeof entry !== "string") return [];
+    const bracketed = entry.match(/<([^<>]+)>/);
+    const email = (bracketed?.[1] || entry).trim().toLowerCase();
+    return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email) ? [email] : [];
+  });
+}
+
 async function selectAccount(payload: Record<string, unknown>) {
   const ids = identify(payload);
-  if (!ids.companyId || !ids.accountId) return null;
   const repository = getPostgresEmailRepository();
-  const account = (await repository.listAccounts(ids.companyId)).find((candidate) => candidate.id === ids.accountId && candidate.provider === "resend" && candidate.status === "active");
-  return account ? { repository, account } : null;
+  if (ids.companyId && ids.accountId) {
+    const account = (await repository.listAccounts(ids.companyId)).find((candidate) => candidate.id === ids.accountId && candidate.provider === "resend" && candidate.status === "active");
+    if (account) return { repository, account };
+  }
+  for (const email of recipientEmails(payload)) {
+    const account = await repository.findActiveResendAccountByEmail(email);
+    if (account) return { repository, account };
+  }
+  return null;
 }
 
 function eventData(payload: Record<string, unknown>) {
@@ -75,7 +93,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Webhook signature is invalid", code: "UNAUTHORIZED" }, { status: 401 });
     }
 
-    const data = eventData(payload);
+    let data = eventData(payload);
     const eventId = firstString(request.headers.get("svix-id"), payload.id, payload.event_id, data.id, data.email_id);
     if (!eventId) return NextResponse.json({ error: "Webhook event id is required", code: "VALIDATION_ERROR" }, { status: 400 });
     const eventType = firstString(payload.type, payload.event, "email.received");
@@ -92,6 +110,12 @@ export async function POST(request: NextRequest) {
         processedAt: new Date().toISOString(),
       });
       return NextResponse.json({ ok: true, duplicate: !recorded.created });
+    }
+    const receivedEmailId = firstString(data.email_id, data.id);
+    const rawFromWebhook = typeof data.raw === "string" ? data.raw : typeof data.rawMime === "string" ? data.rawMime : undefined;
+    if (!rawFromWebhook && receivedEmailId) {
+      const received = await fetchResendReceivedEmail({ apiKey: credentials.apiKey, emailId: receivedEmailId });
+      data = { ...data, ...received, email_id: receivedEmailId };
     }
     const raw = typeof data.raw === "string" ? data.raw : typeof data.rawMime === "string" ? data.rawMime : undefined;
     const normalized = raw

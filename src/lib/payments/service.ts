@@ -57,8 +57,13 @@ export async function startPayment(repository: PaymentRepository, input: { reque
   if (input.request.status === "paid" || new Date(input.request.expiresAt).getTime() <= Date.now()) throw new BusinessError("CONFLICT", "Payment request is no longer payable", 409);
   if (!/^[A-Za-z0-9_-]{32,128}$/.test(input.publicToken) || tokenHash(input.publicToken) !== input.request.publicTokenHash) throw new BusinessError("VALIDATION_ERROR", "Payment token does not match the request", 400);
   const existing = await repository.findAttemptByIdempotency(input.request.companyId, input.idempotencyKey);
-  if (existing) return existing;
-  const activeAttempt = (await repository.listAttempts(input.request.companyId, input.request.id)).find((attempt) => attempt.provider === input.account.provider && ["pending", "requires_action"].includes(attempt.status));
+  if (existing) {
+    if (existing.requestId !== input.request.id || existing.paymentAccountId !== input.account.id) {
+      throw new BusinessError("CONFLICT", "Payment idempotency key does not match this request", 409);
+    }
+    return existing;
+  }
+  const activeAttempt = (await repository.listAttempts(input.request.companyId, input.request.id)).find((attempt) => attempt.paymentAccountId === input.account.id && ["pending", "requires_action"].includes(attempt.status));
   if (activeAttempt) return activeAttempt;
   const now = new Date().toISOString();
   const order = await repository.getOrder(input.request.companyId, input.request.orderId);
@@ -90,6 +95,9 @@ export async function applyPaymentEvent(repository: PaymentRepository, event: No
     const candidates = await repository.listAttempts(context.companyId, context.requestId);
     attempt = candidates.find((candidate) => !event.providerTransactionId || candidate.providerTransactionId === event.providerTransactionId) || null;
   }
+  if (!attempt && event.providerTransactionId) {
+    attempt = await repository.findAttemptByProviderTransaction(context.companyId, provider, event.providerTransactionId);
+  }
   if (!attempt) throw new BusinessError("VALIDATION_ERROR", "Payment event does not identify an attempt", 400);
   if (attempt.provider !== provider) throw new BusinessError("VALIDATION_ERROR", "Payment event provider does not match", 400);
   const request = await repository.getRequest(context.companyId, attempt.requestId);
@@ -105,6 +113,21 @@ export async function applyPaymentEvent(repository: PaymentRepository, event: No
   } else if (attempt && event.kind === "payment_failed") {
     await repository.updateAttempt(context.companyId, attempt.id, { status: "failed", failureCode: "PROVIDER_PAYMENT_FAILED" });
     await repository.updateRequest(context.companyId, attempt.requestId, { status: "failed" });
+  } else if (event.kind === "refund_succeeded" || event.kind === "refund_failed") {
+    if (event.refundAmountMinor !== undefined && (!Number.isSafeInteger(event.refundAmountMinor) || event.refundAmountMinor <= 0)) throw new BusinessError("VALIDATION_ERROR", "Refund event amount is invalid", 400);
+    const refunds = (await repository.listRefunds(context.companyId, request.id)).filter((refund) => refund.attemptId === attempt.id);
+    let refund = event.refundId ? refunds.find((candidate) => candidate.providerRefundId === event.refundId) : undefined;
+    if (!refund) {
+      const pending = refunds.filter((candidate) => candidate.status === "pending" && (event.refundAmountMinor === undefined || candidate.amountMinor === event.refundAmountMinor));
+      if (pending.length === 1) refund = pending[0];
+    }
+    if (!refund) throw new BusinessError("VALIDATION_ERROR", "Refund event does not identify a refund", 400);
+    if (event.refundAmountMinor !== undefined && event.refundAmountMinor !== refund.amountMinor) throw new BusinessError("VALIDATION_ERROR", "Refund event amount does not match", 400);
+    await repository.updateRefund(context.companyId, refund.id, {
+      status: event.kind === "refund_succeeded" ? "succeeded" : "failed",
+      providerRefundId: event.refundId || refund.providerRefundId,
+    });
+    await recalculateOrderPayment(repository, context.companyId, request.orderId);
   }
   await repository.markProviderEventProcessed(provider, event.providerEventId);
   return { duplicate: false, event: recorded.event, attempt };
@@ -131,7 +154,7 @@ export async function createRefund(repository: PaymentRepository, input: { compa
   if (input.amountMinor <= 0 || input.amountMinor > refundable) throw new BusinessError("CONFLICT", "Refund amount exceeds the refundable balance", 409);
   const refund = await repository.createRefund({ id: randomUUID(), companyId: input.companyId, requestId: input.requestId, attemptId: input.attemptId, amountMinor: input.amountMinor, reason: input.reason.trim().slice(0, 500), providerRefundId: null, status: "pending", idempotencyKey: input.idempotencyKey, createdBy: input.userId, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
   try {
-    const result = await input.adapter.refund({ providerTransactionId: attempt.providerTransactionId, amountMinor: refund.amountMinor, currency: attempt.currency, idempotencyKey: refund.idempotencyKey });
+    const result = await input.adapter.refund({ providerTransactionId: attempt.providerTransactionId, amountMinor: refund.amountMinor, totalAmountMinor: attempt.amountMinor, currency: attempt.currency, idempotencyKey: refund.idempotencyKey });
     const updated = await repository.updateRefund(input.companyId, refund.id, { status: "succeeded", providerRefundId: result.providerRefundId });
     const request = await repository.getRequest(input.companyId, input.requestId);
     if (request) await recalculateOrderPayment(repository, input.companyId, request.orderId);

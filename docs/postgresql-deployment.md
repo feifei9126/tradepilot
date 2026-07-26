@@ -4,7 +4,7 @@ TradePilot 的生产环境强制使用 PostgreSQL。支持 Neon，也支持可�
 
 ## 数据库范围
 
-生产数据库持久化客户、产品、询盘、报价、订单、物流、单据，以及这些流程直接依赖的联系人、沟通记录和业务编号。新数据库默认不写入演示业务数据。
+生产数据库持久化客户、产品、询盘、报价、订单、物流、单据，以及这些流程直接依赖的联系人、沟通记录和业务编号。工作区成员、邮箱账户、邮件线程/消息/队列、支付账户、收款请求、支付尝试和退款也按租户写入 PostgreSQL。新数据库默认不写入演示业务数据。
 
 只有显式设置以下开关时才会导入演示数据：
 
@@ -118,13 +118,13 @@ Windows 命令提示符或 PowerShell：
 .\install.bat
 ```
 
-安装器会创建或复用本机 `.env`，生成 `AUTH_SECRET`、PostgreSQL 密码和管理员密码，然后按以下顺序运行：
+安装器会创建或复用本机 `.env`，生成 `AUTH_SECRET`、`TRADEPILOT_CREDENTIALS_KEY`、PostgreSQL 密码和管理员密码，然后按以下顺序运行：
 
 ```text
-postgres -> db-init -> tradepilot/video-worker -> health check
+postgres -> db-init -> tradepilot + video-worker + mail-worker -> health check
 ```
 
-PostgreSQL 数据保存在 `tradepilot_postgres` volume。重复运行安装器不会删除 volume，`db:init` 和管理员 bootstrap 可幂等重跑。`docker compose down` 默认保留 volume；不要在有生产数据时使用会删除 volume 的参数。
+`mail-worker` 与 Web 应用使用同一个 PostgreSQL 和 `TRADEPILOT_CREDENTIALS_KEY`。它轮询 SMTP 发件队列，并按邮箱保存的 UIDVALIDITY/UID 游标执行 IMAP 增量收件。PostgreSQL 数据保存在 `tradepilot_postgres` volume，邮件附件使用 `tradepilot_mail_attachments` volume。重复运行安装器不会删除 volume，`db:init` 和管理员 bootstrap 可幂等重跑。`docker compose down` 默认保留 volume；不要在有生产数据时使用会删除 volume 的参数。
 
 ## Cloudflare Workers
 
@@ -135,7 +135,9 @@ npm install
 npm run setup:cloudflare
 ```
 
-引导命令依次执行 status、migrate、bootstrap、可选 seed、设置 `DATABASE_URL`/`AUTH_SECRET` Worker secrets、OpenNext 构建、Wrangler 部署和 `/api/health` 验证。管理员密码只传给本地 bootstrap 子进程，不会上传到 Worker，也不会写入 `wrangler.jsonc`。
+引导命令依次执行 status、migrate、bootstrap、可选 seed、设置 `DATABASE_URL`、`AUTH_SECRET`、`TRADEPILOT_CREDENTIALS_KEY`、`TRADEPILOT_CRON_SECRET` Worker secrets、OpenNext 构建、Wrangler 部署和 `/api/health` 验证。管理员密码只传给本地 bootstrap 子进程，不会上传到 Worker，也不会写入 `wrangler.jsonc`。
+
+引导命令把 `AUTH_SECRET`、`TRADEPILOT_CREDENTIALS_KEY` 和 `TRADEPILOT_CRON_SECRET` 保存到仓库根目录中被 Git 忽略的 `.env.cloudflare`，重复部署会复用这些值。请将该文件作为生产 secret 私密备份。丢失或轮换 `TRADEPILOT_CREDENTIALS_KEY` 后，数据库中已经保存的邮箱和支付凭据将无法解密，必须在后台逐个账户重新配置。
 
 只预览流程：
 
@@ -150,6 +152,38 @@ npm run setup:cloudflare -- --dry-run
 Cloudflare Git 集成中的构建命令可以使用 `npm run cfbuild`，部署命令使用 `npx wrangler deploy`。Cloudflare Git 自动构建不执行数据库迁移，因为构建阶段不应依赖运行时 secret，也不能保证数据库管理网络权限。
 
 每次包含数据库迁移的升级都必须先从受控环境运行 `npm run db:migrate`，确认状态正常后再触发 Cloudflare Git 构建。仅重新连接 GitHub 仓库或清除构建缓存不会修复数据库 schema。
+
+## 邮件收发配置
+
+生产邮件账户在 `/app/email/settings` 配置。邮箱和支付凭据都使用 `TRADEPILOT_CREDENTIALS_KEY` 加密，因此运行邮件进程和 Web 应用的环境必须使用同一个稳定密钥。
+
+Docker 部署使用 `smtp_imap` 账户：
+
+1. 在设置页填写 SMTP、IMAP、邮箱用户名和密码。
+2. `mail-worker` 默认每 30 秒处理 SMTP outbox，并按保存的游标增量同步 IMAP。
+3. 使用 `docker compose logs -f mail-worker` 查看不包含明文凭据的运行日志。
+4. `docker compose ps` 应显示 `mail-worker` 为 healthy；内部健康地址是 `/health`。
+
+Cloudflare Workers 不建立 IMAP 长连接，也不连接 SMTP 端口，使用 Resend 账户：
+
+1. 在 `/app/email/settings` 添加 Resend API key 和 webhook secret。
+2. 在 Resend 把入站 webhook 设置为 `https://<domain>/api/webhooks/email/resend`。
+3. 确保每个活动 Resend 账户使用唯一收件地址；Webhook 会在验签后按账户 ID 或唯一收件地址定位租户。
+4. `wrangler.jsonc` 中的 Cron 每 5 分钟调用内部 outbox 处理器，仅发送 Resend 队列。
+
+本地 `npm run dev` 未配置 `DATABASE_URL` 时只提供内存演示邮件和草稿，不执行真实 SMTP、IMAP 或 Resend 收发。
+
+## 订单收款配置
+
+在 `/app/settings/payments` 添加 Stripe、支付宝或微信支付商户。账户创建后会显示不可猜测的公开账户 ID；支付服务商的 webhook 地址为：
+
+```text
+https://<domain>/api/webhooks/payments/<provider>/<publicAccountId>
+```
+
+Stripe 通常需要先创建账户以获得 URL，再在 Stripe 后台创建 webhook 并取得 signing secret，最后点击账户编辑按钮重新输入该账户的全部凭据。现有密钥不会回显，更新时渠道不可更改。
+
+订单详情页可以为未收款余额创建公开收款链接。服务端验证服务商签名、金额、币种、订单引用和幂等事件，再更新订单已收金额；有权限的成员可以发起退款。该模块只处理订单收款和退款，不是订阅计费系统。本地无数据库模式不执行真实支付。
 
 ## 健康检查
 
@@ -212,7 +246,8 @@ Cloudflare Git 集成中的构建命令可以使用 `npm run cfbuild`，部署�
 ## Secret 管理
 
 - `.env` 只保存在部署机器，禁止提交；Docker 安装器会尽量限制文件权限。
-- Cloudflare Worker 运行时只需要数据库连接和会话等运行时 secrets；管理员密码不应上传。
+- Cloudflare Worker 运行时需要 `DATABASE_URL`、`AUTH_SECRET`、`TRADEPILOT_CREDENTIALS_KEY` 和 `TRADEPILOT_CRON_SECRET`；管理员密码不应上传。
 - 不要使用 `NEXT_PUBLIC_*` 保存数据库、管理员、AI 或第三方服务密钥。
-- 轮换 `DATABASE_URL` 或 `AUTH_SECRET` 后重新部署并验证健康检查和登录。
+- `.env.cloudflare` 必须保持 Git 忽略并私密备份；它不包含数据库连接串或管理员密码，但包含可复用运行时密钥。
+- 轮换 `DATABASE_URL` 或 `AUTH_SECRET` 后重新部署并验证健康检查和登录。轮换 `TRADEPILOT_CREDENTIALS_KEY` 前先制定重新录入所有邮箱和支付凭据的计划。
 - 如果任何 PAT、连接串或密码曾出现在聊天、日志或 Git 历史中，立即在对应提供商撤销并生成新凭据。

@@ -13,6 +13,7 @@ import type {
   EmailOutboxItem,
   EmailRepository,
   EmailThread,
+  OutboundEmailInput,
   ProviderEmailEvent,
 } from "./types";
 
@@ -139,6 +140,28 @@ function mapEvent(row: typeof emailEvents.$inferSelect): ProviderEmailEvent {
   };
 }
 
+function outboundMessage(input: OutboundEmailInput, now: string): EmailMessage {
+  return {
+    id: randomUUID(),
+    ...input,
+    providerMessageId: null,
+    externalId: input.externalId || null,
+    direction: "outbound",
+    cc: input.cc || [],
+    bcc: input.bcc || [],
+    textBody: input.textBody || null,
+    htmlBody: input.htmlBody || null,
+    rawMimeObjectKey: null,
+    isRead: true,
+    isStarred: false,
+    errorCode: null,
+    sentAt: input.sentAt || null,
+    receivedAt: null,
+    createdAt: now,
+    updatedAt: now,
+  };
+}
+
 export function createMemoryEmailRepository(): EmailRepository {
   const accounts = new Map<string, EmailAccount>();
   const threads = new Map<string, EmailThread>();
@@ -149,6 +172,11 @@ export function createMemoryEmailRepository(): EmailRepository {
   return {
     async listAccounts(companyId) {
       return clone([...accounts.values()].filter((item) => item.companyId === companyId));
+    },
+    async findActiveResendAccountByEmail(email) {
+      const normalized = email.trim().toLowerCase();
+      const matches = [...accounts.values()].filter((item) => item.provider === "resend" && item.status === "active" && item.email.toLowerCase() === normalized);
+      return matches.length === 1 ? clone(matches[0]) : null;
     },
     async createAccount(input) {
       const duplicate = [...accounts.values()].some((item) => item.companyId === input.companyId && item.email.toLowerCase() === input.email.toLowerCase());
@@ -215,11 +243,31 @@ export function createMemoryEmailRepository(): EmailRepository {
         createdAt: now,
         updatedAt: now,
       };
-      messages.set(message.id, message);
       const currentThread = threads.get(input.threadId);
+      if (currentThread && (currentThread.companyId !== input.companyId || currentThread.accountId !== input.accountId)) {
+        throw new BusinessError("CONFLICT", "Email thread does not belong to this account", 409);
+      }
+      messages.set(message.id, message);
       threads.set(input.threadId, currentThread
         ? { ...currentThread, messageCount: currentThread.messageCount + 1, lastMessageAt: message.receivedAt || now, updatedAt: now }
         : { id: input.threadId, companyId: input.companyId, accountId: input.accountId, subject: input.subject, participants: [...input.from, ...input.to], messageCount: 1, lastMessageAt: message.receivedAt || now, createdAt: now, updatedAt: now });
+      return clone(message);
+    },
+    async saveOutboundMessage(input) {
+      const account = accounts.get(input.accountId);
+      if (!account || account.companyId !== input.companyId) throw new BusinessError("NOT_FOUND", "Email account not found", 404);
+      const existing = [...messages.values()].find((item) => item.companyId === input.companyId && item.accountId === input.accountId && item.normalizedMessageKey === input.normalizedMessageKey);
+      if (existing) return clone(existing);
+      const now = new Date().toISOString();
+      const currentThread = threads.get(input.threadId);
+      if (currentThread && (currentThread.companyId !== input.companyId || currentThread.accountId !== input.accountId)) {
+        throw new BusinessError("CONFLICT", "Email thread does not belong to this account", 409);
+      }
+      const message = outboundMessage(input, now);
+      messages.set(message.id, message);
+      threads.set(input.threadId, currentThread
+        ? { ...currentThread, messageCount: currentThread.messageCount + 1, lastMessageAt: message.sentAt || now, updatedAt: now }
+        : { id: input.threadId, companyId: input.companyId, accountId: input.accountId, subject: input.subject, participants: [...input.from, ...input.to], messageCount: 1, lastMessageAt: message.sentAt || now, createdAt: now, updatedAt: now });
       return clone(message);
     },
     async enqueue(input) {
@@ -228,8 +276,11 @@ export function createMemoryEmailRepository(): EmailRepository {
       outbox.set(input.id, clone(input));
       return clone(input);
     },
-    async leaseOutbox({ now, leasedUntil, limit }) {
-      const leased = [...outbox.values()].filter((item) => (item.status === "pending" || item.status === "retry" || item.status === "leased") && item.nextAttemptAt <= now && (!item.leasedUntil || item.leasedUntil <= now)).slice(0, limit).map((item) => ({ ...item, status: "leased", leasedUntil, updatedAt: now }));
+    async leaseOutbox({ now, leasedUntil, limit, providers }) {
+      const leased = [...outbox.values()].filter((item) => {
+        const account = accounts.get(item.accountId);
+        return (item.status === "pending" || item.status === "retry" || item.status === "leased") && item.nextAttemptAt <= now && (!item.leasedUntil || item.leasedUntil <= now) && (!providers?.length || Boolean(account && providers.includes(account.provider)));
+      }).slice(0, limit).map((item) => ({ ...item, status: "leased", leasedUntil, updatedAt: now }));
       leased.forEach((item) => outbox.set(item.id, item));
       return clone(leased);
     },
@@ -262,6 +313,11 @@ export function createPostgresEmailRepository(db: Database): EmailRepository {
   return {
     async listAccounts(companyId) {
       return (await db.select().from(emailAccounts).where(eq(emailAccounts.companyId, companyId)).orderBy(asc(emailAccounts.name))).map(mapAccount);
+    },
+    async findActiveResendAccountByEmail(email) {
+      const normalized = email.trim().toLowerCase();
+      const rows = await db.select().from(emailAccounts).where(and(eq(emailAccounts.provider, "resend"), eq(emailAccounts.status, "active"), sql`lower(${emailAccounts.email}) = ${normalized}`)).limit(2);
+      return rows.length === 1 ? mapAccount(rows[0]) : null;
     },
     async createAccount(input) {
       const [row] = await db.insert(emailAccounts).values({
@@ -324,6 +380,10 @@ export function createPostgresEmailRepository(db: Database): EmailRepository {
     },
     async insertInboundMessage(input) {
       return db.transaction(async (transaction) => {
+        const [existingThread] = await transaction.select({ accountId: emailThreads.accountId }).from(emailThreads).where(and(eq(emailThreads.companyId, input.companyId), eq(emailThreads.id, input.threadId))).limit(1);
+        if (existingThread && existingThread.accountId !== input.accountId) {
+          throw new BusinessError("CONFLICT", "Email thread does not belong to this account", 409);
+        }
         await transaction.insert(emailThreads).values({
           id: input.threadId,
           companyId: input.companyId,
@@ -365,6 +425,50 @@ export function createPostgresEmailRepository(db: Database): EmailRepository {
         return mapMessage(inserted);
       });
     },
+    async saveOutboundMessage(input) {
+      return db.transaction(async (transaction) => {
+        const [existingThread] = await transaction.select({ accountId: emailThreads.accountId }).from(emailThreads).where(and(eq(emailThreads.companyId, input.companyId), eq(emailThreads.id, input.threadId))).limit(1);
+        if (existingThread && existingThread.accountId !== input.accountId) {
+          throw new BusinessError("CONFLICT", "Email thread does not belong to this account", 409);
+        }
+        const messageAt = new Date(input.sentAt || Date.now());
+        await transaction.insert(emailThreads).values({
+          id: input.threadId,
+          companyId: input.companyId,
+          accountId: input.accountId,
+          subject: input.subject,
+          participants: [...input.from, ...input.to],
+          messageCount: 0,
+          lastMessageAt: messageAt,
+        }).onConflictDoNothing({ target: emailThreads.id });
+        const [inserted] = await transaction.insert(emailMessages).values({
+          companyId: input.companyId,
+          accountId: input.accountId,
+          threadId: input.threadId,
+          normalizedMessageKey: input.normalizedMessageKey,
+          externalId: input.externalId || null,
+          direction: "outbound",
+          folder: input.folder,
+          from: input.from,
+          to: input.to,
+          cc: input.cc || [],
+          bcc: input.bcc || [],
+          subject: input.subject,
+          textBody: input.textBody || null,
+          htmlBody: input.htmlBody || null,
+          isRead: true,
+          status: input.status,
+          sentAt: input.sentAt ? new Date(input.sentAt) : null,
+        }).onConflictDoNothing({ target: [emailMessages.accountId, emailMessages.normalizedMessageKey] }).returning();
+        if (!inserted) {
+          const [existing] = await transaction.select().from(emailMessages).where(and(eq(emailMessages.companyId, input.companyId), eq(emailMessages.accountId, input.accountId), eq(emailMessages.normalizedMessageKey, input.normalizedMessageKey))).limit(1);
+          if (!existing) throw new BusinessError("CONFLICT", "Email message conflict", 409);
+          return mapMessage(existing);
+        }
+        await transaction.update(emailThreads).set({ messageCount: sql`${emailThreads.messageCount} + 1`, lastMessageAt: messageAt, updatedAt: new Date() }).where(and(eq(emailThreads.companyId, input.companyId), eq(emailThreads.id, input.threadId), eq(emailThreads.accountId, input.accountId)));
+        return mapMessage(inserted);
+      });
+    },
     async enqueue(input) {
       const [inserted] = await db.insert(emailOutbox).values({
         ...input,
@@ -378,9 +482,16 @@ export function createPostgresEmailRepository(db: Database): EmailRepository {
       if (!existing) throw new BusinessError("CONFLICT", "Email outbox conflict", 409);
       return mapOutbox(existing);
     },
-    async leaseOutbox({ now, leasedUntil, limit }) {
+    async leaseOutbox({ now, leasedUntil, limit, providers }) {
       return db.transaction(async (transaction) => {
-        const rows = await transaction.select().from(emailOutbox).where(and(inArray(emailOutbox.status, ["pending", "retry", "leased"]), lte(emailOutbox.nextAttemptAt, new Date(now)), or(isNull(emailOutbox.leasedUntil), lte(emailOutbox.leasedUntil, new Date(now))))).orderBy(asc(emailOutbox.nextAttemptAt)).for("update", { skipLocked: true }).limit(limit);
+        const conditions = [
+          inArray(emailOutbox.status, ["pending", "retry", "leased"]),
+          lte(emailOutbox.nextAttemptAt, new Date(now)),
+          or(isNull(emailOutbox.leasedUntil), lte(emailOutbox.leasedUntil, new Date(now))),
+        ];
+        if (providers?.length) conditions.push(inArray(emailAccounts.provider, providers));
+        const selected = await transaction.select({ outbox: emailOutbox }).from(emailOutbox).innerJoin(emailAccounts, and(eq(emailAccounts.companyId, emailOutbox.companyId), eq(emailAccounts.id, emailOutbox.accountId))).where(and(...conditions)).orderBy(asc(emailOutbox.nextAttemptAt)).for("update", { skipLocked: true }).limit(limit);
+        const rows = selected.map((row) => row.outbox);
         if (!rows.length) return [];
         const updated = await transaction.update(emailOutbox).set({ status: "leased", leasedUntil: new Date(leasedUntil), updatedAt: new Date(now) }).where(inArray(emailOutbox.id, rows.map((row) => row.id))).returning();
         return updated.map(mapOutbox);

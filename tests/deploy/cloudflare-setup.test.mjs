@@ -1,4 +1,7 @@
 import assert from "node:assert/strict";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import test from "node:test";
 
 import { runCloudflareSetup } from "../../scripts/setup-cloudflare.mjs";
@@ -6,7 +9,7 @@ import { runCloudflareSetup } from "../../scripts/setup-cloudflare.mjs";
 const databaseUrl = "postgresql://deploy-user:deploy-password@neon.example/tradepilot?sslmode=require";
 const adminPassword = "admin-password-that-must-not-leak";
 const authSecret = "auth-secret-that-must-not-leak";
-const credentialsKey = "credentials-key-that-must-not-leak";
+const credentialsKey = Buffer.alloc(32, 11).toString("base64url");
 
 function setupInput(overrides = {}) {
   return {
@@ -121,4 +124,40 @@ test("Cloudflare setup rejects non-interactive configuration without a database 
     }),
     /DATABASE_URL is required/,
   );
+});
+
+test("Cloudflare setup persists generated runtime secrets across repeated deployments", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "tradepilot-cloudflare-"));
+  const env = setupInput({ AUTH_SECRET: "", TRADEPILOT_CREDENTIALS_KEY: "", TRADEPILOT_CRON_SECRET: "" });
+  const runs = [];
+  try {
+    for (let run = 0; run < 2; run += 1) {
+      const calls = [];
+      await runCloudflareSetup({
+        cwd,
+        env,
+        exec: async (command, args, options = {}) => {
+          calls.push({ command, args, options });
+          return { status: 0, stdout: "", stderr: "" };
+        },
+        fetch: async () => ({ ok: true, status: 200, json: async () => ({ ok: true }) }),
+        log: () => {},
+      });
+      runs.push(Object.fromEntries(calls
+        .filter((call) => call.args.includes("put"))
+        .map((call) => [call.args.at(-1), call.options.input])));
+    }
+
+    assert.equal(runs[0].AUTH_SECRET, runs[1].AUTH_SECRET);
+    assert.equal(runs[0].TRADEPILOT_CREDENTIALS_KEY, runs[1].TRADEPILOT_CREDENTIALS_KEY);
+    assert.equal(runs[0].TRADEPILOT_CRON_SECRET, runs[1].TRADEPILOT_CRON_SECRET);
+    const state = await readFile(join(cwd, ".env.cloudflare"), "utf8");
+    assert.match(state, /^AUTH_SECRET=/m);
+    assert.match(state, /^TRADEPILOT_CREDENTIALS_KEY=/m);
+    assert.match(state, /^TRADEPILOT_CRON_SECRET=/m);
+    assert.equal(state.includes(databaseUrl), false);
+    assert.equal(state.includes(adminPassword), false);
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
 });

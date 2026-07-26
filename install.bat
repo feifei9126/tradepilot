@@ -30,6 +30,18 @@ if not defined POSTGRES_PASSWORD (
     call :set_env POSTGRES_PASSWORD "%%POSTGRES_PASSWORD%%"
 )
 
+call :read_env TRADEPILOT_CREDENTIALS_KEY CREDENTIALS_KEY
+if not defined CREDENTIALS_KEY goto :generate_credentials_key
+if /I "%CREDENTIALS_KEY%"=="replace-with-32-byte-base64url-key" goto :generate_credentials_key
+goto :credentials_key_ready
+
+:generate_credentials_key
+call :random_base64url 32 CREDENTIALS_KEY
+call :set_env TRADEPILOT_CREDENTIALS_KEY "%%CREDENTIALS_KEY%%"
+echo [INFO] Generated TRADEPILOT_CREDENTIALS_KEY.
+
+:credentials_key_ready
+
 call :read_env TRADEPILOT_ADMIN_EMAIL ADMIN_EMAIL
 if not defined ADMIN_EMAIL (
     set "ADMIN_EMAIL=admin@tradepilot.local"
@@ -60,7 +72,7 @@ if /I "%TRADEPILOT_INSTALL_TEST_MODE%"=="true" (
     echo docker compose build db-init
     echo docker compose up -d postgres
     echo docker compose run --rm db-init
-    echo docker compose up -d --build tradepilot video-worker
+    echo docker compose up -d --build tradepilot mail-worker video-worker
     echo [INFO] 安装测试模式完成；未调用 Docker 或网络。
     exit /b 0
 )
@@ -92,7 +104,7 @@ docker compose --env-file "%ENV_FILE%" up -d postgres || exit /b 1
 echo [INFO] 执行数据库迁移和管理员初始化...
 docker compose --env-file "%ENV_FILE%" run --rm db-init || exit /b 1
 echo [INFO] 启动 TradePilot 和视频 Worker...
-docker compose --env-file "%ENV_FILE%" up -d --build tradepilot video-worker || exit /b 1
+docker compose --env-file "%ENV_FILE%" up -d --build tradepilot mail-worker video-worker || exit /b 1
 
 echo [INFO] 等待 TradePilot 健康检查...
 for /L %%I in (1,1,90) do (
@@ -134,6 +146,15 @@ for /f "usebackq delims=" %%A in (`powershell -NoProfile -Command "$bytes=New-Ob
 call set "GENERATED=%%%~2%%"
 if not defined GENERATED (
     echo [ERROR] PowerShell 无法生成安全随机密钥。
+    exit /b 1
+)
+exit /b 0
+
+:random_base64url
+for /f "usebackq delims=" %%A in (`powershell -NoProfile -Command "$bytes=New-Object byte[] %~1; [Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($bytes); [Convert]::ToBase64String($bytes).Replace('+','-').Replace('/','_').TrimEnd('=')"`) do set "%~2=%%A"
+call set "GENERATED=%%%~2%%"
+if not defined GENERATED (
+    echo [ERROR] PowerShell could not generate a secure random key.
     exit /b 1
 )
 exit /b 0

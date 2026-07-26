@@ -11,6 +11,10 @@ test("README documents production database and one-command deployment modes", as
   assert.match(readme, /bash install\.sh/);
   assert.match(readme, /npm run setup:cloudflare/);
   assert.match(readme, /docs\/postgresql-deployment\.md/);
+  assert.match(readme, /mail-worker/);
+  assert.match(readme, /\/app\/email\/settings/);
+  assert.match(readme, /\/app\/settings\/payments/);
+  assert.match(readme, /\.env\.cloudflare/);
 });
 
 test("PostgreSQL deployment guide covers upgrades and safe troubleshooting", async () => {
@@ -30,6 +34,31 @@ test("PostgreSQL deployment guide covers upgrades and safe troubleshooting", asy
     "npm run db:migrate",
     "npm run db:bootstrap",
     "Cloudflare Git",
+    "TRADEPILOT_CREDENTIALS_KEY",
+    "TRADEPILOT_CRON_SECRET",
+    "/api/webhooks/email/resend",
+    "/api/webhooks/payments/<provider>/<publicAccountId>",
+  ]) {
+    assert.match(guide, new RegExp(expected));
+  }
+  assert.match(guide, /每 5 分钟/);
+  assert.match(guide, /mail-worker/);
+});
+
+test("mail worker guide documents SMTP, IMAP, health checks and required secrets", async () => {
+  const guide = await readFile(
+    new URL("../../workers/mail-worker/README.md", import.meta.url),
+    "utf8",
+  );
+
+  for (const expected of [
+    "SMTP",
+    "IMAP",
+    "DATABASE_URL",
+    "TRADEPILOT_CREDENTIALS_KEY",
+    "MAIL_WORKER_INTERVAL_MS",
+    "/health",
+    "docker compose",
   ]) {
     assert.match(guide, new RegExp(expected));
   }

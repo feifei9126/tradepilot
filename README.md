@@ -68,6 +68,14 @@ TradePilot 面向 1-5 人外贸团队，把分散的客户资料、报价、订�
 - 出货、物流、供应商、财务汇总与单证草稿
 - 基于真实业务记录生成的仪表盘、销售漏斗和待办提醒
 
+### 多租户、邮件与订单收款
+
+- 工作区切换、成员邀请和基于角色的业务权限
+- 在 `/app/email/settings` 配置 SMTP/IMAP 或 Resend 邮箱，凭据加密后存入 PostgreSQL
+- Docker 的 `mail-worker` 负责 SMTP 发件和 IMAP 增量收件；Cloudflare 通过 Resend webhook 与每 5 分钟 Cron 处理收发
+- 在 `/app/settings/payments` 配置 Stripe、支付宝或微信支付商户，生成订单收款链接并处理回调和退款
+- 支付模块只用于订单收款与退款，不包含 SaaS 订阅计费
+
 ### AI 模型与 Ollama
 
 - 支持 OpenAI、DeepSeek、通义千问与 OpenAI 兼容服务
@@ -107,9 +115,9 @@ bash install.sh
 
 安装器会：
 
-1. 生成认证密钥、PostgreSQL 密码和随机管理员密码，并保存到本机 `.env`。
+1. 生成认证密钥、凭据加密密钥、PostgreSQL 密码和随机管理员密码，并保存到本机 `.env`。
 2. 构建并启动 PostgreSQL，执行迁移和管理员初始化。
-3. 启动 TradePilot 与本地视频 Worker。
+3. 启动 TradePilot、本地视频 Worker，以及负责 SMTP/IMAP 的 `mail-worker`。
 4. 在后台启动 MoneyPrinterTurbo 和 Redis，并输出登录账号、密码和服务状态命令。
 
 生产数据库默认是空的。只有显式设置 `TRADEPILOT_SEED_DEMO=true`，初始化时才会写入演示客户、产品、询盘、报价、订单和物流记录。
@@ -134,7 +142,7 @@ npm install
 npm run dev
 ```
 
-开发地址为 [http://localhost:3458](http://localhost:3458)。`npm run dev` 未配置 `DATABASE_URL` 时使用内存演示账号 `demo@tradepilot.dev` / `12345678`；这组账号不会进入生产数据库。
+开发地址为 [http://localhost:3458](http://localhost:3458)。`npm run dev` 未配置 `DATABASE_URL` 时使用内存演示账号 `demo@tradepilot.dev` / `12345678`；这组账号不会进入生产数据库。该模式只提供演示数据和邮件草稿，不会执行真实邮件收发或订单支付。
 
 生产运行：
 
@@ -160,7 +168,11 @@ npm run setup:cloudflare
 npm run setup:cloudflare -- --dry-run
 ```
 
-连接串、`AUTH_SECRET` 和其他运行时凭据必须保存在 Wrangler/Cloudflare Secrets，禁止写入 `wrangler.jsonc`。`TRADEPILOT_ADMIN_EMAIL` 与 `TRADEPILOT_ADMIN_PASSWORD` 只用于本地 bootstrap；初始化完成后密码不会上传到 Worker，可从本地环境中删除。生产默认不导入演示业务数据；需要时在引导命令前设置 `TRADEPILOT_SEED_DEMO=true`。
+引导命令会上传 `DATABASE_URL`、`AUTH_SECRET`、`TRADEPILOT_CREDENTIALS_KEY` 和 `TRADEPILOT_CRON_SECRET`，并把后三个可复用密钥保存在被 Git 忽略的 `.env.cloudflare`。该文件必须私密备份；删除或轮换 `TRADEPILOT_CREDENTIALS_KEY` 会导致数据库中已有邮箱和支付凭据无法解密。不要把这些值写入 `wrangler.jsonc`。
+
+`TRADEPILOT_ADMIN_EMAIL` 与 `TRADEPILOT_ADMIN_PASSWORD` 只用于本地 bootstrap；初始化完成后密码不会上传到 Worker，可从本地环境中删除。生产默认不导入演示业务数据；需要时在引导命令前设置 `TRADEPILOT_SEED_DEMO=true`。
+
+部署完成后，在 `/app/email/settings` 添加 Resend 账户，并把 Resend 入站 webhook 设置为 `https://<domain>/api/webhooks/email/resend`。Cloudflare Cron 每 5 分钟处理一次 Resend 发件队列。订单收款账户在 `/app/settings/payments` 配置；服务商 webhook 使用页面显示的公开账户 ID，地址形状为 `https://<domain>/api/webhooks/payments/<provider>/<publicAccountId>`。
 
 Cloudflare Git 自动构建只负责构建和部署，不会替你运行数据库迁移。升级版本时，先在可访问数据库的环境运行 `npm run db:migrate`（或再次运行引导命令），再触发 Git 构建。
 
@@ -199,6 +211,8 @@ cp .env.example .env
 | `TRADEPILOT_ADMIN_PASSWORD` | 首次 bootstrap 使用的管理员密码             |
 | `DATABASE_URL`              | 生产必填；Neon 或其他兼容 PostgreSQL 的连接串 |
 | `TRADEPILOT_SEED_DEMO`      | 显式设为 `true` 才导入演示业务数据           |
+| `TRADEPILOT_CREDENTIALS_KEY` | 邮箱和支付凭据的 32 字节加密密钥             |
+| `TRADEPILOT_CRON_SECRET`    | Cloudflare 邮件队列 Cron 的内部鉴权密钥       |
 | `TRADEPILOT_DATA_DIR`       | 产品视频任务持久化目录                      |
 | `OPENMONTAGE_WORKER_URL`    | OpenMontage / 本地 FFmpeg Worker 地址       |
 | `MONEYPRINTERTURBO_URL`     | MoneyPrinterTurbo API 地址                  |
@@ -212,7 +226,9 @@ cp .env.example .env
 - 客户、产品、询盘、报价、订单、物流和单据在生产环境通过租户隔离的 PostgreSQL 仓库持久化。
 - 只有本地无数据库开发模式使用内存演示数据；生产默认空库，演示 seed 必须显式开启。
 - 客户批量导入在数据库事务中整批提交或回滚；客户和产品导出只查询当前租户。
-- 邮件中心保存草稿和非敏感连接参数，真实 IMAP/SMTP 收发需要独立 Worker。
+- 工作区成员、邮箱账户、邮件线程/消息/队列、支付账户、收款请求、支付尝试和退款均按租户写入 PostgreSQL；邮箱和支付凭据使用信封加密。
+- Docker 通过 `mail-worker` 执行 SMTP/IMAP，Cloudflare 通过 Resend webhook 和 Cron 执行邮件收发；本地无数据库模式只保存内存草稿。
+- 支付只覆盖订单收款和退款，不处理订阅、账单套餐或平台服务费。
 - 单证为可下载的业务草稿，对外使用前必须核对卖方、包装、支付和合规字段。
 - 插件通过源码目录与脚本管理，不在生产环境执行未经审查的第三方运行时代码。
 - AI 输出、抓取内容和视频脚本都应由业务人员确认后使用。
@@ -239,6 +255,7 @@ tradepilot/
 ├── src/lib/                 # AI、业务、采集、视频与安全逻辑
 ├── tests/                   # 业务、Firecrawl、产品视频测试
 ├── workers/openmontage-adapter/
+├── workers/mail-worker/     # Docker SMTP 发件与 IMAP 增量收件
 ├── docs/                    # 集成与部署说明
 ├── docker-compose.yml
 ├── install.sh
@@ -248,6 +265,7 @@ tradepilot/
 深入文档：
 
 - [PostgreSQL 部署、升级与故障排查](docs/postgresql-deployment.md)
+- [SMTP/IMAP 邮件 Worker](workers/mail-worker/README.md)
 - [Firecrawl 产品媒体采集](docs/firecrawl-product-media.md)
 - [MoneyPrinterTurbo 产品视频](docs/moneyprinterturbo-product-video.md)
 - [OpenMontage 产品视频](docs/openmontage-product-video.md)

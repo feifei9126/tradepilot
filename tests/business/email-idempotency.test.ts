@@ -96,3 +96,34 @@ test("outbound drafts are visible in the draft folder", async () => {
   assert.equal(draft.folder, "draft");
   assert.deepEqual((await repository.listMessages(companyId, { folder: "draft" })).map((message) => message.id), [draft.id]);
 });
+
+test("Resend webhook account lookup requires one unique active recipient", async () => {
+  const repository = createMemoryEmailRepository();
+  const now = new Date(0).toISOString();
+  const base = {
+    name: "Inbound",
+    email: "inbound@example.com",
+    provider: "resend" as const,
+    smtpHost: null,
+    smtpPort: null,
+    smtpSecure: true,
+    imapHost: null,
+    imapPort: null,
+    imapSecure: true,
+    imapMailbox: null,
+    encryptedCredentials: "sealed",
+    credentialsConfigured: true,
+    status: "active" as const,
+    healthStatus: "unknown" as const,
+    lastError: null,
+    syncCursor: {},
+    createdAt: now,
+    updatedAt: now,
+  };
+  const first = await repository.createAccount({ ...base, id: "10000000-0000-4000-8000-000000000021", companyId: "10000000-0000-4000-8000-000000000022" });
+
+  assert.equal((await repository.findActiveResendAccountByEmail("Inbound@Example.com"))?.id, first.id);
+
+  await repository.createAccount({ ...base, id: "10000000-0000-4000-8000-000000000023", companyId: "10000000-0000-4000-8000-000000000024" });
+  assert.equal(await repository.findActiveResendAccountByEmail("inbound@example.com"), null);
+});

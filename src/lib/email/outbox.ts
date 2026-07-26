@@ -1,13 +1,14 @@
 import { randomUUID } from "node:crypto";
 
 import { openEmailAccountCredentials, requireEmailCredentialsKey } from "./service";
-import type { EmailAccount, EmailOutboxItem, EmailRepository } from "./types";
+import type { EmailAccount, EmailAddress, EmailOutboxItem, EmailProvider, EmailRepository } from "./types";
 import {
   ResendEmailProvider,
   ProviderSendError,
   type EmailProviderAdapter,
 } from "./providers/resend";
 import type { SendEmailInput } from "./providers/contracts";
+import { SmtpEmailProvider } from "./providers/smtp";
 
 export const OUTBOX_MAX_ATTEMPTS = 8;
 export const OUTBOX_LEASE_DURATION_MS = 5 * 60 * 1000;
@@ -32,6 +33,7 @@ export interface OutboxProcessorOptions {
   clock?: Clock;
   leaseDurationMs?: number;
   credentialsKey?: string | Uint8Array;
+  providers?: EmailProvider[];
   adapterForAccount?: (account: EmailAccount, credentials: Record<string, string>) => EmailProviderAdapter | Promise<EmailProviderAdapter>;
 }
 
@@ -45,6 +47,16 @@ function addressValue(value: unknown, field: string): string | string[] {
     return value.map((entry) => (entry as string).trim());
   }
   throw new ProviderSendError("PROVIDER_INVALID_REQUEST", `Email ${field} is invalid`, false);
+}
+
+function optionalAddressValue(value: unknown, field: string) {
+  if (value === undefined || value === null || value === "" || (Array.isArray(value) && value.length === 0)) return undefined;
+  return addressValue(value, field);
+}
+
+function addressObjects(value: string | string[] | undefined): EmailAddress[] {
+  if (!value) return [];
+  return (Array.isArray(value) ? value : [value]).map((email) => ({ email }));
 }
 
 function sendPayload(payload: Record<string, unknown>, account: EmailAccount, idempotencyKey: string): SendEmailInput {
@@ -63,9 +75,12 @@ function sendPayload(payload: Record<string, unknown>, account: EmailAccount, id
     text,
     idempotencyKey,
   };
-  if (payload.cc !== undefined) result.cc = addressValue(payload.cc, "cc");
-  if (payload.bcc !== undefined) result.bcc = addressValue(payload.bcc, "bcc");
-  if (payload.replyTo !== undefined) result.replyTo = addressValue(payload.replyTo, "reply-to");
+  const cc = optionalAddressValue(payload.cc, "cc");
+  const bcc = optionalAddressValue(payload.bcc, "bcc");
+  const replyTo = optionalAddressValue(payload.replyTo, "reply-to");
+  if (cc) result.cc = cc;
+  if (bcc) result.bcc = bcc;
+  if (replyTo) result.replyTo = replyTo;
   return result;
 }
 
@@ -92,15 +107,16 @@ function failure(error: unknown) {
 function safeErrorMessage(error: ProviderSendError, credentials: Record<string, string>) {
   let message = error.message;
   for (const secret of Object.values(credentials)) {
-    if (secret.length >= 4) message = message.split(secret).join("[redacted]");
+    if (secret.length > 0) message = message.split(secret).join("[redacted]");
   }
   return message.slice(0, 500);
 }
 
 async function adapterFor(options: OutboxProcessorOptions, account: EmailAccount, credentials: Record<string, string>) {
   if (options.adapterForAccount) return options.adapterForAccount(account, credentials);
-  if (account.provider !== "resend") {
-    throw new ProviderSendError("PROVIDER_INVALID_REQUEST", "Email provider is not configured", false);
+  if (account.provider === "smtp_imap") {
+    if (!account.smtpHost || !account.smtpPort || !credentials.username || !credentials.password) throw new ProviderSendError("PROVIDER_AUTH_FAILED", "SMTP provider credentials are invalid", false);
+    return new SmtpEmailProvider({ host: account.smtpHost, port: account.smtpPort, secure: account.smtpSecure, username: credentials.username, password: credentials.password });
   }
   const apiKey = credentials.apiKey;
   if (!apiKey) throw new ProviderSendError("PROVIDER_AUTH_FAILED", "Email provider credentials are invalid", false);
@@ -124,6 +140,7 @@ export async function processEmailOutbox(options: OutboxProcessorOptions) {
     now: now.toISOString(),
     leasedUntil,
     limit: Math.max(1, Math.min(options.limit || 50, 100)),
+    providers: options.providers,
   });
   const credentialsKey = items.length > 0 ? (options.credentialsKey || requireEmailCredentialsKey()) : undefined;
   const results: Array<{ id: string; status: string; externalId?: string | null; errorCode?: string | null }> = [];
@@ -145,6 +162,28 @@ export async function processEmailOutbox(options: OutboxProcessorOptions) {
         lastErrorCode: null,
         lastError: null,
       });
+      try {
+        await options.repository.saveOutboundMessage({
+          companyId: item.companyId,
+          accountId: item.accountId,
+          threadId: typeof item.payload.threadId === "string" && /^[0-9a-f-]{36}$/i.test(item.payload.threadId) ? item.payload.threadId : item.id,
+          normalizedMessageKey: `outbox:${item.id}`,
+          externalId: sent.externalId,
+          folder: "sent",
+          from: addressObjects(payload.from),
+          to: addressObjects(payload.to),
+          cc: addressObjects(payload.cc),
+          bcc: addressObjects(payload.bcc),
+          subject: payload.subject,
+          textBody: payload.text || null,
+          htmlBody: payload.html || null,
+          status: "sent",
+          sentAt: clock().toISOString(),
+        });
+      } catch {
+        results.push({ id: item.id, status: updated?.status || "sent", externalId: sent.externalId, errorCode: "SENT_MESSAGE_PERSIST_FAILED" });
+        continue;
+      }
       results.push({ id: item.id, status: updated?.status || "sent", externalId: sent.externalId });
     } catch (error) {
       const providerError = failure(error);

@@ -14,7 +14,7 @@ FROM public.ecr.aws/docker/library/node:22-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production
 RUN apk add --no-cache font-dejavu \
-  && mkdir -p /app/data /app/openmontage-workspace \
+  && mkdir -p /app/data /app/data/mail-attachments /app/openmontage-workspace \
   && chown -R node:node /app
 COPY --from=deps --chown=node:node /app/node_modules ./node_modules
 COPY --from=builder --chown=node:node /app/.next ./.next

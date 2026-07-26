@@ -3,6 +3,7 @@ import { sealSecret } from "../../src/lib/security/envelope";
 import test from "node:test";
 
 import {
+  fetchResendReceivedEmail,
   ResendEmailProvider,
   type ResendProviderError,
 } from "../../src/lib/email/providers/resend";
@@ -106,6 +107,23 @@ test("Resend provider treats ordinary client errors as permanent", async () => {
       return true;
     },
   );
+});
+
+test("Resend receiving client fetches the verified inbound message body", async () => {
+  let request: { url: string; init?: RequestInit } | undefined;
+  const message = await fetchResendReceivedEmail({
+    apiKey: "re_receiving_secret",
+    emailId: "email_123",
+    fetch: async (url, init) => {
+      request = { url: String(url), init };
+      return Response.json({ id: "email_123", from: "buyer@example.com", to: ["sales@example.com"], subject: "Quote", text: "Please quote", html: "<p>Please quote</p>" });
+    },
+  });
+
+  assert.equal(request?.url, "https://api.resend.com/emails/receiving/email_123");
+  assert.equal((request?.init?.headers as Record<string, string>).Authorization, "Bearer re_receiving_secret");
+  assert.equal(message.text, "Please quote");
+  assert.equal(message.html, "<p>Please quote</p>");
 });
 
 test("outbox retries temporary failures with the documented backoff and does not log secrets", async () => {

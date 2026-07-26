@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import {
   Mail,
@@ -43,12 +44,22 @@ interface Email {
   contactId?: string;
 }
 
+interface EmailAccount {
+  id: string;
+  name: string;
+  email: string;
+  provider: "smtp_imap" | "resend";
+}
+
 export default function EmailPage() {
   const router = useRouter();
   const { getTaskProvider } = useAIConfig();
   const searchParams = useSearchParams();
   const requestedTo = searchParams.get("to") || "";
   const [emails, setEmails] = useState<Email[]>([]);
+  const [accounts, setAccounts] = useState<EmailAccount[]>([]);
+  const [accountId, setAccountId] = useState("");
+  const [emailMode, setEmailMode] = useState<"loading" | "local-draft" | "configured">("loading");
   const [folder, setFolder] = useState("inbox");
   const [selected, setSelected] = useState<Email | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -66,7 +77,8 @@ export default function EmailPage() {
       const url =
         "/api/email?folder=" +
         folder +
-        (searchQuery ? "&q=" + encodeURIComponent(searchQuery) : "");
+        (searchQuery ? "&q=" + encodeURIComponent(searchQuery) : "") +
+        (accountId ? "&accountId=" + encodeURIComponent(accountId) : "");
       const r = await fetch(url);
       const d = await r.json();
       if (!r.ok) throw new Error(d.error || "邮件加载失败");
@@ -79,7 +91,7 @@ export default function EmailPage() {
 
   useEffect(() => {
     let cancelled = false;
-    fetch(`/api/email?folder=${folder}`)
+    fetch(`/api/email?folder=${folder}${accountId ? `&accountId=${encodeURIComponent(accountId)}` : ""}`)
       .then(async (response) => {
         const data = await response.json();
         if (!response.ok) throw new Error(data.error || "邮件加载失败");
@@ -97,11 +109,36 @@ export default function EmailPage() {
     return () => {
       cancelled = true;
     };
-  }, [folder]);
+  }, [folder, accountId]);
 
-  async function handleSaveDraft() {
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/email/accounts")
+      .then(async (response) => {
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || "Email accounts could not be loaded");
+        return data;
+      })
+      .then((data) => {
+        if (cancelled) return;
+        const nextAccounts = Array.isArray(data.accounts) ? data.accounts : [];
+        setAccounts(nextAccounts);
+        setAccountId((current) => current || nextAccounts[0]?.id || "");
+        setEmailMode(data.mode === "configured" ? "configured" : "local-draft");
+      })
+      .catch((error) => {
+        if (!cancelled) toast.error(error instanceof Error ? error.message : "Email accounts could not be loaded");
+      });
+    return () => { cancelled = true; };
+  }, []);
+
+  async function submitMessage(action: "save-draft" | "send") {
     if (!composeTo.trim() || !composeSubject.trim()) {
       toast.error("收件人和主题必填");
+      return;
+    }
+    if (emailMode === "configured" && !accountId) {
+      toast.error("Select an email account first");
       return;
     }
     setSending(true);
@@ -110,25 +147,29 @@ export default function EmailPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          action: "save-draft",
+          action,
+          accountId: accountId || undefined,
           to: composeTo,
           subject: composeSubject,
           body: composeBody,
         }),
       });
       const data = await r.json();
-      if (!r.ok) throw new Error(data.error || "草稿保存失败");
-      toast.success("邮件草稿已保存");
+      if (!r.ok) throw new Error(data.error || (action === "send" ? "Email could not be queued" : "Draft could not be saved"));
+      toast.success(action === "send" ? "Email queued for delivery" : "Draft saved");
       setShowCompose(false);
       setComposeTo("");
       setComposeSubject("");
       setComposeBody("");
-      if (folder === "draft") await loadEmails();
+      if (folder === (action === "send" ? "sent" : "draft")) await loadEmails();
     } catch (error: unknown) {
-      toast.error(error instanceof Error ? error.message : "草稿保存失败");
+      toast.error(error instanceof Error ? error.message : "Email could not be submitted");
     }
     setSending(false);
   }
+
+  function handleSaveDraft() { void submitMessage("save-draft"); }
+  function handleSend() { void submitMessage("send"); }
 
   async function handleAICompose(openAsReply = false) {
     const aiConfig = getTaskProvider("email_compose");
@@ -263,7 +304,7 @@ export default function EmailPage() {
             邮件中心
           </h1>
           <p className="text-sm text-muted-foreground mt-0.5">
-            查看邮件示例并生成可人工审核的回复草稿
+            收件、草稿和发件
           </p>
         </div>
         <div className="flex gap-2">
@@ -290,13 +331,10 @@ export default function EmailPage() {
         </div>
       </div>
 
-      <div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+      {emailMode === "local-draft" && <div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
         <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
-        <p>
-          当前为本地草稿模式：收件箱是示例数据，IMAP/SMTP Worker
-          尚未接入。保存操作不会向外部邮箱投递。
-        </p>
-      </div>
+        <p>本地演示模式只保存草稿，不会向外部邮箱投递。</p>
+      </div>}
 
       <div className="grid gap-4 md:grid-cols-4">
         {/* Left: Folders */}
@@ -413,6 +451,10 @@ export default function EmailPage() {
                 <FileText className="h-4 w-4 text-primary" />
                 邮件草稿
               </h3>
+              {emailMode === "configured" && <Select value={accountId} onValueChange={(value) => setAccountId(value || "")}>
+                <SelectTrigger><SelectValue placeholder="Select email account" /></SelectTrigger>
+                <SelectContent>{accounts.map((account) => <SelectItem key={account.id} value={account.id}>{account.name} - {account.email}</SelectItem>)}</SelectContent>
+              </Select>}
               <Input
                 placeholder="收件人"
                 value={composeTo}
@@ -466,6 +508,10 @@ export default function EmailPage() {
                   )}
                   保存草稿
                 </Button>
+                {emailMode === "configured" && <Button size="sm" onClick={handleSend} disabled={sending || !accountId}>
+                  {sending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Send className="h-4 w-4 mr-1" />}
+                  发送
+                </Button>}
               </div>
             </div>
           ) : selected ? (

@@ -1,342 +1,211 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
-import { toast } from "sonner";
+import { useEffect, useState } from "react";
 import Link from "next/link";
-import {
-  Mail,
-  Plus,
-  Settings,
-  ArrowLeft,
-  Check,
-  X,
-  Shield,
-} from "lucide-react";
+import { ArrowLeft, Check, Mail, Pencil, Plus, Settings, ShieldCheck, X } from "lucide-react";
+import { toast } from "sonner";
+
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+
+type Provider = "smtp_imap" | "resend";
 
 interface EmailAccountView {
   id: string;
   name: string;
   email: string;
-  imapHost: string;
-  imapPort: number;
-  smtpHost: string;
-  smtpPort: number;
+  provider: Provider;
+  smtpHost: string | null;
+  smtpPort: number | null;
+  imapHost: string | null;
+  imapPort: number | null;
+  imapMailbox: string | null;
+  credentialsConfigured: boolean;
+  status: "active" | "disabled";
+  healthStatus: "unknown" | "healthy" | "error";
+  lastError: string | null;
 }
 
-interface NewEmailAccount {
+interface AccountForm {
   name: string;
   email: string;
-  imapHost: string;
-  imapPort: string;
+  provider: Provider;
   smtpHost: string;
   smtpPort: string;
+  imapHost: string;
+  imapPort: string;
+  imapMailbox: string;
   username: string;
+  password: string;
+  apiKey: string;
+  webhookSecret: string;
 }
 
-const EMPTY_ACCOUNT: NewEmailAccount = {
+const EMPTY_FORM: AccountForm = {
   name: "",
   email: "",
-  imapHost: "",
-  imapPort: "993",
+  provider: "smtp_imap",
   smtpHost: "",
   smtpPort: "465",
+  imapHost: "",
+  imapPort: "993",
+  imapMailbox: "INBOX",
   username: "",
+  password: "",
+  apiKey: "",
+  webhookSecret: "",
 };
+
+async function requestAccounts() {
+  const response = await fetch("/api/email/accounts");
+  const data = await response.json();
+  if (!response.ok || !Array.isArray(data.accounts)) {
+    throw new Error(data.error || "Email accounts could not be loaded");
+  }
+  return data.accounts as EmailAccountView[];
+}
 
 export default function EmailSettingsPage() {
   const [accounts, setAccounts] = useState<EmailAccountView[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [newAccount, setNewAccount] = useState<NewEmailAccount>(EMPTY_ACCOUNT);
+  const [form, setForm] = useState<AccountForm>(EMPTY_FORM);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-
-  useEffect(() => {
-    loadAccounts();
-  }, []);
 
   async function loadAccounts() {
     setLoading(true);
     try {
-      const r = await fetch("/api/email/accounts");
-      const d = await r.json();
-      if (!r.ok || !Array.isArray(d.accounts))
-        throw new Error(d.error || "邮箱参数加载失败");
-      setAccounts(d.accounts);
-    } catch (error: unknown) {
-      toast.error(error instanceof Error ? error.message : "邮箱参数加载失败");
+      setAccounts(await requestAccounts());
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Email accounts could not be loaded");
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }
 
-  async function addAccount() {
-    if (
-      !newAccount.name ||
-      !newAccount.email ||
-      !newAccount.imapHost ||
-      !newAccount.smtpHost
-    ) {
-      toast.error("请填写名称、邮箱和服务器地址");
-      return;
-    }
+  useEffect(() => {
+    let cancelled = false;
+    void requestAccounts()
+      .then((nextAccounts) => {
+        if (!cancelled) setAccounts(nextAccounts);
+      })
+      .catch((error) => {
+        if (!cancelled) toast.error(error instanceof Error ? error.message : "Email accounts could not be loaded");
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  function update<K extends keyof AccountForm>(key: K, value: AccountForm[K]) {
+    setForm((current) => ({ ...current, [key]: value }));
+  }
+
+  function beginCreate() {
+    setEditingId(null);
+    setForm(EMPTY_FORM);
+    setShowForm(true);
+  }
+
+  function beginEdit(account: EmailAccountView) {
+    setEditingId(account.id);
+    setForm({
+      ...EMPTY_FORM,
+      name: account.name,
+      email: account.email,
+      provider: account.provider,
+      smtpHost: account.smtpHost || "",
+      smtpPort: String(account.smtpPort || 465),
+      imapHost: account.imapHost || "",
+      imapPort: String(account.imapPort || 993),
+      imapMailbox: account.imapMailbox || "INBOX",
+      username: account.email,
+    });
+    setShowForm(true);
+  }
+
+  function requestBody() {
+    const credentials = form.provider === "smtp_imap"
+      ? Object.fromEntries(Object.entries({ username: form.username || form.email, password: form.password }).filter(([, value]) => value.trim()))
+      : Object.fromEntries(Object.entries({ apiKey: form.apiKey, webhookSecret: form.webhookSecret }).filter(([, value]) => value.trim()));
+    return form.provider === "smtp_imap"
+      ? { name: form.name, email: form.email, provider: form.provider, smtpHost: form.smtpHost, smtpPort: Number(form.smtpPort), imapHost: form.imapHost, imapPort: Number(form.imapPort), imapMailbox: form.imapMailbox, credentials }
+      : { name: form.name, email: form.email, provider: form.provider, credentials };
+  }
+
+  async function saveAccount() {
+    if (!form.name.trim() || !form.email.trim()) return toast.error("Name and email are required");
+    if (!editingId && form.provider === "smtp_imap" && (!form.smtpHost.trim() || !form.imapHost.trim() || !form.password)) return toast.error("SMTP, IMAP, and password are required");
+    if (!editingId && form.provider === "resend" && !form.apiKey) return toast.error("Resend API key is required");
     setSaving(true);
     try {
-      const r = await fetch("/api/email/accounts", {
-        method: "POST",
+      const response = await fetch("/api/email/accounts", {
+        method: editingId ? "PATCH" : "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ...newAccount,
-          imapPort: parseInt(newAccount.imapPort),
-          smtpPort: parseInt(newAccount.smtpPort),
-        }),
+        body: JSON.stringify({ ...(editingId ? { id: editingId } : {}), ...requestBody() }),
       });
-      const data = await r.json();
-      if (!r.ok) throw new Error(data.error || "保存失败");
-      toast.success("连接参数草稿已保存");
-      setNewAccount(EMPTY_ACCOUNT);
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Email account could not be saved");
+      toast.success(editingId ? "Email account updated" : "Email account added");
       setShowForm(false);
+      setEditingId(null);
+      setForm(EMPTY_FORM);
       await loadAccounts();
-    } catch (error: unknown) {
-      toast.error(error instanceof Error ? error.message : "保存失败");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Email account could not be saved");
     } finally {
       setSaving(false);
     }
   }
 
-  return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <Link
-            href="/app/email"
-            className="text-sm text-primary hover:underline mb-1 flex items-center gap-1"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            返回邮件收件箱
-          </Link>
-          <h1 className="text-2xl font-semibold flex items-center gap-2">
-            <Settings className="h-6 w-6 text-primary" />
-            邮箱设置
-          </h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            记录 IMAP/SMTP 连接参数草稿
-          </p>
-        </div>
-        <Button
-          size="sm"
-          className="h-9"
-          onClick={() => setShowForm(true)}
-          disabled={showForm}
-        >
-          <Plus className="h-4 w-4 mr-1.5" />
-          添加参数
-        </Button>
+  return <div className="space-y-5">
+    <div className="flex flex-wrap items-start justify-between gap-3">
+      <div>
+        <Link href="/app/email" className="mb-1 flex items-center gap-1 text-sm text-primary hover:underline"><ArrowLeft className="size-4" />Back to email</Link>
+        <h1 className="flex items-center gap-2 text-2xl font-semibold"><Settings className="size-6 text-primary" />Email accounts</h1>
+        <p className="mt-1 text-sm text-muted-foreground">SMTP/IMAP and Resend</p>
       </div>
-
-      <div className="grid gap-4 md:grid-cols-3">
-        <div className="md:col-span-2 space-y-3">
-          {loading ? (
-            <div className="py-8 text-center text-sm text-muted-foreground">
-              加载中...
-            </div>
-          ) : accounts.length === 0 ? (
-            <div className="py-10 text-center border rounded-lg">
-              <Mail className="h-10 w-10 mx-auto mb-2 text-muted-foreground/30" />
-              <p className="text-sm text-muted-foreground">
-                尚未保存邮箱连接参数
-              </p>
-              <Button
-                variant="outline"
-                size="sm"
-                className="mt-3 h-8 text-xs"
-                onClick={() => setShowForm(true)}
-              >
-                <Plus className="h-3.5 w-3.5 mr-1" />
-                添加第一组参数
-              </Button>
-            </div>
-          ) : (
-            accounts.map((a) => (
-              <Card key={a.id}>
-                <CardContent className="p-4 flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                      <Mail className="h-5 w-5 text-primary" />
-                    </div>
-                    <div>
-                      <p className="font-medium text-sm">{a.name}</p>
-                      <p className="text-xs text-muted-foreground">{a.email}</p>
-                      <div className="flex gap-2 mt-1">
-                        <span className="text-[10px] bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded">
-                          IMAP {a.imapHost}:{a.imapPort}
-                        </span>
-                        <span className="text-[10px] bg-green-50 text-green-600 px-1.5 py-0.5 rounded">
-                          SMTP {a.smtpHost}:{a.smtpPort}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                  <Badge variant="secondary" className="text-xs">
-                    参数草稿
-                  </Badge>
-                </CardContent>
-              </Card>
-            ))
-          )}
-        </div>
-
-        <div className="space-y-3">
-          {showForm && (
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base">新增连接参数</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2.5 text-sm">
-                <div>
-                  <label className="text-xs text-muted-foreground">
-                    显示名称
-                  </label>
-                  <Input
-                    className="h-8 text-xs"
-                    placeholder="公司邮箱"
-                    value={newAccount.name}
-                    onChange={(e) =>
-                      setNewAccount({ ...newAccount, name: e.target.value })
-                    }
-                  />
-                </div>
-                <div>
-                  <label className="text-xs text-muted-foreground">
-                    邮箱地址
-                  </label>
-                  <Input
-                    className="h-8 text-xs"
-                    placeholder="sales@company.com"
-                    value={newAccount.email}
-                    onChange={(e) =>
-                      setNewAccount({ ...newAccount, email: e.target.value })
-                    }
-                  />
-                </div>
-                <Separator />
-                <p className="text-xs font-medium text-muted-foreground">
-                  IMAP 收件
-                </p>
-                <div className="grid grid-cols-3 gap-2">
-                  <div className="col-span-2">
-                    <Input
-                      className="h-8 text-xs"
-                      placeholder="imap.example.com"
-                      value={newAccount.imapHost}
-                      onChange={(e) =>
-                        setNewAccount({
-                          ...newAccount,
-                          imapHost: e.target.value,
-                        })
-                      }
-                    />
-                  </div>
-                  <div>
-                    <Input
-                      className="h-8 text-xs"
-                      placeholder="993"
-                      value={newAccount.imapPort}
-                      onChange={(e) =>
-                        setNewAccount({
-                          ...newAccount,
-                          imapPort: e.target.value,
-                        })
-                      }
-                    />
-                  </div>
-                </div>
-                <Separator />
-                <p className="text-xs font-medium text-muted-foreground">
-                  SMTP 发件
-                </p>
-                <div className="grid grid-cols-3 gap-2">
-                  <div className="col-span-2">
-                    <Input
-                      className="h-8 text-xs"
-                      placeholder="smtp.example.com"
-                      value={newAccount.smtpHost}
-                      onChange={(e) =>
-                        setNewAccount({
-                          ...newAccount,
-                          smtpHost: e.target.value,
-                        })
-                      }
-                    />
-                  </div>
-                  <div>
-                    <Input
-                      className="h-8 text-xs"
-                      placeholder="465"
-                      value={newAccount.smtpPort}
-                      onChange={(e) =>
-                        setNewAccount({
-                          ...newAccount,
-                          smtpPort: e.target.value,
-                        })
-                      }
-                    />
-                  </div>
-                </div>
-                <Separator />
-                <p className="text-xs font-medium text-muted-foreground">
-                  账号标识
-                </p>
-                <div>
-                  <label className="text-xs text-muted-foreground">
-                    用户名
-                  </label>
-                  <Input
-                    className="h-8 text-xs"
-                    placeholder="邮箱地址"
-                    value={newAccount.username}
-                    onChange={(e) =>
-                      setNewAccount({ ...newAccount, username: e.target.value })
-                    }
-                  />
-                </div>
-                <div className="flex gap-2 pt-1">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-8 text-xs flex-1"
-                    onClick={() => setShowForm(false)}
-                    disabled={saving}
-                  >
-                    <X className="h-3.5 w-3.5 mr-1" />
-                    取消
-                  </Button>
-                  <Button
-                    size="sm"
-                    className="h-8 text-xs flex-1"
-                    onClick={addAccount}
-                    disabled={saving}
-                  >
-                    <Check className="h-3.5 w-3.5 mr-1" />
-                    保存参数
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          <Card className="bg-blue-50 border-blue-100">
-            <CardContent className="p-3 text-xs text-blue-700 flex items-start gap-2">
-              <Shield className="h-4 w-4 shrink-0 mt-0.5" />
-              当前版本尚未内置 IMAP/SMTP
-              Worker，因此不收集邮箱密码，也不会自动收发邮件。这里保存的只是非敏感连接参数草稿。
-            </CardContent>
-          </Card>
-        </div>
-      </div>
+      <Button size="sm" onClick={beginCreate} disabled={showForm}><Plus className="mr-1.5 size-4" />Add account</Button>
     </div>
-  );
+
+    <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_380px]">
+      <div className="space-y-3">
+        {loading ? <p className="py-10 text-center text-sm text-muted-foreground">Loading...</p> : accounts.length === 0 ? <div className="border py-10 text-center text-sm text-muted-foreground">No email account configured</div> : accounts.map((account) => <Card key={account.id}>
+          <CardContent className="flex items-center justify-between gap-3 p-4">
+            <div className="flex min-w-0 items-center gap-3"><div className="grid size-9 shrink-0 place-items-center bg-primary/10"><Mail className="size-4 text-primary" /></div><div className="min-w-0"><p className="truncate text-sm font-medium">{account.name}</p><p className="truncate text-xs text-muted-foreground">{account.email} - {account.provider === "resend" ? "Resend" : "SMTP/IMAP"}</p><div className="mt-1 flex gap-1.5"><Badge variant="secondary">{account.status}</Badge><Badge variant={account.healthStatus === "error" ? "destructive" : "outline"}>{account.healthStatus}</Badge></div></div></div>
+            <Button variant="ghost" size="icon" title="Edit account" onClick={() => beginEdit(account)}><Pencil className="size-4" /></Button>
+          </CardContent>
+        </Card>)}
+      </div>
+
+      {showForm && <Card>
+        <CardHeader><CardTitle className="text-base">{editingId ? "Edit account" : "Add account"}</CardTitle></CardHeader>
+        <CardContent className="space-y-3">
+          <div className="space-y-1.5"><Label>Provider</Label><Select value={form.provider} disabled={Boolean(editingId)} onValueChange={(value) => setForm({ ...EMPTY_FORM, provider: value as Provider })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="smtp_imap">SMTP / IMAP</SelectItem><SelectItem value="resend">Resend</SelectItem></SelectContent></Select></div>
+          <div className="space-y-1.5"><Label>Name</Label><Input value={form.name} onChange={(event) => update("name", event.target.value)} /></div>
+          <div className="space-y-1.5"><Label>Email</Label><Input type="email" value={form.email} onChange={(event) => update("email", event.target.value)} /></div>
+          {form.provider === "smtp_imap" ? <>
+            <div className="grid grid-cols-[1fr_84px] gap-2"><div className="space-y-1.5"><Label>SMTP host</Label><Input value={form.smtpHost} onChange={(event) => update("smtpHost", event.target.value)} /></div><div className="space-y-1.5"><Label>Port</Label><Input inputMode="numeric" value={form.smtpPort} onChange={(event) => update("smtpPort", event.target.value)} /></div></div>
+            <div className="grid grid-cols-[1fr_84px] gap-2"><div className="space-y-1.5"><Label>IMAP host</Label><Input value={form.imapHost} onChange={(event) => update("imapHost", event.target.value)} /></div><div className="space-y-1.5"><Label>Port</Label><Input inputMode="numeric" value={form.imapPort} onChange={(event) => update("imapPort", event.target.value)} /></div></div>
+            <div className="space-y-1.5"><Label>Mailbox</Label><Input value={form.imapMailbox} onChange={(event) => update("imapMailbox", event.target.value)} /></div>
+            <div className="space-y-1.5"><Label>Username</Label><Input autoComplete="username" value={form.username} onChange={(event) => update("username", event.target.value)} /></div>
+            <div className="space-y-1.5"><Label>Password {editingId && "(leave blank to keep)"}</Label><Input type="password" autoComplete="new-password" value={form.password} onChange={(event) => update("password", event.target.value)} /></div>
+          </> : <>
+            <div className="space-y-1.5"><Label>API key {editingId && "(leave blank to keep)"}</Label><Input type="password" autoComplete="new-password" value={form.apiKey} onChange={(event) => update("apiKey", event.target.value)} /></div>
+            <div className="space-y-1.5"><Label>Webhook secret {editingId && "(leave blank to keep)"}</Label><Input type="password" autoComplete="new-password" value={form.webhookSecret} onChange={(event) => update("webhookSecret", event.target.value)} /></div>
+          </>}
+          <div className="flex gap-2 pt-1"><Button variant="outline" className="flex-1" onClick={() => setShowForm(false)} disabled={saving}><X className="mr-1.5 size-4" />Cancel</Button><Button className="flex-1" onClick={saveAccount} disabled={saving}><Check className="mr-1.5 size-4" />Save</Button></div>
+          <p className="flex items-center gap-1.5 text-xs text-muted-foreground"><ShieldCheck className="size-3.5" />Credentials are encrypted before storage.</p>
+        </CardContent>
+      </Card>}
+    </div>
+  </div>;
 }

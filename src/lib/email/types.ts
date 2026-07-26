@@ -92,6 +92,24 @@ export interface InboundEmailInput {
   receivedAt?: string | null;
 }
 
+export interface OutboundEmailInput {
+  companyId: string;
+  accountId: string;
+  threadId: string;
+  normalizedMessageKey: string;
+  externalId?: string | null;
+  folder: "draft" | "sent";
+  from: EmailAddress[];
+  to: EmailAddress[];
+  cc?: EmailAddress[];
+  bcc?: EmailAddress[];
+  subject: string;
+  textBody?: string | null;
+  htmlBody?: string | null;
+  status: "draft" | "sent";
+  sentAt?: string | null;
+}
+
 export interface EmailOutboxItem {
   id: string;
   companyId: string;
@@ -124,6 +142,7 @@ export interface ProviderEmailEvent {
 
 export interface EmailRepository {
   listAccounts(companyId: string): Promise<EmailAccount[]>;
+  findActiveResendAccountByEmail(email: string): Promise<EmailAccount | null>;
   createAccount(input: EmailAccount): Promise<EmailAccount>;
   updateAccount(companyId: string, id: string, patch: Partial<EmailAccount>): Promise<EmailAccount | null>;
   deactivateAccount(companyId: string, id: string): Promise<EmailAccount | null>;
@@ -131,8 +150,9 @@ export interface EmailRepository {
   listMessages(companyId: string, options?: { accountId?: string; threadId?: string; folder?: string; limit?: number }): Promise<EmailMessage[]>;
   updateMessage(companyId: string, id: string, patch: Pick<Partial<EmailMessage>, "isRead" | "isStarred">): Promise<EmailMessage | null>;
   insertInboundMessage(input: InboundEmailInput): Promise<EmailMessage>;
+  saveOutboundMessage(input: OutboundEmailInput): Promise<EmailMessage>;
   enqueue(input: EmailOutboxItem): Promise<EmailOutboxItem>;
-  leaseOutbox(input: { now: string; leasedUntil: string; limit: number }): Promise<EmailOutboxItem[]>;
+  leaseOutbox(input: { now: string; leasedUntil: string; limit: number; providers?: EmailProvider[] }): Promise<EmailOutboxItem[]>;
   markOutbox(companyId: string, id: string, patch: Partial<EmailOutboxItem>): Promise<EmailOutboxItem | null>;
   recordProviderEvent(input: ProviderEmailEvent): Promise<{ event: ProviderEmailEvent; created: boolean }>;
   markProviderEventProcessed(provider: string, providerEventId: string, processedAt: string): Promise<ProviderEmailEvent | null>;

@@ -42,6 +42,17 @@ random_hex() {
   fi
 }
 
+random_base64url() {
+  local bytes="$1"
+  if command -v openssl >/dev/null 2>&1; then
+    openssl rand -base64 "$bytes" | tr '+/' '-_' | tr -d '=\r\n'
+  elif command -v node >/dev/null 2>&1; then
+    node -e "process.stdout.write(require('node:crypto').randomBytes(Number(process.argv[1])).toString('base64url'))" "$bytes"
+  else
+    fail "openssl or Node.js is required to generate secure random secrets"
+  fi
+}
+
 compose() {
   if [ "$TEST_MODE" = "true" ]; then
     printf 'docker compose %s\n' "$*"
@@ -72,6 +83,13 @@ if [ -z "$POSTGRES_PASSWORD" ] || [ "$POSTGRES_PASSWORD" = "replace-with-a-rando
   POSTGRES_PASSWORD="$(random_hex 24)"
   set_env "POSTGRES_PASSWORD" "$POSTGRES_PASSWORD"
   info "已生成随机 PostgreSQL 密码。"
+fi
+
+CREDENTIALS_KEY="$(read_env TRADEPILOT_CREDENTIALS_KEY)"
+if [ -z "$CREDENTIALS_KEY" ] || [ "$CREDENTIALS_KEY" = "replace-with-32-byte-base64url-key" ]; then
+  CREDENTIALS_KEY="$(random_base64url 32)"
+  set_env "TRADEPILOT_CREDENTIALS_KEY" "$CREDENTIALS_KEY"
+  info "Generated TRADEPILOT_CREDENTIALS_KEY."
 fi
 
 ADMIN_EMAIL="$(read_env TRADEPILOT_ADMIN_EMAIL)"
@@ -113,7 +131,7 @@ info "执行数据库迁移和管理员初始化..."
 compose run --rm db-init
 
 info "启动 TradePilot 和本地视频 Worker..."
-compose up -d --build tradepilot video-worker
+compose up -d --build tradepilot mail-worker video-worker
 
 if [ "$TEST_MODE" = "true" ]; then
   info "安装测试模式完成；未调用 Docker 或网络。"

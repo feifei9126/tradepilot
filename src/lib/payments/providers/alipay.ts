@@ -15,9 +15,13 @@ export class AlipayPaymentProvider implements PaymentProviderAdapter {
     const url = `${this.options.gateway || "https://openapi.alipay.com/gateway.do"}?${new URLSearchParams(params).toString()}`;
     return { providerTransactionId: input.orderReference, paymentUrl: url };
   }
-  async verifyWebhook(rawBody: string): Promise<NormalizedPaymentEvent[]> {
+  async verifyWebhook(rawBody: string, headers: Headers | Record<string, string>): Promise<NormalizedPaymentEvent[]> {
+    void headers;
     const params = Object.fromEntries(new URLSearchParams(rawBody).entries());
     if (!verifyAlipay(params, this.options.publicKey)) throw new ProviderSendError("PROVIDER_AUTH_FAILED", "Alipay webhook signature is invalid", false, 401);
+    if (params.app_id !== this.options.appId || (this.options.sellerId && params.seller_id !== this.options.sellerId)) {
+      throw new ProviderSendError("PROVIDER_INVALID_REQUEST", "Alipay webhook account does not match", false, 400);
+    }
     if (params.trade_status !== "TRADE_SUCCESS") return [];
     return [{ providerEventId: params.notify_id || params.trade_no || params.out_trade_no || "", kind: "payment_succeeded", attemptId: params.out_trade_no, providerTransactionId: params.trade_no, amountMinor: toMinorUnits(params.total_amount || "", params.currency || "CNY"), currency: params.currency || "CNY", orderReference: params.merchant_order_no }];
   }

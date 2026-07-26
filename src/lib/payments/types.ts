@@ -127,5 +127,5 @@ export interface CreateCheckoutResult {
 export interface PaymentProviderAdapter {
   createCheckout(input: CreateCheckoutInput): Promise<CreateCheckoutResult>;
   verifyWebhook(rawBody: string, headers: Headers | Record<string, string>): Promise<NormalizedPaymentEvent[]>;
-  refund(input: { providerTransactionId: string; amountMinor: number; currency: string; idempotencyKey: string }): Promise<{ providerRefundId: string }>;
+  refund(input: { providerTransactionId: string; amountMinor: number; totalAmountMinor: number; currency: string; idempotencyKey: string }): Promise<{ providerRefundId: string }>;
 }

@@ -300,11 +300,11 @@ export default function OrderDetailPage() {
         body: JSON.stringify({ amount: String(order.totalAmount), currency: order.currency || "USD" }),
       });
       const data = await response.json();
-      if (!response.ok) throw new Error(data.error || "鏀舵閾炬帴鍒涘缓澶辫触");
+      if (!response.ok) throw new Error(data.error || "收款链接创建失败");
       await navigator.clipboard.writeText(`${window.location.origin}${data.url}`);
-      toast.success("鏀舵閾炬帴宸插鍒?");
+      toast.success("收款链接已复制");
     } catch (error: unknown) {
-      toast.error(error instanceof Error ? error.message : "鏀舵閾炬帴鍒涘缓澶辫触");
+      toast.error(error instanceof Error ? error.message : "收款链接创建失败");
     }
   }
 
@@ -567,7 +567,7 @@ export default function OrderDetailPage() {
       {/* Action Buttons */}
       <div className="flex gap-2 flex-wrap">
         <Button variant="outline" onClick={createOrderPaymentLink}>
-          <CreditCard className="h-4 w-4 mr-2" /> 鍒涘缓鏀舵閾炬帴
+          <CreditCard className="h-4 w-4 mr-2" /> 创建收款链接
         </Button>
         <Button variant="outline" onClick={openProgressEditor}>
           <Settings2 className="h-4 w-4 mr-2" /> 更新订单进度

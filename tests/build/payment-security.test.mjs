@@ -37,3 +37,23 @@ test("payment webhook account identifiers are globally unique", async () => {
   assert.match(schema, /uniqueIndex\("payment_accounts_public_id_unique"\)\.on\(table\.publicAccountId\)/);
   assert.match(migration, /CREATE UNIQUE INDEX IF NOT EXISTS "payment_accounts_public_id_unique" ON "payment_accounts" \("public_account_id"\)/);
 });
+
+test("payment settings can update encrypted account credentials", async () => {
+  const source = await readFile(new URL("src/app/app/settings/payments/page.tsx", root), "utf8");
+
+  assert.match(source, /editingId/);
+  assert.match(source, /method:\s*editingId\s*\?\s*"PATCH"\s*:\s*"POST"/);
+  assert.match(source, /\.\.\.\(editingId\s*\?\s*\{\s*id:\s*editingId\s*\}\s*:\s*\{\}\)/);
+});
+
+test("order payment link actions render readable Chinese text", async () => {
+  const source = await readFile(new URL("src/app/app/orders/[id]/page.tsx", root), "utf8");
+  assert.match(source, /创建收款链接/);
+  assert.match(source, /收款链接已复制/);
+  assert.doesNotMatch(source, /鏀舵|閾炬|鍒涘|澶辫|宸插/);
+});
+
+test("Alipay webhook acknowledges accepted callbacks with the required response body", async () => {
+  const source = await readFile(new URL("src/app/api/webhooks/payments/[provider]/[accountId]/route.ts", root), "utf8");
+  assert.match(source, /provider\s*===\s*["']alipay["'][\s\S]*new Response\(["']success["']/);
+});

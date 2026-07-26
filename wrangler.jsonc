@@ -1,6 +1,6 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "main": ".open-next/worker.js",
+  "main": "cloudflare-worker.ts",
   "name": "tradepilot",
   "compatibility_date": "2026-06-20",
   "compatibility_flags": ["nodejs_compat"],
@@ -20,5 +20,8 @@
   },
   "observability": {
     "enabled": true,
+  },
+  "triggers": {
+    "crons": ["*/5 * * * *"],
   },
 }

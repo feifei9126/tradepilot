@@ -52,6 +52,7 @@ services:
       DATABASE_URL: "postgresql://tradepilot:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@postgres:5432/tradepilot"
       AUTH_SECRET: "${AUTH_SECRET:?AUTH_SECRET is required; run bash install.sh or set it in .env}"
       AUTH_URL: "${AUTH_URL:-http://localhost:3456}"
+      TRADEPILOT_CREDENTIALS_KEY: "${TRADEPILOT_CREDENTIALS_KEY:?TRADEPILOT_CREDENTIALS_KEY is required}"
       OPENMONTAGE_WORKER_URL: http://video-worker:8787
       MONEYPRINTERTURBO_URL: http://moneyprinterturbo:8080
       FIRECRAWL_API_URL: "${FIRECRAWL_API_URL:-}"
@@ -67,6 +68,32 @@ services:
       timeout: 5s
       retries: 18
       start_period: 15s
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+
+  mail-worker:
+    build:
+      context: .
+      target: runner
+    command: ["node", "workers/mail-worker/server.mjs"]
+    expose:
+      - "8790"
+    volumes:
+      - tradepilot_mail_attachments:/app/data/mail-attachments
+    environment:
+      DATABASE_URL: "postgresql://tradepilot:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@postgres:5432/tradepilot"
+      TRADEPILOT_CREDENTIALS_KEY: "${TRADEPILOT_CREDENTIALS_KEY:?TRADEPILOT_CREDENTIALS_KEY is required}"
+      MAIL_WORKER_INTERVAL_MS: "${MAIL_WORKER_INTERVAL_MS:-30000}"
+      MAIL_WORKER_HEALTH_PORT: "8790"
+    depends_on:
+      db-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8790/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
     restart: unless-stopped
     security_opt:
       - no-new-privileges:true
@@ -134,6 +161,7 @@ services:
 volumes:
   tradepilot_postgres:
   tradepilot_data:
+  tradepilot_mail_attachments:
   video_worker_data:
   moneyprinterturbo_storage:
   moneyprinterturbo_redis:

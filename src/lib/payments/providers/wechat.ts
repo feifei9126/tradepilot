@@ -38,8 +38,8 @@ export class WechatPaymentProvider implements PaymentProviderAdapter {
     const amount = decrypted.amount && typeof decrypted.amount === "object" ? decrypted.amount as Record<string, unknown> : {};
     return [{ providerEventId: data.id || String(decrypted.transaction_id || decrypted.out_trade_no || ""), kind: "payment_succeeded", attemptId: paymentAttemptId(decrypted.out_trade_no), providerTransactionId: typeof decrypted.transaction_id === "string" ? decrypted.transaction_id : undefined, amountMinor: typeof amount.total === "number" ? amount.total : undefined, currency: typeof amount.currency === "string" ? amount.currency : undefined, orderReference: typeof decrypted.attach === "string" ? decrypted.attach : undefined }];
   }
-  async refund(input: { providerTransactionId: string; amountMinor: number; currency: string; idempotencyKey: string }) {
-    const body = JSON.stringify({ transaction_id: input.providerTransactionId, out_refund_no: input.idempotencyKey, amount: { refund: input.amountMinor, total: input.amountMinor, currency: input.currency } });
+  async refund(input: { providerTransactionId: string; amountMinor: number; totalAmountMinor: number; currency: string; idempotencyKey: string }) {
+    const body = JSON.stringify({ transaction_id: input.providerTransactionId, out_refund_no: input.idempotencyKey, amount: { refund: input.amountMinor, total: input.totalAmountMinor, currency: input.currency } });
     const response = await this.request("/v3/refund/domestic/refunds", body, input.idempotencyKey);
     if (typeof response.refund_id !== "string") throw new ProviderSendError("PROVIDER_RESPONSE_INVALID", "WeChat refund response is invalid", false);
     return { providerRefundId: response.refund_id };

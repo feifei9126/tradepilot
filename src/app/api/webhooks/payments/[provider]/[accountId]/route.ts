@@ -25,6 +25,7 @@ export async function POST(request: Request, context: { params: Promise<{ provid
       const requestRow = event.orderReference ? await repository.findRequestByOrderReference(account.companyId, event.orderReference) : null;
       results.push(await applyPaymentEvent(repository, event, { companyId: account.companyId, requestId: requestRow?.id, provider }));
     }
+    if (provider === "alipay") return new Response("success", { status: 200, headers: { "Content-Type": "text/plain; charset=utf-8" } });
     return NextResponse.json({ ok: true, events: results.length, duplicates: results.filter((item) => item.duplicate).length });
   } catch (error) { return businessErrorResponse(error); }
 }

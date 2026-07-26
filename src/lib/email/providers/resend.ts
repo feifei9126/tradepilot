@@ -15,6 +15,13 @@ export interface ResendProviderOptions {
   endpoint?: string;
 }
 
+export interface ResendReceivedEmailOptions {
+  apiKey: string;
+  emailId: string;
+  fetch?: typeof globalThis.fetch;
+  endpoint?: string;
+}
+
 export type ResendProviderError = ProviderSendError;
 
 function safeAddress(value: EmailAddressInput | undefined) {
@@ -130,4 +137,29 @@ export const createResendAdapter = createResendProvider;
 
 export async function sendWithResend(options: ResendProviderOptions, input: SendEmailInput) {
   return new ResendEmailProvider(options).send(input);
+}
+
+export async function fetchResendReceivedEmail(options: ResendReceivedEmailOptions) {
+  const apiKey = options.apiKey.trim();
+  const emailId = options.emailId.trim();
+  if (apiKey.length < 4) throw new ProviderSendError("PROVIDER_AUTH_FAILED", "Email provider credentials are invalid", false);
+  if (!/^[A-Za-z0-9_-]{1,512}$/.test(emailId)) throw new ProviderSendError("PROVIDER_INVALID_REQUEST", "Received email id is invalid", false);
+  const endpoint = (options.endpoint || "https://api.resend.com/emails/receiving").replace(/\/$/, "");
+  let response: Response;
+  try {
+    response = await (options.fetch || globalThis.fetch)(`${endpoint}/${encodeURIComponent(emailId)}`, {
+      headers: { Accept: "application/json", Authorization: `Bearer ${apiKey}` },
+    });
+  } catch {
+    throw new ProviderSendError("PROVIDER_NETWORK_ERROR", "Email provider network request failed", true);
+  }
+  if (!response.ok) throw statusFailure(response.status, await readProviderCode(response));
+  try {
+    const body = await response.json() as unknown;
+    if (!body || typeof body !== "object" || Array.isArray(body)) throw new Error("invalid response");
+    return body as Record<string, unknown>;
+  } catch (error) {
+    if (error instanceof ProviderSendError) throw error;
+    throw new ProviderSendError("PROVIDER_RESPONSE_INVALID", "Email provider returned an invalid response", false, response.status);
+  }
 }

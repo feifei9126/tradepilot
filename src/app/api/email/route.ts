@@ -9,6 +9,7 @@ import {
 } from "@/lib/email/runtime";
 import type { EmailMessage } from "@/lib/email/types";
 import { parseEmailMessageInput } from "@/lib/email/validation";
+import { createOutboxItem } from "@/lib/email/outbox";
 
 interface LocalEmailRecord {
   id: string;
@@ -154,7 +155,51 @@ export async function POST(request: Request) {
       "email:use",
     );
     const parsed = parseEmailMessageInput(await readJson(request));
-    if (resolveStorageMode() !== "memory" || parsed.action === "send") {
+    if (resolveStorageMode() !== "memory") {
+      if (!parsed.accountId) throw new BusinessError("VALIDATION_ERROR", "Email account is required", 400);
+      const repository = getPostgresEmailRepository();
+      const account = (await repository.listAccounts(context.companyId)).find((item) => item.id === parsed.accountId && item.status === "active");
+      if (!account) throw new BusinessError("NOT_FOUND", "Email account not found", 404);
+      const threadId = crypto.randomUUID();
+      if (parsed.action === "save-draft") {
+        const email = await repository.saveOutboundMessage({
+          companyId: context.companyId,
+          accountId: account.id,
+          threadId,
+          normalizedMessageKey: `draft:${crypto.randomUUID()}`,
+          externalId: null,
+          folder: "draft",
+          from: [{ email: account.email }],
+          to: parsed.to,
+          cc: parsed.cc,
+          bcc: parsed.bcc,
+          subject: parsed.subject,
+          textBody: parsed.body,
+          htmlBody: parsed.html,
+          status: "draft",
+          sentAt: null,
+        });
+        return NextResponse.json({ ok: true, email: messageView(email), mode: "configured" }, { status: 201 });
+      }
+      const outbox = await repository.enqueue(createOutboxItem({
+        companyId: context.companyId,
+        accountId: account.id,
+        idempotencyKey: crypto.randomUUID(),
+        payload: {
+          threadId,
+          from: account.email,
+          to: parsed.to.map((address) => address.email),
+          cc: parsed.cc.map((address) => address.email),
+          bcc: parsed.bcc.map((address) => address.email),
+          subject: parsed.subject,
+          text: parsed.body,
+          html: parsed.html || "",
+        },
+        createdBy: context.userId,
+      }));
+      return NextResponse.json({ ok: true, outbox: { id: outbox.id, status: outbox.status }, mode: "configured" }, { status: 202 });
+    }
+    if (parsed.action === "send") {
       throw new BusinessError(
         "PROVIDER_NOT_CONFIGURED",
         "Email delivery is not configured",

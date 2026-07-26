@@ -2,7 +2,7 @@
 
 ## 架构总览
 
-TradePilot 是 Next.js 16 App Router 应用。页面和 API 共用 NextAuth 会话；核心 CRM API 不直接访问全局数组或数据库客户端，而是通过租户绑定的异步 `BusinessRepository` 操作业务数据。
+TradePilot 是 Next.js 16 App Router 应用。页面和 API 共用 NextAuth 会话；核心 CRM API 不直接访问全局数组或数据库客户端，而是通过租户绑定的异步 `BusinessRepository` 操作业务数据。成员管理、邮件和订单收款分别使用租户绑定的 organization、email 和 payment 仓库，并共享同一套可信会话上下文。
 
 ```text
 Browser
@@ -73,13 +73,20 @@ API route 负责 HTTP 输入校验、状态码与响应格式；仓库负责租�
 
 ```text
 companies
-  |-- users
+  |-- users -- organization_memberships
+  |-- organization_invitations
   |-- contacts -- contact_persons
   |      |-- inquiries
   |      |-- quotations -- orders -- shipments
   |      |                         `-- documents
   |      `------------------------- communications
   |-- products
+  |-- email_accounts -- email_threads -- email_messages
+  |        |                `-------- email_events
+  |        `------------------------- email_outbox
+  |-- payment_accounts -- payment_attempts -- payment_refunds
+  |                           |
+  |                  payment_requests -- orders
   `-- document_sequences
 ```
 
@@ -88,6 +95,10 @@ companies
 报价号和订单号由 `document_sequences` 按公司、类型和年份原子递增。唯一约束防止重复；事务失败可以留下空号，但不会回退或复用编号。
 
 金额、日期和 JSON 字段在 `src/lib/repositories/postgres/mappers.ts` 中集中转换。数据库异常被映射为稳定领域错误，客户端不会收到连接串、SQL 参数或底层堆栈。
+
+邮箱和支付凭据不以明文保存。`TRADEPILOT_CREDENTIALS_KEY` 使用 AES-GCM 信封加密，并把 `companyId`、凭据用途和记录 ID 绑定到附加认证数据。密钥必须在 Web 应用、Cloudflare Cron 和 Docker `mail-worker` 之间保持一致；轮换密钥前必须重新加密或准备重新录入全部账户凭据。
+
+邮件发送先写入 `email_outbox`。Docker `mail-worker` 租用 SMTP 队列并执行 IMAP 增量同步；Cloudflare Cron 每 5 分钟只处理 Resend 队列，Resend 入站 webhook 验签后再读取并规范化邮件正文。支付 webhook 通过服务商签名和公开账户 ID 定位租户，事件幂等写入数据库后更新收款或退款状态。
 
 ## 迁移与健康检查
 
@@ -120,6 +131,7 @@ db-init (migrate + bootstrap + optional seed, run once)
 tradepilot (persistent product-video data)
   |
   +-- video-worker
+  +-- mail-worker (SMTP outbox + IMAP sync)
   `-- moneyprinterturbo -- redis
 ```
 
@@ -130,26 +142,29 @@ tradepilot (persistent product-video data)
 ```text
 Local setup command
   |-- status -> migrate -> bootstrap -> optional seed
-  |-- wrangler secret put DATABASE_URL/AUTH_SECRET
+  |-- wrangler secret put DATABASE_URL/AUTH_SECRET/CREDENTIALS_KEY/CRON_SECRET
   |-- OpenNext build -> Wrangler deploy
   `-- GET /api/health
 
 Cloudflare Worker ---------------- TLS ----------------> Neon/PostgreSQL
+  |-- scheduled every 5 minutes -----------------------> Resend outbox
+  `-- Resend signed webhook ---------------------------> inbound email
 ```
 
-`npm run setup:cloudflare` 在有数据库网络访问的本机运行管理步骤，再部署 Worker。管理员密码仅用于本地 bootstrap，不上传到 Worker。Cloudflare Git 自动构建只构建和部署代码，版本升级前必须另外运行迁移。
+`npm run setup:cloudflare` 在有数据库网络访问的本机运行管理步骤，再部署 Worker。管理员密码仅用于本地 bootstrap，不上传到 Worker。稳定运行密钥保存在被 Git 忽略的 `.env.cloudflare`，供重复部署复用。Cloudflare Git 自动构建只构建和部署代码，版本升级前必须另外运行迁移。
 
 Cloudflare Workers 不提供本地 Docker、FFmpeg 或持久文件系统；Firecrawl、MoneyPrinterTurbo 和 OpenMontage 在该拓扑中需要独立服务。
 
 ## 当前边界
 
-本阶段持久化范围是客户、产品、询盘、报价、订单、物流、单据，以及这些流程直接需要的联系人、沟通记录和编号。以下模块没有统一迁移到 `BusinessRepository`：
+本阶段持久化范围是工作区成员和邀请，客户、产品、询盘、报价、订单、物流、单据及其直接需要的联系人、沟通记录和编号，以及邮件账户/消息/outbox 和订单支付账户/收款/退款。以下模块没有统一迁移到 `BusinessRepository`：
 
 - 供应商、库存、采购、财务明细和知识库等扩展模块；
-- 邮件连接与实际 IMAP/SMTP 收发；
 - AI 提供商的浏览器侧 BYOK 配置；
 - 产品视频任务与生成资产，它们继续使用现有文件/volume 或外部 Worker；
 - Firecrawl、MoneyPrinterTurbo 和 OpenMontage 服务自身的数据。
+
+邮件和支付功能仍有明确的运行边界：本地无数据库 `npm run dev` 只提供内存演示邮件和草稿，不执行真实邮件或支付；Cloudflare 邮件只使用 Resend，不运行 SMTP/IMAP；支付只覆盖订单收款和退款，不包含订阅套餐或平台计费。
 
 这些边界不能依赖核心 CRM 的 PostgreSQL 持久化来推断其已经持久化。
 
