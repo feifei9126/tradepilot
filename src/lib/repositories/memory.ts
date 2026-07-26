@@ -89,7 +89,31 @@ function createTenantRepository(state: DemoBusinessData): BusinessRepository {
       update: async (id, patch) => {
         const index = findIndex(state.contacts, id);
         if (index < 0) return null;
-        state.contacts[index] = { ...state.contacts[index], ...clone(patch), id };
+        const current = state.contacts[index];
+        const next = { ...current, ...clone(patch), id };
+        if (
+          patch.persons === undefined &&
+          (patch.email !== undefined || patch.phone !== undefined)
+        ) {
+          const persons = clone(current.persons || []);
+          const primaryIndex = persons.findIndex((person) => person.isPrimary);
+          if (primaryIndex >= 0) {
+            persons[primaryIndex] = {
+              ...persons[primaryIndex],
+              email: patch.email ?? persons[primaryIndex].email,
+              phone: patch.phone ?? persons[primaryIndex].phone,
+            };
+          } else if (patch.email || patch.phone) {
+            persons.unshift({
+              name: patch.name || current.name,
+              email: patch.email,
+              phone: patch.phone,
+              isPrimary: true,
+            });
+          }
+          next.persons = persons;
+        }
+        state.contacts[index] = next;
         return clone(state.contacts[index]);
       },
       removeIfUnreferenced: async (id) => {

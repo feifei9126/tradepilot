@@ -4,19 +4,21 @@ import type { BusinessContext } from "../../src/lib/business/context";
 import { BusinessError } from "../../src/lib/business/errors";
 import type { RepositoryFactory } from "../../src/lib/repositories/contracts";
 
-const contextA: BusinessContext = {
+export const contextA: BusinessContext = {
   userId: "10000000-0000-4000-8000-000000000001",
   companyId: "10000000-0000-4000-8000-000000000002",
   role: "owner",
 };
 
-const contextB: BusinessContext = {
+export const contextB: BusinessContext = {
   userId: "20000000-0000-4000-8000-000000000001",
   companyId: "20000000-0000-4000-8000-000000000002",
   role: "owner",
 };
 
-export async function runRepositoryContract(createRepository: RepositoryFactory) {
+export async function runContactsProductsContract(
+  createRepository: RepositoryFactory,
+) {
   const companyA = await createRepository(contextA);
   const companyB = await createRepository(contextB);
 
@@ -32,15 +34,49 @@ export async function runRepositoryContract(createRepository: RepositoryFactory)
   });
   assert.equal((await companyA.contacts.get(contact.id))?.name, contact.name);
   assert.equal(await companyB.contacts.get(contact.id), null);
+  assert.equal((await companyA.contacts.get(contact.id))?.email, "buyer@example.com");
+
+  const updatedContact = await companyA.contacts.update(contact.id, {
+    email: "updated@example.com",
+    phone: "+1 555 0200",
+    tags: ["updated"],
+  });
+  assert.equal(updatedContact?.email, "updated@example.com");
+  assert.equal(updatedContact?.persons?.[0]?.isPrimary, true);
+
+  const imported = await companyA.contacts.importBatch([
+    { name: "Imported One", source: "csv" },
+    { name: "Imported Two", source: "csv" },
+  ]);
+  assert.equal(imported.length, 2);
+  assert.equal((await companyA.contacts.list()).length, 3);
+  assert.equal(await companyA.contacts.removeIfUnreferenced(imported[0].id), true);
+  assert.equal(await companyA.contacts.get(imported[0].id), null);
 
   const product = await companyA.products.create({
     name: "Contract Product",
     unit: "pcs",
     costPrice: 5,
     moq: 10,
+    media: [
+      {
+        id: "media-1",
+        type: "image",
+        url: "https://example.com/product.png",
+        createdAt: "2026-07-26T00:00:00.000Z",
+      },
+    ],
   });
   assert.equal((await companyA.products.get(product.id))?.costPrice, 5);
+  assert.equal((await companyA.products.get(product.id))?.media?.[0]?.type, "image");
   assert.equal(await companyB.products.get(product.id), null);
+
+  return { companyA, companyB, contact, product };
+}
+
+export async function runRepositoryContract(createRepository: RepositoryFactory) {
+  const { companyA, companyB, contact, product } =
+    await runContactsProductsContract(createRepository);
 
   const inquiry = await companyA.inquiries.create({
     customer: contact.name,
@@ -114,7 +150,7 @@ export async function runRepositoryContract(createRepository: RepositoryFactory)
   );
 
   const snapshot = await companyA.dashboard.snapshot();
-  assert.equal(snapshot.contacts.length, 1);
+  assert.equal(snapshot.contacts.length, 2);
   assert.equal(snapshot.products.length, 1);
   assert.equal(snapshot.inquiries.length, 1);
   assert.equal(snapshot.quotations.length, 1);
