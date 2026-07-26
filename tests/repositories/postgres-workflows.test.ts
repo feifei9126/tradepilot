@@ -123,6 +123,56 @@ test("sales workflow allocates concurrent tenant-local numbers atomically", asyn
       assert.equal(updatedOrder?.progressPercent, 30);
       assert.equal(updatedOrder?.comms?.[0]?.channel, "email");
 
+      const shipment = await companyA.shipments.create({
+        orderId: order.id,
+        method: "sea",
+        carrier: "Concurrent Carrier",
+        referenceNo: "SHIP-001",
+        etd: "2026-08-20",
+        eta: "2026-09-01",
+      });
+      await assert.rejects(
+        () =>
+          companyA.shipments.create({
+            orderId: order.id,
+            method: "air",
+            carrier: "Duplicate Carrier",
+            referenceNo: "SHIP-002",
+          }),
+        conflict,
+      );
+      const inTransit = await companyA.shipments.advanceStatus(
+        shipment.id,
+        "in_transit",
+      );
+      assert.equal(inTransit.status, "in_transit");
+      assert.equal((await companyA.orders.get(order.id))?.status, "shipped");
+      await assert.rejects(
+        () => companyA.shipments.advanceStatus(shipment.id, "departed"),
+        conflict,
+      );
+      const delivered = await companyA.shipments.advanceStatus(
+        shipment.id,
+        "delivered",
+      );
+      assert.equal(delivered.status, "delivered");
+      assert.equal((await companyA.orders.get(order.id))?.status, "completed");
+
+      const firstDocuments = await companyA.documents.generateForOrder(
+        order.id,
+        ["commercial_invoice", "packing_list"],
+      );
+      assert.equal(firstDocuments.length, 2);
+      assert.match(firstDocuments[0].content || "", /ORD-/);
+      const originalContent = firstDocuments[0].content;
+      await companyA.orders.update(order.id, { deliveryDate: "2026-09-15" });
+      const regenerated = await companyA.documents.generateForOrder(order.id, [
+        "commercial_invoice",
+      ]);
+      assert.equal(regenerated[0].id, firstDocuments[0].id);
+      assert.equal(regenerated[0].content, originalContent);
+      assert.equal((await companyA.documents.listByOrder(order.id)).length, 2);
+
       const inquiry = await companyA.inquiries.create({
         customer: "Unlinked Buyer",
         subject: "General inquiry",

@@ -1,21 +1,25 @@
 import { BusinessError } from "@/lib/business/errors";
 import type {
   StoredContact,
+  StoredDocument,
   StoredInquiry,
   StoredLineItem,
   StoredOrder,
   StoredProduct,
   StoredProductMedia,
   StoredQuotation,
+  StoredShipment,
 } from "@/lib/business/types";
 import type {
   communications,
   contactPersons,
   contacts,
+  documents,
   inquiries,
   orders,
   products,
   quotations,
+  shipments,
 } from "@/db/schema";
 
 type ContactRow = typeof contacts.$inferSelect;
@@ -25,6 +29,8 @@ type ProductRow = typeof products.$inferSelect;
 type InquiryRow = typeof inquiries.$inferSelect;
 type QuotationRow = typeof quotations.$inferSelect;
 type OrderRow = typeof orders.$inferSelect;
+type ShipmentRow = typeof shipments.$inferSelect;
+type DocumentRow = typeof documents.$inferSelect;
 
 export function decimalNumber(value: string | number | null | undefined) {
   if (value == null) return 0;
@@ -274,6 +280,49 @@ export function mapOrder(row: OrderRow, contactName: string): StoredOrder {
     tradeTerm: row.tradeTerm || undefined,
     comms: orderCommunications(row.commsJson),
     createdAt: isoDate(row.createdAt) || "",
+  };
+}
+
+export function mapShipment(
+  row: ShipmentRow,
+  orderNo: string,
+  customer: string,
+): StoredShipment {
+  const method =
+    row.method === "air" || row.method === "express" ? row.method : "sea";
+  const status =
+    row.status === "departed" ||
+    row.status === "in_transit" ||
+    row.status === "delivered"
+      ? row.status
+      : "booked";
+  return {
+    id: row.id,
+    orderId: row.orderId,
+    orderNo,
+    customer,
+    method,
+    carrier: row.carrier || "",
+    referenceNo: row.referenceNo || "",
+    etd: isoDate(row.etd),
+    eta: isoDate(row.eta),
+    status,
+    createdAt: isoTimestamp(row.createdAt) || "",
+  };
+}
+
+export function mapDocument(
+  row: DocumentRow,
+  orderNo: string,
+): StoredDocument {
+  return {
+    id: row.id,
+    orderId: row.orderId,
+    orderNo,
+    type: row.docType,
+    status: row.status === "generated" ? "generated" : "draft",
+    createdAt: isoDate(row.createdAt) || "",
+    content: row.content || undefined,
   };
 }
 

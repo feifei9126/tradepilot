@@ -1,51 +1,61 @@
 import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
 
 import type { BusinessContext } from "@/lib/business/context";
-import { BusinessError } from "@/lib/business/errors";
 
 import type { BusinessRepository } from "../contracts";
 import { createContactRepository } from "./contacts";
+import { createDocumentRepository } from "./documents";
 import { createInquiryRepository } from "./inquiries";
 import { createOrderRepository } from "./orders";
 import { createProductRepository } from "./products";
 import { createQuotationRepository } from "./quotations";
+import { createShipmentRepository } from "./shipments";
 
 type Database = PostgresJsDatabase<typeof import("@/db/schema")>;
-
-function pending(): never {
-  throw new BusinessError(
-    "DATABASE_SCHEMA_OUTDATED",
-    "PostgreSQL 业务仓库尚未完成初始化",
-    503,
-  );
-}
 
 export function createPostgresRepository(
   db: Database,
   context: BusinessContext,
 ): BusinessRepository {
+  const contacts = createContactRepository(db, context);
+  const products = createProductRepository(db, context);
+  const inquiries = createInquiryRepository(db, context);
+  const quotations = createQuotationRepository(db, context);
+  const orders = createOrderRepository(db, context);
+  const shipments = createShipmentRepository(db, context);
+  const documents = createDocumentRepository(db, context);
+
   return {
-    contacts: createContactRepository(db, context),
-    products: createProductRepository(db, context),
-    inquiries: createInquiryRepository(db, context),
-    quotations: createQuotationRepository(db, context),
-    orders: createOrderRepository(db, context),
-    shipments: {
-      list: async () => pending(),
-      get: async () => pending(),
-      create: async () => pending(),
-      advanceStatus: async () => pending(),
-      remove: async () => pending(),
-    },
-    documents: {
-      list: async () => pending(),
-      get: async () => pending(),
-      listByOrder: async () => pending(),
-      generateForOrder: async () => pending(),
-      remove: async () => pending(),
-    },
+    contacts,
+    products,
+    inquiries,
+    quotations,
+    orders,
+    shipments,
+    documents,
     dashboard: {
-      snapshot: async () => pending(),
+      snapshot: async () => {
+        const [
+          contactRows,
+          productRows,
+          inquiryRows,
+          quotationRows,
+          orderRows,
+        ] = await Promise.all([
+          contacts.list(),
+          products.list(),
+          inquiries.list(),
+          quotations.list(),
+          orders.list(),
+        ]);
+        return {
+          contacts: contactRows,
+          products: productRows,
+          inquiries: inquiryRows,
+          quotations: quotationRows,
+          orders: orderRows,
+        };
+      },
     },
   };
 }
