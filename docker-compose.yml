@@ -62,7 +62,7 @@ services:
       video-worker:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3456/api/health').then(async r=>{const b=await r.json();if(!r.ok||!b.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3456/api/health').then(async r=>{const b=await r.json();if(!r.ok||b.status !== 'ok')process.exit(1)}).catch(()=>process.exit(1))"]
       interval: 10s
       timeout: 5s
       retries: 18

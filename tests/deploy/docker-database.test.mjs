@@ -64,6 +64,10 @@ test("Docker Compose starts PostgreSQL, initializes it, then starts TradePilot",
     /@postgres:5432\/tradepilot$/,
   );
   assert.ok(tradepilot.healthcheck?.test);
+  assert.match(
+    tradepilot.healthcheck.test.at(-1),
+    /b\.status\s*!==\s*["']ok["']/,
+  );
   assert.ok(compose.volumes.tradepilot_postgres !== undefined);
 });
 
