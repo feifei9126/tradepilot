@@ -99,6 +99,15 @@ test("provider event is claimed before message insertion and body changes stay i
   assert.equal((await repository.listMessages(COMPANY_ID, { accountId: ACCOUNT_ID })).length, 1);
 });
 
+test("different provider events for the same message use the fallback message key", async () => {
+  const repository = createMemoryEmailRepository();
+  const rawMime = "From: buyer@example.com\r\nTo: sales@example.com\r\nSubject: Same\r\nDate: Tue, 01 Jul 2025 12:00:00 +0000\r\n\r\nBody";
+  const first = await ingestInboundEmail({ companyId: COMPANY_ID, accountId: ACCOUNT_ID, provider: "resend", providerEventId: "evt_a", rawMime, repository });
+  const second = await ingestInboundEmail({ companyId: COMPANY_ID, accountId: ACCOUNT_ID, provider: "resend", providerEventId: "evt_b", rawMime, repository });
+  assert.equal(first.message?.id, second.message?.id);
+  assert.equal((await repository.listMessages(COMPANY_ID, { accountId: ACCOUNT_ID })).length, 1);
+});
+
 test("Cloudflare Email Routing input maps to the same normalized structure", async () => {
   const normalized = await normalizeCloudflareInboundEmail({
     companyId: COMPANY_ID,

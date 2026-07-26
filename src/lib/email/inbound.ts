@@ -211,10 +211,10 @@ export async function ingestInboundEmail(input: IngestInboundOptions) {
   const providerEventId = input.providerEventId?.trim() || undefined;
   const normalized = await normalizeInboundEmail(input);
   if (providerEventId) {
-    // Provider event IDs are the strongest retry key. This also prevents a
-    // changed webhook body from creating a second message while a prior
-    // attempt is still pending.
-    normalized.normalizedMessageKey = `event:${provider}:${providerEventId}`;
+    const claimPayload = {
+      ...(input.eventPayload || {}),
+      _normalizedMessageKey: normalized.normalizedMessageKey,
+    };
     const recorded = await input.repository.recordProviderEvent({
       id: randomUUID(),
       companyId: input.companyId,
@@ -222,11 +222,17 @@ export async function ingestInboundEmail(input: IngestInboundOptions) {
       provider,
       providerEventId,
       eventType: input.eventType || "email.received",
-      payload: input.eventPayload || {},
+      payload: claimPayload,
       receivedAt: new Date().toISOString(),
       processedAt: null,
     });
     if (!recorded.created && recorded.event.processedAt) {
+      return { created: false, event: recorded.event, message: null };
+    }
+    const claimedKey = typeof recorded.event.payload._normalizedMessageKey === "string"
+      ? recorded.event.payload._normalizedMessageKey
+      : null;
+    if (!recorded.created && claimedKey && claimedKey !== normalized.normalizedMessageKey) {
       return { created: false, event: recorded.event, message: null };
     }
     const message = await input.repository.insertInboundMessage(normalized);
