@@ -23,6 +23,7 @@ COPY --from=builder --chown=node:node /app/package.json ./package.json
 COPY --from=builder --chown=node:node /app/next.config.ts ./
 COPY --from=builder --chown=node:node /app/plugins ./plugins
 COPY --from=builder --chown=node:node /app/scripts ./scripts
+COPY --from=builder --chown=node:node /app/src/db/migrations ./src/db/migrations
 COPY --from=builder --chown=node:node /app/workers ./workers
 
 EXPOSE 3456

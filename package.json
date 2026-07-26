@@ -40,7 +40,11 @@
     "upload:cloudflare": "opennextjs-cloudflare build && opennextjs-cloudflare upload",
     "cf-typegen": "wrangler types --env-interface CloudflareEnv cloudflare-env.d.ts",
     "cfbuild": "opennextjs-cloudflare build",
-    "db:init": "node scripts/init-db.mjs",
+    "db:migrate": "node scripts/db/migrate.mjs",
+    "db:status": "node scripts/db/status.mjs",
+    "db:bootstrap": "node scripts/db/bootstrap.mjs",
+    "db:seed": "node scripts/db/seed.mjs",
+    "db:init": "node scripts/db/init.mjs",
     "firecrawl:deploy": "node scripts/deploy-firecrawl.mjs",
     "video-worker": "node workers/openmontage-adapter/server.mjs"
   },

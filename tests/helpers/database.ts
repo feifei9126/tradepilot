@@ -6,6 +6,7 @@ import { migrate as runDrizzleMigrations } from "drizzle-orm/postgres-js/migrato
 import postgres, { type Sql } from "postgres";
 
 export interface TestDatabaseContext {
+  databaseUrl: string;
   migrate(): Promise<void>;
   schemaName: string;
   sql: Sql;
@@ -37,6 +38,7 @@ export async function withCleanDatabase<T>(
 
   try {
     return await callback({
+      databaseUrl: isolatedUrl.toString(),
       schemaName: "public",
       sql,
       async migrate() {
