@@ -20,6 +20,8 @@ export const OUTBOX_RETRY_DELAYS_MS = [
   12 * 60 * 60 * 1000,
   24 * 60 * 60 * 1000,
 ] as const;
+export const RETRY_DELAYS_MS = OUTBOX_RETRY_DELAYS_MS;
+export const OUTBOX_RETRY_DELAYS = OUTBOX_RETRY_DELAYS_MS;
 
 type Clock = () => Date;
 
@@ -161,6 +163,7 @@ export async function processEmailOutbox(options: OutboxProcessorOptions) {
 
 export const processOutbox = processEmailOutbox;
 export const runOutboxOnce = processEmailOutbox;
+export const processOutboxBatch = processEmailOutbox;
 
 export function createOutboxItem(input: Omit<EmailOutboxItem, "id" | "createdAt" | "updatedAt" | "attemptCount" | "status" | "nextAttemptAt" | "leasedUntil" | "externalId" | "lastErrorCode" | "lastError"> & Partial<Pick<EmailOutboxItem, "id" | "createdAt" | "updatedAt" | "attemptCount" | "status" | "nextAttemptAt" | "leasedUntil" | "externalId" | "lastErrorCode" | "lastError">>) {
   const now = new Date().toISOString();

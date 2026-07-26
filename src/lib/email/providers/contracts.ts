@@ -40,3 +40,6 @@ export class ProviderSendError extends Error {
     super(message);
   }
 }
+
+export { ProviderSendError as ProviderError };
+export type { SendEmailInput as EmailSendInput };

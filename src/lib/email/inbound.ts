@@ -35,6 +35,8 @@ export interface InboundEmailResult extends InboundEmailInput {
   providerEventId?: string;
 }
 
+export type InboundEmail = InboundEmailResult;
+
 export interface IngestInboundOptions extends InboundNormalizationOptions {
   repository: EmailRepository;
   providerEventId?: string | null;

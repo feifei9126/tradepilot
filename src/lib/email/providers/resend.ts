@@ -6,7 +6,8 @@ import {
 } from "./contracts";
 
 export { ProviderSendError } from "./contracts";
-export type { EmailProviderAdapter, SendEmailInput, ProviderSendResult } from "./contracts";
+export { ProviderSendError as ProviderError } from "./contracts";
+export type { EmailProviderAdapter, SendEmailInput, EmailSendInput, ProviderSendResult } from "./contracts";
 
 export interface ResendProviderOptions {
   apiKey: string;
@@ -118,9 +119,13 @@ export class ResendEmailProvider {
   }
 }
 
+export const ResendProvider = ResendEmailProvider;
+
 export function createResendProvider(options: ResendProviderOptions) {
   return new ResendEmailProvider(options);
 }
+
+export const createResendAdapter = createResendProvider;
 
 export async function sendWithResend(options: ResendProviderOptions, input: SendEmailInput) {
   return new ResendEmailProvider(options).send(input);
