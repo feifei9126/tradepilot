@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { signIn } from "next-auth/react";
@@ -8,21 +8,104 @@ import {
   AlertCircle,
   ArrowRight,
   CheckCircle2,
-  CircleDollarSign,
+  Database,
+  ListChecks,
   Loader2,
   LockKeyhole,
+  RefreshCw,
+  ServerCog,
+  ShieldCheck,
   Ship,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import type { DatabaseHealthResult } from "@/lib/database-health";
+
+type HealthResponse = DatabaseHealthResult & {
+  code?: string;
+  message?: string;
+};
+
+async function loadHealth(): Promise<HealthResponse> {
+  try {
+    const response = await fetch("/api/health", { cache: "no-store" });
+    const result = (await response.json()) as HealthResponse;
+    if (!result.storage) throw new Error("Invalid health response");
+    return result;
+  } catch {
+    return {
+      status: "error",
+      storage: "postgresql",
+      database: "unavailable",
+      migrations: "outdated",
+      bootstrapRequired: true,
+      code: "DATABASE_UNAVAILABLE",
+      message: "无法读取部署状态。请检查 Worker 日志和数据库连接。",
+    };
+  }
+}
 
 export default function LoginPage() {
   const router = useRouter();
-  const [email, setEmail] = useState("demo@tradepilot.dev");
-  const [password, setPassword] = useState("12345678");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [health, setHealth] = useState<HealthResponse | null>(null);
+  const [healthChecking, setHealthChecking] = useState(true);
+
+  const applyHealth = useCallback((result: HealthResponse) => {
+    setHealth(result);
+    if (result.storage === "memory") {
+      setEmail((value) => value || "demo@tradepilot.dev");
+      setPassword((value) => value || "12345678");
+    }
+  }, []);
+
+  const checkHealth = useCallback(async () => {
+    setHealthChecking(true);
+    try {
+      applyHealth(await loadHealth());
+    } finally {
+      setHealthChecking(false);
+    }
+  }, [applyHealth]);
+
+  useEffect(() => {
+    let active = true;
+    void loadHealth().then((result) => {
+      if (!active) return;
+      applyHealth(result);
+      setHealthChecking(false);
+    });
+    return () => {
+      active = false;
+    };
+  }, [applyHealth]);
+
+  const configurationMessage =
+    health?.status === "error"
+      ? health.message || "数据库尚未准备完成。"
+      : null;
+  const storageLabel =
+    health?.storage === "memory"
+      ? "演示内存"
+      : health?.storage === "postgresql"
+        ? "PostgreSQL"
+        : "待配置";
+  const databaseLabel =
+    health?.database === "connected"
+      ? "已连接"
+      : health?.database === "not_used"
+        ? "无需连接"
+        : "连接异常";
+  const migrationLabel =
+    health?.migrations === "current"
+      ? "已更新"
+      : health?.migrations === "not_used"
+        ? "无需迁移"
+        : "待执行";
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
@@ -79,36 +162,46 @@ export default function LoginPage() {
                   业务状态
                 </span>
                 <strong className="mt-1.5 block text-sm">
-                  演示工作区已就绪
+                  {healthChecking
+                    ? "正在检查部署状态"
+                    : health?.status === "ok"
+                      ? "业务工作区已就绪"
+                      : "需要完成数据库配置"}
                 </strong>
               </div>
-              <span className="flex items-center gap-2 text-xs font-semibold text-[#78cfb1]">
-                <span className="studio-live-dot !bg-[#38b986]" />
-                在线
+              <span
+                className={`flex items-center gap-2 text-xs font-semibold ${
+                  health?.status === "ok" ? "text-[#78cfb1]" : "text-[#f0a082]"
+                }`}
+              >
+                <span
+                  className={`studio-live-dot ${
+                    health?.status === "ok" ? "!bg-[#38b986]" : "!bg-[#e57d55]"
+                  }`}
+                />
+                {health?.status === "ok" ? "在线" : "需配置"}
               </span>
             </div>
             <div className="grid grid-cols-3 gap-3 pt-4">
               <div>
-                <CircleDollarSign className="size-4 text-[#7db0f4]" />
-                <strong className="mt-2 block text-lg tabular-nums">
-                  $31.6K
-                </strong>
+                <Database className="size-4 text-[#7db0f4]" />
+                <strong className="mt-2 block text-sm">{storageLabel}</strong>
                 <span className="mt-1 block text-[10px] text-[#8194a7]">
-                  订单金额
+                  数据存储
                 </span>
               </div>
               <div>
                 <CheckCircle2 className="size-4 text-[#70c9ad]" />
-                <strong className="mt-2 block text-lg tabular-nums">60%</strong>
+                <strong className="mt-2 block text-sm">{databaseLabel}</strong>
                 <span className="mt-1 block text-[10px] text-[#8194a7]">
-                  转化率
+                  数据库
                 </span>
               </div>
               <div>
-                <LockKeyhole className="size-4 text-[#f0a082]" />
-                <strong className="mt-2 block text-lg">BYOK</strong>
+                <ListChecks className="size-4 text-[#f0a082]" />
+                <strong className="mt-2 block text-sm">{migrationLabel}</strong>
                 <span className="mt-1 block text-[10px] text-[#8194a7]">
-                  模型自主
+                  数据结构
                 </span>
               </div>
             </div>
@@ -135,7 +228,9 @@ export default function LoginPage() {
               登录业务控制台
             </h2>
             <p className="mt-2 text-sm text-[#637181]">
-              使用部署时配置的管理员账号继续。
+              {health?.storage === "memory"
+                ? "使用本地演示账号继续。"
+                : "使用数据库中的团队账号继续。"}
             </p>
           </div>
 
@@ -173,30 +268,69 @@ export default function LoginPage() {
               </p>
             )}
 
+            {configurationMessage && (
+              <div
+                role="alert"
+                className="flex items-start gap-3 rounded-md border border-[#d9a23c]/40 bg-[#fff8e8] px-3 py-3 text-sm text-[#7a5514]"
+              >
+                <ServerCog className="mt-0.5 size-4 shrink-0" />
+                <div className="min-w-0 flex-1">
+                  <strong className="block text-sm">登录暂不可用</strong>
+                  <p className="mt-1 leading-5">{configurationMessage}</p>
+                </div>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  onClick={() => void checkHealth()}
+                  disabled={healthChecking}
+                  aria-label="重新检查部署状态"
+                  title="重新检查部署状态"
+                >
+                  <RefreshCw className={healthChecking ? "animate-spin" : ""} />
+                </Button>
+              </div>
+            )}
+
             <Button
               type="submit"
               size="lg"
               className="w-full"
-              disabled={loading}
+              disabled={loading || healthChecking || health?.status !== "ok"}
             >
-              {loading ? <Loader2 className="animate-spin" /> : <LockKeyhole />}
-              {loading ? "正在验证" : "安全登录"}
+              {loading || healthChecking ? (
+                <Loader2 className="animate-spin" />
+              ) : (
+                <LockKeyhole />
+              )}
+              {loading
+                ? "正在验证"
+                : healthChecking
+                  ? "正在检查部署"
+                  : "安全登录"}
               {!loading && <ArrowRight className="ml-auto" />}
             </Button>
           </form>
 
-          <p className="mt-5 text-center text-sm text-[#637181]">
-            需要团队账号？{" "}
-            <Link
-              href="/auth/register"
-              className="font-semibold text-[#1769e0] hover:underline"
-            >
-              创建工作区
-            </Link>
-          </p>
+          {health?.storage === "postgresql" && health.status === "ok" && (
+            <p className="mt-5 text-center text-sm text-[#637181]">
+              需要团队账号？{" "}
+              <Link
+                href="/auth/register"
+                className="font-semibold text-[#1769e0] hover:underline"
+              >
+                创建工作区
+              </Link>
+            </p>
+          )}
 
           <div className="mt-6 border-t pt-5 text-xs leading-5 text-[#637181]">
-            演示环境已预填测试账号。正式部署请设置独立管理员密码或连接数据库注册团队账号。
+            <span className="flex items-start gap-2">
+              <ShieldCheck className="mt-0.5 size-3.5 shrink-0" />
+              {health?.storage === "memory"
+                ? "本地演示数据只保存在当前进程中，重启后会恢复。"
+                : "生产账号与业务数据均从 PostgreSQL 读取。"}
+            </span>
           </div>
         </div>
       </section>

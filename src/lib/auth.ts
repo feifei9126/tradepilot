@@ -1,22 +1,7 @@
 import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 
-import { findUserByCredentials } from "@/lib/registration";
-
-const developmentEmail = "demo@tradepilot.dev";
-const developmentPassword = "12345678";
-
-function configuredCredentials() {
-  const development = process.env.NODE_ENV !== "production";
-  return {
-    email:
-      process.env.TRADEPILOT_ADMIN_EMAIL ||
-      (development ? developmentEmail : ""),
-    password:
-      process.env.TRADEPILOT_ADMIN_PASSWORD ||
-      (development ? developmentPassword : ""),
-  };
-}
+import { authorizeCredentials } from "@/lib/auth-credentials";
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
   secret: process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET,
@@ -33,26 +18,10 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) return null;
 
-        const email = String(credentials.email).trim().toLowerCase();
-        const password = String(credentials.password);
-        const configured = configuredCredentials();
-
-        if (
-          configured.email &&
-          configured.password &&
-          email === configured.email.trim().toLowerCase() &&
-          password === configured.password
-        ) {
-          return {
-            id: "deployment-admin",
-            email: configured.email,
-            name: "TradePilot Admin",
-            companyId: "deployment-workspace",
-            role: "owner",
-          };
-        }
-
-        const user = await findUserByCredentials(email, password);
+        const user = await authorizeCredentials(
+          String(credentials.email),
+          String(credentials.password),
+        );
         if (!user) return null;
 
         return {

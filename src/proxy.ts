@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
-import { injectBusinessContextHeaders } from "@/lib/business/context";
 import { auth } from "@/lib/auth";
+import { injectBusinessContextHeaders } from "@/lib/business/context";
 
 const PUBLIC_API_PREFIXES = ["/api/auth/"];
 

@@ -2,6 +2,7 @@ import { eq } from "drizzle-orm";
 
 import { getDb } from "@/db";
 import { companies as companiesTable, users as usersTable } from "@/db/schema";
+import { BusinessError } from "@/lib/business/errors";
 import { hashPassword, verifyPassword } from "@/lib/crypto";
 
 interface CreateUserResult {
@@ -38,15 +39,25 @@ function companySlug(company: string) {
   return `${base || "workspace"}-${crypto.randomUUID().slice(0, 8)}`;
 }
 
+function databaseErrorCode(error: unknown): string {
+  if (!error || typeof error !== "object") return "UNKNOWN";
+  if ("code" in error) return String(error.code);
+  if ("cause" in error) return databaseErrorCode(error.cause);
+  return "UNKNOWN";
+}
+
+function logDatabaseFailure(operation: "register" | "authorize", error: unknown) {
+  console.error(
+    `[auth:${operation}] DATABASE_UNAVAILABLE (${databaseErrorCode(error)})`,
+  );
+}
+
 export async function createUser(
   company: string,
   name: string,
   email: string,
   password: string,
 ): Promise<CreateUserResult> {
-  const db = getDb();
-  if (!db) return { ok: false, error: "数据库未配置，暂时无法注册" };
-
   const normalizedCompany = company.trim();
   const normalizedName = name.trim();
   const normalizedEmail = normalizeEmail(email);
@@ -64,32 +75,40 @@ export async function createUser(
   }
 
   try {
-    const existing = await db
-      .select({ id: usersTable.id })
-      .from(usersTable)
-      .where(eq(usersTable.email, normalizedEmail))
-      .limit(1);
-    if (existing.length > 0) {
-      return { ok: false, error: "该邮箱已被注册" };
-    }
-
+    const db = getDb();
+    if (!db) return { ok: false, error: "数据库未配置，暂时无法注册" };
     const passwordHash = await hashPassword(password);
-    const [newCompany] = await db
-      .insert(companiesTable)
-      .values({ name: normalizedCompany, slug: companySlug(normalizedCompany) })
-      .returning();
-    if (!newCompany) return { ok: false, error: "工作区创建失败" };
+    const newUser = await db.transaction(async (transaction) => {
+      const [existing] = await transaction
+        .select({ id: usersTable.id })
+        .from(usersTable)
+        .where(eq(usersTable.email, normalizedEmail))
+        .limit(1);
+      if (existing) return null;
 
-    const [newUser] = await db
-      .insert(usersTable)
-      .values({
-        companyId: newCompany.id,
-        email: normalizedEmail,
-        name: normalizedName,
-        role: "owner",
-        settings: { passwordHash },
-      })
-      .returning();
+      const [newCompany] = await transaction
+        .insert(companiesTable)
+        .values({
+          name: normalizedCompany,
+          slug: companySlug(normalizedCompany),
+        })
+        .returning();
+      if (!newCompany) {
+        throw new BusinessError("DATABASE_UNAVAILABLE", "工作区创建失败", 503);
+      }
+      const [created] = await transaction
+        .insert(usersTable)
+        .values({
+          companyId: newCompany.id,
+          email: normalizedEmail,
+          name: normalizedName,
+          role: "owner",
+          settings: { passwordHash },
+        })
+        .returning();
+      return created;
+    });
+    if (!newUser) return { ok: false, error: "该邮箱已被注册" };
     if (!newUser || !newUser.companyId) {
       return { ok: false, error: "账号创建失败" };
     }
@@ -104,7 +123,11 @@ export async function createUser(
         role: newUser.role || "owner",
       },
     };
-  } catch {
+  } catch (error) {
+    if (databaseErrorCode(error) === "23505") {
+      return { ok: false, error: "该邮箱已被注册" };
+    }
+    logDatabaseFailure("register", error);
     return { ok: false, error: "注册服务暂时不可用" };
   }
 }
@@ -113,16 +136,21 @@ export async function findUserByCredentials(
   email: string,
   password: string,
 ): Promise<FindUserResult | null> {
-  const db = getDb();
-  if (!db) return null;
-
   try {
+    const db = getDb();
+    if (!db) {
+      throw new BusinessError(
+        "DATABASE_NOT_CONFIGURED",
+        "数据库未配置",
+        503,
+      );
+    }
     const [user] = await db
       .select()
       .from(usersTable)
       .where(eq(usersTable.email, normalizeEmail(email)))
       .limit(1);
-    if (!user?.companyId) return null;
+    if (!user?.companyId || user.isActive === false) return null;
 
     const settings = user.settings as { passwordHash?: unknown } | null;
     const passwordHash = settings?.passwordHash;
@@ -140,7 +168,14 @@ export async function findUserByCredentials(
       companyId: user.companyId,
       role: user.role || "member",
     };
-  } catch {
-    return null;
+  } catch (error) {
+    if (error instanceof BusinessError) throw error;
+    logDatabaseFailure("authorize", error);
+    throw new BusinessError(
+      "DATABASE_UNAVAILABLE",
+      "数据库认证服务暂时不可用",
+      503,
+      { cause: error },
+    );
   }
 }
