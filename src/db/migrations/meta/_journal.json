@@ -8,6 +8,13 @@
       "when": 1785026081842,
       "tag": "0000_business_persistence",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1785056064088,
+      "tag": "0001_organization_memberships",
+      "breakpoints": true
     }
   ]
 }

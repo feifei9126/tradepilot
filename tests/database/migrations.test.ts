@@ -25,6 +25,8 @@ const coreTables = [
   "documents",
   "communications",
   "document_sequences",
+  "organization_memberships",
+  "organization_invitations",
 ];
 
 async function existingTables(sql: Sql) {
@@ -79,6 +81,9 @@ test("migrates an empty database with tenant-safe constraints", async () => {
       "shipments_company_order_unique",
       "documents_company_id_id_unique",
       "documents_company_order_type_unique",
+      "organization_invitations_token_hash_unique",
+      "organization_memberships_user_status_idx",
+      "organization_memberships_company_role_idx",
     ]) {
       assert.ok(indexes.has(indexName), `missing index ${indexName}`);
     }
@@ -153,6 +158,20 @@ test("upgrades the legacy account schema without losing users", async () => {
       id: userId,
       company_id: companyId,
       email: "owner@example.com",
+    });
+
+    const [membership] = await sql<
+      { company_id: string; user_id: string; role: string; status: string }[]
+    >`
+      SELECT company_id, user_id, role, status
+      FROM organization_memberships
+      WHERE company_id = ${companyId} AND user_id = ${userId}
+    `;
+    assert.deepEqual(membership, {
+      company_id: companyId,
+      user_id: userId,
+      role: "owner",
+      status: "active",
     });
 
     const tables = await existingTables(sql);
