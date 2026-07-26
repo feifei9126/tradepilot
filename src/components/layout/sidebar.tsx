@@ -32,6 +32,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { OrganizationSwitcher } from "@/components/organization-switcher";
 import { cn } from "@/lib/utils";
 import { useTranslation } from "@/lib/i18n";
 import {
@@ -186,6 +187,12 @@ const allNavItems: NavItem[] = [
     icon: SettingsIcon,
     group: "system",
   },
+  {
+    href: "/app/settings/organization",
+    labelKey: "nav.settings",
+    icon: Users,
+    group: "system",
+  },
 ];
 
 function Brand() {
@@ -301,9 +308,10 @@ export function Sidebar() {
             </DialogTitle>
           </DialogHeader>
           <div className="px-3 pt-3">
+            <OrganizationSwitcher />
             <button
               type="button"
-              className="flex h-10 w-full items-center gap-2 rounded-md border border-[#344250] bg-[#202d39] px-3 text-xs text-[#e8eef5]"
+              className="hidden flex h-10 w-full items-center gap-2 rounded-md border border-[#344250] bg-[#202d39] px-3 text-xs text-[#e8eef5]"
             >
               <Building2 className="size-4" />
               <span className="flex-1 text-left">默认工作区</span>
@@ -325,9 +333,10 @@ export function Sidebar() {
         </div>
 
         <div className="px-3 pt-3">
+          <OrganizationSwitcher />
           <button
             type="button"
-            className="flex h-10 w-full items-center gap-2 rounded-md border border-[#344250] bg-[#202d39] px-3 text-xs text-[#e8eef5] transition-colors hover:bg-[#263746]"
+            className="hidden flex h-10 w-full items-center gap-2 rounded-md border border-[#344250] bg-[#202d39] px-3 text-xs text-[#e8eef5] transition-colors hover:bg-[#263746]"
           >
             <Building2 className="size-4" />
             <span className="flex-1 text-left">默认工作区</span>
