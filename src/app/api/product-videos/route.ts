@@ -1,3 +1,4 @@
+import { callConfiguredAI } from "@/lib/ai/configured";
 import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
 import { store, type StoredProductVideoJob } from "@/lib/store";
@@ -67,6 +68,17 @@ export async function POST(req: NextRequest) {
     if (!product)
       return NextResponse.json({ error: "产品不存在" }, { status: 404 });
 
+    let script: string | undefined;
+    if (body.useAIScript === true) {
+      const { data } = await callConfiguredAI("video_script", {
+        messages: [
+          { role: "system", content: "为产品营销视频编写简短、可直接朗读的解说词。仅使用提供的已核实资料，不得编造价格、认证、交期等事实。严格使用指定语言，适配视频秒数。只返回解说词，不要 markdown。" },
+          { role: "user", content: JSON.stringify({ product, brief, language: body.language, duration, style: body.style }) },
+        ], maxTokens: 1500,
+      });
+      if (typeof data.choices?.[0]?.message?.content !== "string" || !data.choices[0].message.content.trim()) throw new Error("AI 未返回视频脚本，未提交渲染任务");
+      script = data.choices[0].message.content.trim().slice(0, 10000);
+    }
     const workerResult = await createProductVideoJob(product, {
       productId: body.productId,
       engine,
@@ -77,6 +89,7 @@ export async function POST(req: NextRequest) {
       sourceImages,
       sourceVideos,
       brief,
+      script,
     });
 
     const now = new Date().toISOString();

@@ -1,3 +1,4 @@
+import { readAPIConfig } from "../api-config/store";
 import type { ProductVideoEngine, StoredProduct } from "../store";
 import type {
   ProductVideoCreateInput,
@@ -35,7 +36,7 @@ type AdapterJob = {
 };
 
 function getWorkerUrl() {
-  return process.env.OPENMONTAGE_WORKER_URL?.replace(/\/$/, "") || "";
+  return readAPIConfig().video.url?.replace(/\/$/, "") || "";
 }
 
 function buildPayload(
@@ -64,6 +65,7 @@ function buildPayload(
       sourceImages: input.sourceImages,
       sourceVideos: input.sourceVideos || [],
       brief: input.brief,
+      script: input.script,
     },
   };
 }
@@ -83,6 +85,7 @@ export async function createOpenMontageJob(
 
   const response = await fetch(`${workerUrl}/jobs`, {
     method: "POST",
+    redirect: "error",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(buildPayload(product, input)),
     signal: AbortSignal.timeout(20_000),

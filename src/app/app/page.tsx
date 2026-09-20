@@ -22,6 +22,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useTranslation } from "@/lib/i18n";
+import { useAIConfig } from "@/hooks/useAIConfig";
 import { useCountUp } from "@/hooks/use-count-up";
 import type { buildDashboard } from "@/lib/dashboard";
 import type { StoredOrder } from "@/lib/store";
@@ -149,6 +150,7 @@ function FunnelBar({
 }
 
 export default function AppDashboard() {
+  const ai = useAIConfig();
   const { t } = useTranslation();
   const [exchangeRates, setExchangeRates] = useState<ExchangeRate[]>([]);
   const [rateSourceName, setRateSourceName] = useState("");
@@ -244,6 +246,7 @@ export default function AppDashboard() {
 
   return (
     <div className="page-stack">
+      {ai.loaded && !ai.ready && <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-primary/20 bg-primary/5 p-4"><div><h2 className="font-semibold">先连接 AI，再开始业务</h2><p className="text-sm text-muted-foreground">在「系统 → API 配置中心」按四步引导，统一接入询盘、获客、客服与产品视频。</p></div><Button render={<Link href="/app/api-config" />}>开始 API 配置</Button></div>}
       <div className="page-heading">
         <div>
           <p className="page-kicker">{t("dashboard.title")} / GLOBAL OPS</p>

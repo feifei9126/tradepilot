@@ -19,7 +19,13 @@ export default auth((request) => {
   ) {
     return NextResponse.next();
   }
-  if (request.auth) return NextResponse.next();
+  if (request.auth) {
+    const usesInstanceServices = ["/api/api-config", "/api/livekit", "/api/product-videos", "/api/firecrawl"].some(prefix => pathname === prefix || pathname.startsWith(prefix + "/"));
+    if (usesInstanceServices && request.auth.user?.companyId !== "deployment-workspace") {
+      return NextResponse.json({ error: "无权使用本实例 API 配置" }, { status: 403 });
+    }
+    return NextResponse.next();
+  }
   if (pathname.startsWith("/api/")) {
     return NextResponse.json({ error: "请先登录" }, { status: 401 });
   }

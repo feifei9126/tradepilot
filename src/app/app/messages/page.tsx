@@ -158,7 +158,7 @@ export default function MessagesPage() {
   async function handleAIReply(msg: StoredMessage) {
     const aiConfig = getTaskProvider("message_reply");
     if (!aiConfig) {
-      toast.error("请先在设置中为消息回复配置 AI 模型");
+      toast.error("请先在 API 配置中心为消息回复配置 AI 模型");
       return;
     }
     setReplying(msg.id);
@@ -168,7 +168,6 @@ export default function MessagesPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...aiConfig,
-          provider: aiConfig.providerId,
           messages: [
             {
               role: "system",

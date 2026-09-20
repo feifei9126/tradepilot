@@ -1,0 +1,19 @@
+[project]
+name = "tradepilot-customer-service"
+version = "0.1.0"
+description = "LiveKit voice support and sales assistant for TradePilot"
+requires-python = ">=3.11,<3.14"
+dependencies = [
+  "cryptography>=46,<49",
+  "livekit-agents[openai]~=1.8.2",
+  "openai>=2,<3",
+  "pydantic>=2.11,<3",
+  "python-dotenv>=1.0,<2",
+]
+
+[dependency-groups]
+dev = ["pytest>=8,<10", "pytest-asyncio>=1,<2", "ruff>=0.11,<1"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+pythonpath = ["."]

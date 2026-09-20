@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Link from "next/link";
+import { useAIConfig } from "@/hooks/useAIConfig";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -100,6 +102,7 @@ function savedMedia(value: unknown): CampaignDraft["mediaUrls"] {
 
 export default function LeadsPage() {
   const [step, setStep] = useState(1);
+  const { getTaskProvider } = useAIConfig();
 
   // Campaign state
   const [campaignName, setCampaignName] = useState("");
@@ -210,64 +213,23 @@ export default function LeadsPage() {
     setMediaUrls(mediaUrls.filter((_, i) => i !== index));
   }
 
-  function handleGenerateDraft() {
-    if (!campaignName.trim()) {
-      toast.error("请填写活动名称");
-      return;
-    }
-    if (enabledChannels.length === 0) {
-      toast.error("请至少选择一个渠道");
-      return;
-    }
-    setGenerating(true);
-    const channels = enabledChannels
-      .map((id) => CHANNELS.find((c) => c.id === id)?.name)
-      .join("、");
-    const products = selectedProducts.map((p) => p.name).join(", ");
-    const mediaList = mediaUrls
-      .map((m) => `[${m.type === "image" ? "图片" : "视频"}]: ${m.url}`)
-      .join("\n");
-    setGenerated(`Campaign: ${campaignName}
-────────────────────────
-Channels: ${channels}
-Target: ${targetIndustry || "General"} / ${targetCountry || "Global"}
-Products: ${products || "Not specified"}
-Planned date: ${scheduleDate || "Not scheduled"}
-Social draft: ${enabledChannels.includes("social") ? `${socialPlatform} / proposed USD ${socialBudget || "0"} daily budget` : "Not selected"}
-Media Assets:
-${mediaList || "  (none)"}
-
-─── EMAIL COPY ────────────────────────────
-From: [Verified sender name and email]
-To: [Selected customer]
-Subject: ${campaignName}${products ? ` - ${products}` : ""}
-
-Dear Partner,
-
-We would like to introduce our ${targetIndustry || "product"} offering for your review.
-
-${products ? "Our products: " + products : ""}
-
-Before sending, replace this section with verified facts:
-• Product specifications and available variants
-• Actual certifications and test reports
-• Confirmed MOQ, pricing and payment terms
-• Confirmed production lead time and delivery terms
-
-Catalog & samples available upon request.
-
-Best regards,
-[Your name and company]
-[Media attachments: ${mediaUrls.length > 0 ? mediaUrls.length + " file(s)" : "none"}]
-
-─── FOLLOW-UP PLAN (NOT SCHEDULED) ─────────
-Day 1: Review and send through the selected channel (${channels})
-Day 3: Check delivery/open status before deciding whether to follow up
-Day 7: Prepare a relevant product update if the customer has not replied
-Day 14: Decide whether to close or continue the outreach`);
-    setGenerating(false);
-    setStep(3);
-    toast.success("营销策略草稿已生成");
+  async function handleGenerateDraft() {
+    if (!campaignName.trim() || enabledChannels.length === 0) { toast.error("请填写活动名称并选择渠道"); return; }
+    const task = getTaskProvider("lead_generation");
+    if (!task) { toast.error("请先在 API 配置中心配置文本模型"); return; }
+    setGenerating(true); setSaved(false);
+    try {
+      const response = await fetch("/api/ai", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...task, messages: [
+          { role: "system", content: "你是外贸营销助手。根据用户提供的业务资料生成邮件、WhatsApp 或社媒营销文案及人工跟进建议。不得编造客户名单、联系方式、认证、价格、产品指标或发送结果。未知事实用待核实标记。仅生成可审阅的草稿，不实际发送、不投放广告、不安排定时任务。尊重退订和联系许可。" },
+          { role: "user", content: JSON.stringify({ campaignName, channels: enabledChannels, targetIndustry, targetCountry, products: selectedProducts, media: mediaUrls, proposedSchedule: scheduleDate, socialPlatform, proposedDailyBudget: socialBudget }) },
+        ] }),
+      });
+      const data = await response.json(); if (!response.ok) throw new Error(data.error || "AI 文案生成失败");
+      setGenerated(data.content); setStep(3); toast.success("AI 营销草稿已生成，请核实后再使用");
+    } catch (error) { toast.error(error instanceof Error ? error.message : "生成失败"); }
+    finally { setGenerating(false); }
   }
 
   function handleSaveDraft() {

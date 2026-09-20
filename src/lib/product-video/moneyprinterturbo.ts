@@ -1,3 +1,4 @@
+import { readAPIConfig } from "../api-config/store";
 import { randomUUID } from "node:crypto";
 import { lookup } from "node:dns/promises";
 import { isIP } from "node:net";
@@ -40,21 +41,20 @@ type MoneyPrinterTurboResponse<T> = {
 };
 
 function getBaseUrl() {
-  return process.env.MONEYPRINTERTURBO_URL?.replace(/\/$/, "") || "";
+  return readAPIConfig().moneyprinter.url?.replace(/\/$/, "") || "";
 }
 
-function requestHeaders(contentType?: string) {
+function requestHeaders(apiKey: string, contentType?: string) {
   const headers: Record<string, string> = {};
   if (contentType) headers["Content-Type"] = contentType;
-  if (process.env.MONEYPRINTERTURBO_API_KEY) {
-    headers["x-api-key"] = process.env.MONEYPRINTERTURBO_API_KEY;
-  }
+  if (apiKey) headers["x-api-key"] = apiKey;
   return headers;
 }
 
 function parseIpv4(address: string) {
   const parts = address.split(".").map(Number);
-  return parts.length === 4 && parts.every((part) => Number.isInteger(part) && part >= 0 && part <= 255)
+  return parts.length === 4 &&
+    parts.every((part) => Number.isInteger(part) && part >= 0 && part <= 255)
     ? parts
     : null;
 }
@@ -68,29 +68,33 @@ export function isPrivateAddress(address: string) {
     const parts = parseIpv4(mappedIpv4 || normalized);
     if (!parts) return true;
     const [first, second, third] = parts;
-    return first === 0
-      || first === 10
-      || first === 127
-      || (first === 100 && second >= 64 && second <= 127)
-      || (first === 169 && second === 254)
-      || (first === 172 && second >= 16 && second <= 31)
-      || (first === 192 && second === 0)
-      || (first === 192 && second === 168)
-      || (first === 192 && second === 0 && third === 2)
-      || (first === 198 && second >= 18 && second <= 19)
-      || (first === 198 && second === 51 && third === 100)
-      || (first === 203 && second === 0 && third === 113)
-      || first >= 224;
+    return (
+      first === 0 ||
+      first === 10 ||
+      first === 127 ||
+      (first === 100 && second >= 64 && second <= 127) ||
+      (first === 169 && second === 254) ||
+      (first === 172 && second >= 16 && second <= 31) ||
+      (first === 192 && second === 0) ||
+      (first === 192 && second === 168) ||
+      (first === 192 && second === 0 && third === 2) ||
+      (first === 198 && second >= 18 && second <= 19) ||
+      (first === 198 && second === 51 && third === 100) ||
+      (first === 203 && second === 0 && third === 113) ||
+      first >= 224
+    );
   }
 
   if (version === 6) {
-    return normalized === "::"
-      || normalized === "::1"
-      || normalized.startsWith("fc")
-      || normalized.startsWith("fd")
-      || /^fe[89ab]/.test(normalized)
-      || normalized.startsWith("ff")
-      || normalized.startsWith("2001:db8:");
+    return (
+      normalized === "::" ||
+      normalized === "::1" ||
+      normalized.startsWith("fc") ||
+      normalized.startsWith("fd") ||
+      /^fe[89ab]/.test(normalized) ||
+      normalized.startsWith("ff") ||
+      normalized.startsWith("2001:db8:")
+    );
   }
 
   return true;
@@ -104,7 +108,11 @@ async function assertPublicUrl(value: string) {
     throw new Error("素材 URL 格式无效");
   }
 
-  if (!["http:", "https:"].includes(url.protocol) || url.username || url.password) {
+  if (
+    !["http:", "https:"].includes(url.protocol) ||
+    url.username ||
+    url.password
+  ) {
     throw new Error("素材只支持不含凭据的 HTTP 或 HTTPS URL");
   }
   if (url.hostname === "localhost" || url.hostname.endsWith(".local")) {
@@ -114,7 +122,10 @@ async function assertPublicUrl(value: string) {
   const addresses = isIP(url.hostname)
     ? [{ address: url.hostname }]
     : await lookup(url.hostname, { all: true, verbatim: true });
-  if (addresses.length === 0 || addresses.some(({ address }) => isPrivateAddress(address))) {
+  if (
+    addresses.length === 0 ||
+    addresses.some(({ address }) => isPrivateAddress(address))
+  ) {
     throw new Error("素材 URL 解析到了不允许访问的网络地址");
   }
   return url;
@@ -122,7 +133,8 @@ async function assertPublicUrl(value: string) {
 
 async function readLimitedBody(response: Response, maxBytes: number) {
   const contentLength = Number(response.headers.get("content-length") || 0);
-  if (contentLength > maxBytes) throw new Error(`单个素材不能超过 ${Math.round(maxBytes / 1_000_000)} MB`);
+  if (contentLength > maxBytes)
+    throw new Error(`单个素材不能超过 ${Math.round(maxBytes / 1_000_000)} MB`);
   if (!response.body) throw new Error("素材响应没有内容");
 
   const reader = response.body.getReader();
@@ -134,7 +146,9 @@ async function readLimitedBody(response: Response, maxBytes: number) {
     total += value.byteLength;
     if (total > maxBytes) {
       await reader.cancel();
-      throw new Error(`单个素材不能超过 ${Math.round(maxBytes / 1_000_000)} MB`);
+      throw new Error(
+        `单个素材不能超过 ${Math.round(maxBytes / 1_000_000)} MB`,
+      );
     }
     chunks.push(value);
   }
@@ -148,7 +162,10 @@ async function readLimitedBody(response: Response, maxBytes: number) {
   return new Blob([combined.buffer]);
 }
 
-async function downloadPublicMedia(value: string, expectedType: "image" | "video") {
+async function downloadPublicMedia(
+  value: string,
+  expectedType: "image" | "video",
+) {
   let url = await assertPublicUrl(value);
 
   for (let redirects = 0; redirects <= MAX_REDIRECTS; redirects += 1) {
@@ -160,23 +177,32 @@ async function downloadPublicMedia(value: string, expectedType: "image" | "video
 
     if (response.status >= 300 && response.status < 400) {
       const location = response.headers.get("location");
-      if (!location || redirects === MAX_REDIRECTS) throw new Error("素材 URL 重定向次数过多");
+      if (!location || redirects === MAX_REDIRECTS)
+        throw new Error("素材 URL 重定向次数过多");
       url = await assertPublicUrl(new URL(location, url).toString());
       continue;
     }
     if (!response.ok) throw new Error(`素材下载失败：HTTP ${response.status}`);
 
-    const contentType = (response.headers.get("content-type") || "").split(";", 1)[0].toLowerCase();
-    const extension = expectedType === "image"
-      ? ALLOWED_IMAGE_TYPES.get(contentType)
-      : ALLOWED_VIDEO_TYPES.get(contentType);
+    const contentType = (response.headers.get("content-type") || "")
+      .split(";", 1)[0]
+      .toLowerCase();
+    const extension =
+      expectedType === "image"
+        ? ALLOWED_IMAGE_TYPES.get(contentType)
+        : ALLOWED_VIDEO_TYPES.get(contentType);
     if (!extension) {
-      throw new Error(expectedType === "image"
-        ? "MoneyPrinterTurbo 图片素材仅支持 JPEG 或 PNG"
-        : "MoneyPrinterTurbo 视频素材仅支持 MP4、MOV、WEBM 或 MKV");
+      throw new Error(
+        expectedType === "image"
+          ? "MoneyPrinterTurbo 图片素材仅支持 JPEG 或 PNG"
+          : "MoneyPrinterTurbo 视频素材仅支持 MP4、MOV、WEBM 或 MKV",
+      );
     }
     return {
-      blob: await readLimitedBody(response, expectedType === "image" ? MAX_IMAGE_BYTES : MAX_VIDEO_BYTES),
+      blob: await readLimitedBody(
+        response,
+        expectedType === "image" ? MAX_IMAGE_BYTES : MAX_VIDEO_BYTES,
+      ),
       extension,
     };
   }
@@ -184,8 +210,12 @@ async function downloadPublicMedia(value: string, expectedType: "image" | "video
   throw new Error("素材下载失败");
 }
 
-function localizedScript(product: StoredProduct, input: ProductVideoCreateInput) {
-  const benefit = input.brief || product.description || product.category || product.name;
+function localizedScript(
+  product: StoredProduct,
+  input: ProductVideoCreateInput,
+) {
+  const benefit =
+    input.brief || product.description || product.category || product.name;
   const scripts: Record<string, string> = {
     zh: `认识${product.name}。${benefit}。面向全球采购商，支持专业沟通与稳定交付。立即联系我们获取报价和样品。`,
     en: `Meet ${product.name}. ${benefit}. Built for global buyers who value dependable supply and clear communication. Contact us for pricing and samples.`,
@@ -197,13 +227,15 @@ function localizedScript(product: StoredProduct, input: ProductVideoCreateInput)
 }
 
 function voiceForLanguage(language: string) {
-  return {
-    zh: "zh-CN-XiaoxiaoNeural-Female",
-    en: "en-US-JennyNeural-Female",
-    es: "es-ES-ElviraNeural-Female",
-    de: "de-DE-KatjaNeural-Female",
-    fr: "fr-FR-DeniseNeural-Female",
-  }[language] || "en-US-JennyNeural-Female";
+  return (
+    {
+      zh: "zh-CN-XiaoxiaoNeural-Female",
+      en: "en-US-JennyNeural-Female",
+      es: "es-ES-ElviraNeural-Female",
+      de: "de-DE-KatjaNeural-Female",
+      fr: "fr-FR-DeniseNeural-Female",
+    }[language] || "en-US-JennyNeural-Female"
+  );
 }
 
 export function buildMoneyPrinterTurboVideoRequest(
@@ -213,10 +245,14 @@ export function buildMoneyPrinterTurboVideoRequest(
 ) {
   return {
     video_subject: `${product.name} product video`,
-    video_script: localizedScript(product, input),
+    video_script: input.script || localizedScript(product, input),
     video_language: input.language,
     video_source: "local",
-    video_materials: materialFiles.map((url) => ({ provider: "local", url, duration: 0 })),
+    video_materials: materialFiles.map((url) => ({
+      provider: "local",
+      url,
+      duration: 0,
+    })),
     video_aspect: input.aspectRatio,
     video_concat_mode: "sequential",
     video_transition_mode: "FadeIn",
@@ -235,15 +271,23 @@ export function buildMoneyPrinterTurboVideoRequest(
 export function sanitizeWorkerAssetPath(value?: string) {
   if (!value) return undefined;
   try {
-    const url = value.startsWith("/") ? new URL(value, "http://worker.internal") : new URL(value);
-    if (!["http:", "https:"].includes(url.protocol) || !url.pathname.startsWith("/tasks/")) return undefined;
+    const url = value.startsWith("/")
+      ? new URL(value, "http://worker.internal")
+      : new URL(value);
+    if (
+      !["http:", "https:"].includes(url.protocol) ||
+      !url.pathname.startsWith("/tasks/")
+    )
+      return undefined;
     return `${url.pathname}${url.search}`;
   } catch {
     return undefined;
   }
 }
 
-export function mapMoneyPrinterTurboTask(task: MoneyPrinterTurboTask): WorkerJobUpdate {
+export function mapMoneyPrinterTurboTask(
+  task: MoneyPrinterTurboTask,
+): WorkerJobUpdate {
   let status: ProductVideoStatus = "rendering";
   if (task.state === 1) status = "completed";
   if (task.state === -1) status = "failed";
@@ -256,22 +300,37 @@ export function mapMoneyPrinterTurboTask(task: MoneyPrinterTurboTask): WorkerJob
   };
 }
 
-async function readJson<T>(response: Response): Promise<MoneyPrinterTurboResponse<T>> {
-  const data = await response.json().catch(() => ({})) as MoneyPrinterTurboResponse<T>;
+async function readJson<T>(
+  response: Response,
+): Promise<MoneyPrinterTurboResponse<T>> {
+  const data = (await response
+    .json()
+    .catch(() => ({}))) as MoneyPrinterTurboResponse<T>;
   if (!response.ok || (data.status && data.status >= 400)) {
-    throw new Error(data.message || `MoneyPrinterTurbo HTTP ${response.status}`);
+    throw new Error(
+      data.message || `MoneyPrinterTurbo HTTP ${response.status}`,
+    );
   }
   return data;
 }
 
-async function uploadMaterial(baseUrl: string, sourceUrl: string, expectedType: "image" | "video") {
-  const { blob, extension } = await downloadPublicMedia(sourceUrl, expectedType);
+async function uploadMaterial(
+  baseUrl: string,
+  apiKey: string,
+  sourceUrl: string,
+  expectedType: "image" | "video",
+) {
+  const { blob, extension } = await downloadPublicMedia(
+    sourceUrl,
+    expectedType,
+  );
   const filename = `tradepilot-${randomUUID()}.${extension}`;
   const form = new FormData();
   form.append("file", blob, filename);
   const response = await fetch(`${baseUrl}/api/v1/video_materials`, {
     method: "POST",
-    headers: requestHeaders(),
+    redirect: "error",
+    headers: requestHeaders(apiKey),
     body: form,
     signal: AbortSignal.timeout(30_000),
   });
@@ -284,24 +343,37 @@ export async function createMoneyPrinterTurboJob(
   product: StoredProduct,
   input: ProductVideoCreateInput,
 ): Promise<WorkerCreateResult> {
-  const baseUrl = getBaseUrl();
+  const connection = readAPIConfig().moneyprinter;
+  const baseUrl = connection.url.replace(/\/$/, "");
+  const apiKey = connection.apiKey;
   if (!baseUrl) throw new Error("MoneyPrinterTurbo 尚未配置，请先启动视频引擎");
   const sourceVideos = input.sourceVideos || [];
-  if (input.sourceImages.length + sourceVideos.length === 0) throw new Error("MoneyPrinterTurbo 至少需要一个图片或视频素材");
-  if (input.sourceImages.length + sourceVideos.length > MAX_SOURCE_MEDIA) throw new Error(`产品素材最多支持 ${MAX_SOURCE_MEDIA} 个`);
+  if (input.sourceImages.length + sourceVideos.length === 0)
+    throw new Error("MoneyPrinterTurbo 至少需要一个图片或视频素材");
+  if (input.sourceImages.length + sourceVideos.length > MAX_SOURCE_MEDIA)
+    throw new Error(`产品素材最多支持 ${MAX_SOURCE_MEDIA} 个`);
 
   const materialFiles: string[] = [];
   for (const sourceImage of input.sourceImages) {
-    materialFiles.push(await uploadMaterial(baseUrl, sourceImage, "image"));
+    materialFiles.push(
+      await uploadMaterial(baseUrl, apiKey, sourceImage, "image"),
+    );
   }
   for (const sourceVideo of sourceVideos) {
-    materialFiles.push(await uploadMaterial(baseUrl, sourceVideo, "video"));
+    materialFiles.push(
+      await uploadMaterial(baseUrl, apiKey, sourceVideo, "video"),
+    );
   }
 
-  const request = buildMoneyPrinterTurboVideoRequest(product, input, materialFiles);
+  const request = buildMoneyPrinterTurboVideoRequest(
+    product,
+    input,
+    materialFiles,
+  );
   const response = await fetch(`${baseUrl}/api/v1/videos`, {
     method: "POST",
-    headers: requestHeaders("application/json"),
+    redirect: "error",
+    headers: requestHeaders(apiKey, "application/json"),
     body: JSON.stringify(request),
     signal: AbortSignal.timeout(30_000),
   });
@@ -318,35 +390,58 @@ export async function createMoneyPrinterTurboJob(
   };
 }
 
-export async function refreshMoneyPrinterTurboJob(workerJobId: string): Promise<WorkerJobUpdate> {
-  const baseUrl = getBaseUrl();
+export async function refreshMoneyPrinterTurboJob(
+  workerJobId: string,
+): Promise<WorkerJobUpdate> {
+  const connection = readAPIConfig().moneyprinter;
+  const baseUrl = connection.url.replace(/\/$/, "");
+  const apiKey = connection.apiKey;
   if (!baseUrl) throw new Error("MoneyPrinterTurbo 尚未配置");
-  const response = await fetch(`${baseUrl}/api/v1/tasks/${encodeURIComponent(workerJobId)}`, {
-    headers: requestHeaders(),
-    signal: AbortSignal.timeout(10_000),
-  });
+  const response = await fetch(
+    `${baseUrl}/api/v1/tasks/${encodeURIComponent(workerJobId)}`,
+    {
+      redirect: "error",
+      headers: requestHeaders(apiKey),
+      signal: AbortSignal.timeout(10_000),
+    },
+  );
   const result = await readJson<MoneyPrinterTurboTask>(response);
   if (!result.data) throw new Error("MoneyPrinterTurbo 未返回任务状态");
   return mapMoneyPrinterTurboTask(result.data);
 }
 
 export async function deleteMoneyPrinterTurboJob(workerJobId: string) {
-  const baseUrl = getBaseUrl();
+  const connection = readAPIConfig().moneyprinter;
+  const baseUrl = connection.url.replace(/\/$/, "");
+  const apiKey = connection.apiKey;
   if (!baseUrl) return;
-  const response = await fetch(`${baseUrl}/api/v1/tasks/${encodeURIComponent(workerJobId)}`, {
-    method: "DELETE",
-    headers: requestHeaders(),
-    signal: AbortSignal.timeout(10_000),
-  });
+  const response = await fetch(
+    `${baseUrl}/api/v1/tasks/${encodeURIComponent(workerJobId)}`,
+    {
+      method: "DELETE",
+      redirect: "error",
+      headers: requestHeaders(apiKey),
+      signal: AbortSignal.timeout(10_000),
+    },
+  );
   if (!response.ok && response.status !== 404) await readJson(response);
 }
 
 export async function getMoneyPrinterTurboHealth(): Promise<VideoEngineHealth> {
-  const baseUrl = getBaseUrl();
-  if (!baseUrl) return { id: "moneyprinterturbo", label: "MoneyPrinterTurbo", configured: false, ok: false };
+  const connection = readAPIConfig().moneyprinter;
+  const baseUrl = connection.url.replace(/\/$/, "");
+  const apiKey = connection.apiKey;
+  if (!baseUrl)
+    return {
+      id: "moneyprinterturbo",
+      label: "MoneyPrinterTurbo",
+      configured: false,
+      ok: false,
+    };
   try {
     const response = await fetch(`${baseUrl}/api/v1/tasks?page=1&page_size=1`, {
-      headers: requestHeaders(),
+      redirect: "error",
+      headers: requestHeaders(apiKey),
       signal: AbortSignal.timeout(5_000),
     });
     return {
@@ -365,13 +460,16 @@ export async function getMoneyPrinterTurboHealth(): Promise<VideoEngineHealth> {
       configured: true,
       ok: false,
       url: baseUrl,
-      error: error instanceof Error ? error.message : "MoneyPrinterTurbo 无法访问",
+      error:
+        error instanceof Error ? error.message : "MoneyPrinterTurbo 无法访问",
     };
   }
 }
 
 export function moneyPrinterTurboAssetUrl(path: string) {
-  const baseUrl = getBaseUrl();
+  const connection = readAPIConfig().moneyprinter;
+  const baseUrl = connection.url.replace(/\/$/, "");
+  const apiKey = connection.apiKey;
   const safePath = sanitizeWorkerAssetPath(path);
   if (!baseUrl || !safePath) throw new Error("MoneyPrinterTurbo 成片地址无效");
   return new URL(safePath, `${baseUrl}/`).toString();

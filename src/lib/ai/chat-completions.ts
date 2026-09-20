@@ -1,3 +1,5 @@
+import { TEXT_PROVIDERS, type TextProviderId } from "../api-config/providers";
+
 export type ChatMessage = {
   role: "system" | "user" | "assistant";
   content: string;
@@ -18,12 +20,13 @@ export type ChatCompletionRequest = {
   proxyUrl?: string;
 };
 
-const DEFAULT_BASE_URLS: Record<string, string> = {
-  openai: "https://api.openai.com/v1",
-  tongyi: "https://dashscope.aliyuncs.com/compatible-mode/v1",
-  deepseek: "https://api.deepseek.com",
-  ollama: "http://localhost:11434/v1",
-};
+function defaultBaseUrl(provider: string) {
+  // Keep the non-Docker low-level Ollama fallback for existing callers.
+  if (provider === "ollama") return "http://localhost:11434/v1";
+  return Object.hasOwn(TEXT_PROVIDERS, provider)
+    ? TEXT_PROVIDERS[provider as TextProviderId].baseUrl
+    : "";
+}
 
 export class AIUpstreamError extends Error {
   constructor(
@@ -37,17 +40,17 @@ export class AIUpstreamError extends Error {
 }
 
 export class AIRequestConfigError extends Error {
-  constructor(message: string) {
+  constructor(
+    message: string,
+    public readonly status = 400,
+  ) {
     super(message);
     this.name = "AIRequestConfigError";
   }
 }
 
 function normalizeUrl(value: string, fallbackProvider: string) {
-  const raw =
-    value.trim() ||
-    DEFAULT_BASE_URLS[fallbackProvider] ||
-    DEFAULT_BASE_URLS.deepseek;
+  const raw = value.trim() || defaultBaseUrl(fallbackProvider);
   try {
     const url = new URL(raw);
     if (
@@ -78,7 +81,7 @@ export function buildChatCompletionUrl(
   }
 
   const baseUrl = normalizeUrl(
-    config.baseUrl || DEFAULT_BASE_URLS[provider] || DEFAULT_BASE_URLS.deepseek,
+    config.baseUrl || defaultBaseUrl(provider),
     provider,
   );
   const rawPath = config.requestPath?.trim() || "/chat/completions";
@@ -115,11 +118,14 @@ export async function callChatCompletion(config: ChatCompletionRequest) {
   }
   const validMessages = config.messages.every(
     (message) =>
+      message != null &&
       ["system", "user", "assistant"].includes(message.role) &&
       typeof message.content === "string" &&
       message.content.length > 0 &&
       message.content.length <= 50_000,
   );
+  if (!validMessages)
+    throw new AIRequestConfigError("消息内容格式无效或超出长度限制");
   const totalLength = config.messages.reduce(
     (sum, message) => sum + message.content.length,
     0,
@@ -136,27 +142,53 @@ export async function callChatCompletion(config: ChatCompletionRequest) {
   if (config.apiKey) headers.Authorization = `Bearer ${config.apiKey}`;
   if (config.userAgent?.trim()) headers["User-Agent"] = config.userAgent.trim();
 
-  const response = await fetch(endpoint, {
-    method: "POST",
-    headers,
-    body: JSON.stringify({
-      model: config.model || "deepseek-chat",
-      messages: config.messages,
-      temperature: Math.min(2, Math.max(0, Number(config.temperature ?? 0.7))),
-      max_tokens: Math.min(8192, Math.max(1, Number(config.maxTokens) || 2048)),
-    }),
-    signal: AbortSignal.timeout(120_000),
-  });
-
+  let response: Response;
+  try {
+    response = await fetch(endpoint, {
+      method: "POST",
+      redirect: "error",
+      headers,
+      body: JSON.stringify({
+        model: config.model || "deepseek-chat",
+        messages: config.messages,
+        // New vendor/aggregator models may reject fixed temperatures. Use their defaults.
+        ...(["openai", "deepseek", "tongyi", "ollama", "custom"].includes(
+          provider,
+        )
+          ? {
+              temperature: Math.min(
+                2,
+                Math.max(0, Number(config.temperature ?? 0.7)),
+              ),
+            }
+          : {}),
+        max_tokens: Math.min(
+          8192,
+          Math.max(1, Number(config.maxTokens) || 2048),
+        ),
+      }),
+      signal: AbortSignal.timeout(120_000),
+    });
+  } catch {
+    // Fetch/Headers exceptions may include a sensitive header value. Never expose them.
+    throw new AIUpstreamError(
+      "AI 接口连接失败，请检查地址、网络和鉴权配置",
+      502,
+    );
+  }
   const text = await response.text();
   if (!response.ok) {
     throw new AIUpstreamError(
       `AI API 错误: ${response.status}`,
       response.status,
-      text,
+      undefined,
     );
   }
 
-  const data = text ? JSON.parse(text) : {};
-  return { data, endpoint };
+  try {
+    const data = text ? JSON.parse(text) : {};
+    return { data, endpoint };
+  } catch {
+    throw new AIUpstreamError("AI 接口返回了无效 JSON", 502);
+  }
 }

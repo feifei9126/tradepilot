@@ -8,7 +8,7 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci
 COPY . .
-RUN npm run build
+RUN mkdir -p /app/plugins && npm run build
 
 FROM public.ecr.aws/docker/library/node:22-alpine AS runner
 WORKDIR /app

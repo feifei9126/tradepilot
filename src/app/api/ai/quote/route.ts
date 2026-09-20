@@ -1,11 +1,11 @@
+import { callConfiguredAI } from "@/lib/ai/configured";
 import { NextRequest, NextResponse } from "next/server";
-import { AIRequestConfigError, AIUpstreamError, callChatCompletion } from "@/lib/ai/chat-completions";
+import { AIRequestConfigError, AIUpstreamError } from "@/lib/ai/chat-completions";
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { apiKey, provider, model, productInfo, customerName, country, tradeTerm } = body;
-    const actualModel = model || "deepseek-chat";
+    const { productInfo, customerName, country, tradeTerm } = body;
 
     const systemPrompt = `You are a senior international trade pricing expert. 
 Generate a professional quotation based on the provided information.
@@ -33,11 +33,7 @@ Pricing Guidelines:
 
 Return JSON: { items: [{productName, quantity, unit, unitPrice, amount}], subtotal, freight, insurance, total, profitMargin, notes }`;
 
-    const { data } = await callChatCompletion({
-      ...body,
-      apiKey,
-      provider,
-      model: actualModel,
+    const { data } = await callConfiguredAI("quotation", {
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: userPrompt },
@@ -78,7 +74,7 @@ Return JSON: { items: [{productName, quantity, unit, unitPrice, amount}], subtot
     }
   } catch (error: unknown) {
     if (error instanceof AIRequestConfigError) {
-      return NextResponse.json({ error: error.message }, { status: 400 });
+      return NextResponse.json({ error: error.message }, { status: error.status });
     }
     console.error("AI quote error:", error);
     if (error instanceof AIUpstreamError) {

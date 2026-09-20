@@ -1,11 +1,11 @@
 import { findRecommendedOllamaModel } from "@/lib/ollama/recommended-models";
-import { normalizeOllamaBaseUrl } from "@/lib/ollama/base-url";
+import { configuredOllama } from "@/lib/ollama/configured";
+import { configAccess, mutationOrigin } from "@/lib/api-config/access";
 
 export const runtime = "nodejs";
 
 type DeployRequest = {
   model?: string;
-  baseUrl?: string;
 };
 
 function getMessage(error: unknown) {
@@ -13,10 +13,12 @@ function getMessage(error: unknown) {
 }
 
 export async function POST(request: Request) {
+  const denied = (await configAccess(true)) || mutationOrigin(request);
+  if (denied) return denied;
   let body: DeployRequest;
 
   try {
-    body = await request.json() as DeployRequest;
+    body = (await request.json()) as DeployRequest;
   } catch {
     return Response.json({ ok: false, error: "请求格式错误" }, { status: 400 });
   }
@@ -24,20 +26,28 @@ export async function POST(request: Request) {
   const model = typeof body.model === "string" ? body.model.trim() : "";
   const modelInfo = findRecommendedOllamaModel(model);
   if (!modelInfo) {
-    return Response.json({ ok: false, error: "不支持部署未在推荐清单中的模型" }, { status: 400 });
+    return Response.json(
+      { ok: false, error: "不支持部署未在推荐清单中的模型" },
+      { status: 400 },
+    );
   }
 
   let baseUrl: string;
+  let headers: Record<string, string>;
   try {
-    baseUrl = normalizeOllamaBaseUrl(body.baseUrl);
+    ({ baseUrl, headers } = configuredOllama());
   } catch (error: unknown) {
-    return Response.json({ ok: false, error: getMessage(error) }, { status: 400 });
+    return Response.json(
+      { ok: false, error: getMessage(error) },
+      { status: 400 },
+    );
   }
 
   try {
     const response = await fetch(`${baseUrl}/api/pull`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { ...headers, "Content-Type": "application/json" },
+      redirect: "error",
       body: JSON.stringify({ model, stream: false }),
       signal: AbortSignal.timeout(30 * 60 * 1000),
     });
@@ -52,8 +62,12 @@ export async function POST(request: Request) {
 
     if (!response.ok) {
       return Response.json(
-        { ok: false, error: `Ollama 返回 HTTP ${response.status}`, detail: payload },
-        { status: 502 }
+        {
+          ok: false,
+          error: `Ollama 返回 HTTP ${response.status}`,
+          detail: payload,
+        },
+        { status: 502 },
       );
     }
 
@@ -67,7 +81,7 @@ export async function POST(request: Request) {
   } catch (error: unknown) {
     return Response.json(
       { ok: false, error: `无法连接 Ollama: ${getMessage(error)}` },
-      { status: 502 }
+      { status: 502 },
     );
   }
 }

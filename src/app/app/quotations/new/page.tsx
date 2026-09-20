@@ -151,7 +151,7 @@ export default function NewQuotationPage() {
       return;
     }
     if (!quotationProvider) {
-      toast.error("请先在设置中配置 AI 提供商，或使用本地成本草稿");
+      toast.error("请先在 API 配置中心配置 AI 提供商，或使用本地成本草稿");
       return;
     }
 
@@ -174,9 +174,6 @@ export default function NewQuotationPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...aiConfig,
-          apiKey: aiConfig.apiKey,
-          provider: aiConfig.providerId,
-          model: aiConfig.model,
           productInfo,
           customerName: contactName,
           country:

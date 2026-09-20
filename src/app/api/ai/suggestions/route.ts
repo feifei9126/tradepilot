@@ -1,15 +1,14 @@
+import { callConfiguredAI } from "@/lib/ai/configured";
 import { NextRequest, NextResponse } from "next/server";
 import {
   AIRequestConfigError,
   AIUpstreamError,
-  callChatCompletion,
 } from "@/lib/ai/chat-completions";
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { apiKey, provider, model, orderContext } = body;
-    const actualModel = model || "deepseek-chat";
+    const { orderContext } = body;
 
     const systemPrompt = `You are an experienced international trade order management assistant.
 Analyze the order context and provide actionable suggestions.
@@ -46,11 +45,7 @@ Analyze:
 
 Return JSON array: [{ type: "risk"|"opportunity"|"action"|"reminder", priority: "low"|"normal"|"high"|"urgent", title: "Chinese title", description: "Chinese description", actionLabel: "optional" }]`;
 
-    const { data } = await callChatCompletion({
-      ...body,
-      apiKey,
-      provider,
-      model: actualModel,
+    const { data } = await callConfiguredAI("order_suggestion", {
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: userPrompt },
@@ -89,7 +84,7 @@ Return JSON array: [{ type: "risk"|"opportunity"|"action"|"reminder", priority: 
     }
   } catch (error: unknown) {
     if (error instanceof AIRequestConfigError) {
-      return NextResponse.json({ error: error.message }, { status: 400 });
+      return NextResponse.json({ error: error.message }, { status: error.status });
     }
     console.error("AI suggestions error:", error);
     if (error instanceof AIUpstreamError) {

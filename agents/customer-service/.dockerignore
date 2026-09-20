@@ -1,0 +1,9 @@
+*
+!Dockerfile
+!pyproject.toml
+!uv.lock
+!agent.py
+!assistant.py
+
+!config_loader.py
+!supervisor.py

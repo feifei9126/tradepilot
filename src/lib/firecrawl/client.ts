@@ -1,11 +1,12 @@
+import { readAPIConfig } from "../api-config/store";
 import { assertPublicUrl } from "./security";
 import type { FirecrawlScrapeResponse } from "./types";
 import { getFirecrawlConfig } from "./config";
 
 function headers() {
   const result: Record<string, string> = { "Content-Type": "application/json" };
-  if (process.env.FIRECRAWL_API_KEY)
-    result.Authorization = `Bearer ${process.env.FIRECRAWL_API_KEY}`;
+  const key = readAPIConfig().firecrawl.apiKey;
+  if (key) result.Authorization = `Bearer ${key}`;
   return result;
 }
 
@@ -21,6 +22,7 @@ export async function scrapeWithFirecrawl(sourceUrl: string) {
 
   const response = await fetch(`${config.url}/v1/scrape`, {
     method: "POST",
+    redirect: "error",
     headers: headers(),
     body: JSON.stringify({
       url: sourceUrl,

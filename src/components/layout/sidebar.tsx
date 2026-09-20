@@ -16,6 +16,7 @@ import {
   EyeOff,
   FileText,
   GripVertical,
+  Headphones,
   LayoutDashboard,
   Mail,
   Menu,
@@ -23,6 +24,7 @@ import {
   MessageSquareQuote,
   Package,
   Puzzle,
+  KeyRound,
   Settings as SettingsIcon,
   Ship,
   Smartphone,
@@ -63,6 +65,8 @@ const navGroups: { id: NavGroupId; label: string }[] = [
 ];
 
 const allNavItems: NavItem[] = [
+  { href: "/app/api-config", labelKey: "nav.api_config", icon: KeyRound, group: "system" },
+  { href: "/app/voice-agent", labelKey: "nav.voice_agent", icon: Headphones, group: "growth" },
   {
     href: "/app",
     labelKey: "nav.workspace",

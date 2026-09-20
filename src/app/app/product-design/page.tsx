@@ -31,9 +31,9 @@ export default function ProductDesignPage() {
           </Button>
         </section>
         <section className="space-y-3 border-l-2 border-border pl-4">
-          <h2 className="text-sm font-medium">配置 AI 提供商</h2>
+          <h2 className="text-sm font-medium">API 配置中心</h2>
           <p className="text-sm text-muted-foreground">先配置真实 API 请求地址、模型映射和代理，再接入设计生成后端。</p>
-          <Button render={<Link href="/app/settings" />} nativeButton={false} variant="outline">
+          <Button render={<Link href="/app/api-config" />} nativeButton={false} variant="outline">
             <Settings className="mr-2 h-4 w-4" />打开设置
           </Button>
         </section>
