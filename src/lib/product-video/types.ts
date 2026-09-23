@@ -15,6 +15,8 @@ export type ProductVideoCreateInput = {
   sourceImages: string[];
   sourceVideos?: string[];
   brief: string;
+  script?: string;
+  useAIScript?: boolean;
 };
 
 export type WorkerCreateResult = {

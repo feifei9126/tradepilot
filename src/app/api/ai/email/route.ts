@@ -1,6 +1,7 @@
+import { callConfiguredAI } from "@/lib/ai/configured";
 import { NextRequest, NextResponse } from "next/server";
 
-import { AIRequestConfigError, AIUpstreamError, callChatCompletion } from "@/lib/ai/chat-completions";
+import { AIRequestConfigError, AIUpstreamError } from "@/lib/ai/chat-completions";
 import { buildEmailMessages, buildEmailPrompt } from "@/lib/ai/email-prompts";
 
 export async function POST(req: NextRequest) {
@@ -12,8 +13,7 @@ export async function POST(req: NextRequest) {
       systemPrompt,
       `请用${context.language || "中文"}写一封${getTypeLabel(body.type)}。`,
     );
-    const { data } = await callChatCompletion({
-      ...body,
+    const { data } = await callConfiguredAI("email_compose", {
       messages,
       temperature: 0.8,
       maxTokens: 2048,
@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
     });
   } catch (error: unknown) {
     if (error instanceof AIRequestConfigError) {
-      return NextResponse.json({ error: error.message }, { status: 400 });
+      return NextResponse.json({ error: error.message }, { status: error.status });
     }
     if (error instanceof AIUpstreamError) {
       return NextResponse.json({ error: error.message, detail: error.detail }, { status: error.status });

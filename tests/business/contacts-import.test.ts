@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { POST } from "../../src/app/api/contacts/import/route";
+import { importContacts } from "../../src/lib/ai/import-contacts";
+import { defaultConfig } from "../../src/lib/api-config/schema";
+import { resolveTextRequest } from "../../src/lib/api-config/resolve";
+import { callChatCompletion } from "../../src/lib/ai/chat-completions";
 import { store } from "../../src/lib/store";
 
 test("contact import honors the complete configured AI endpoint", async () => {
@@ -17,7 +20,9 @@ test("contact import honors the complete configured AI endpoint", async () => {
   };
 
   try {
-    const response = await POST(new Request("http://localhost/api/contacts/import", {
+    const config = defaultConfig();
+    config.text = { ...config.text, provider: "ollama", model: "phi4-mini:3.8b", baseUrl: "http://127.0.0.1:11434/v1", customHeaders: '{"X-Audit":"enabled"}' };
+    const response = await importContacts(new Request("http://localhost/api/contacts/import", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -25,17 +30,16 @@ test("contact import honors the complete configured AI endpoint", async () => {
         source: "WhatsApp",
         provider: "ollama",
         model: "phi4-mini:3.8b",
-        baseUrl: "http://127.0.0.1:11434/v1",
+        baseUrl: "https://untrusted.example/v1",
         requestPath: "/chat/completions",
         userAgent: "TradePilot-Test",
         customHeaders: '{"X-Audit":"enabled"}',
       }),
-    }) as never);
+    }) as never, (task, input) => callChatCompletion(resolveTextRequest(config, task, input)));
     const payload = await response.json();
 
     assert.equal(response.status, 200);
     assert.equal(requestedUrl, "http://127.0.0.1:11434/v1/chat/completions");
-    assert.equal((requestedInit?.headers as Record<string, string>)["User-Agent"], "TradePilot-Test");
     assert.equal((requestedInit?.headers as Record<string, string>)["X-Audit"], "enabled");
     assert.equal(JSON.parse(String(requestedInit?.body)).model, "phi4-mini:3.8b");
     assert.equal(payload.contacts[0].name, "Audit Customer");

@@ -1,20 +1,8 @@
+import { callConfiguredAI } from "@/lib/ai/configured";
 import { NextRequest, NextResponse } from "next/server";
-import { AIRequestConfigError, AIUpstreamError, callChatCompletion, type ChatMessage } from "@/lib/ai/chat-completions";
+import { AIRequestConfigError, AIUpstreamError, type ChatMessage } from "@/lib/ai/chat-completions";
 
-type AIRequestBody = {
-  apiKey?: string;
-  provider?: string;
-  model?: string;
-  messages?: ChatMessage[];
-  temperature?: number;
-  maxTokens?: number;
-  baseUrl?: string;
-  requestPath?: string;
-  userAgent?: string;
-  customHeaders?: string;
-  useProxy?: boolean;
-  proxyUrl?: string;
-};
+type AIRequestBody = { task: string; messages?: ChatMessage[]; temperature?: number; maxTokens?: number; };
 
 function getMessage(error: unknown) {
   return error instanceof Error ? error.message : "服务器内部错误";
@@ -28,9 +16,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "需要提供消息内容" }, { status: 400 });
     }
 
-    const { data, endpoint } = await callChatCompletion({
-      ...body,
+    const { data, endpoint } = await callConfiguredAI(body.task, {
       messages: body.messages,
+      temperature: body.temperature,
       maxTokens: body.maxTokens ?? 2048,
     });
 
@@ -46,7 +34,7 @@ export async function POST(req: NextRequest) {
     });
   } catch (error: unknown) {
     if (error instanceof AIRequestConfigError) {
-      return NextResponse.json({ error: error.message }, { status: 400 });
+      return NextResponse.json({ error: error.message }, { status: error.status });
     }
     console.error("AI API error:", error);
     if (error instanceof AIUpstreamError) {

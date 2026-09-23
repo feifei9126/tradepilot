@@ -1,3 +1,4 @@
+import { readAPIConfig } from "@/lib/api-config/store";
 import { NextResponse } from "next/server";
 
 import { getFirecrawlConfig } from "@/lib/firecrawl/client";
@@ -7,17 +8,20 @@ export const dynamic = "force-dynamic";
 
 export async function GET() {
   const config = getFirecrawlConfig();
+  const key = readAPIConfig().firecrawl.apiKey;
   let reachable = false;
   if (config.configured && config.url) {
     try {
-      await fetch(config.url, {
-        headers: process.env.FIRECRAWL_API_KEY
-          ? { Authorization: `Bearer ${process.env.FIRECRAWL_API_KEY}` }
+      const response = await fetch(config.url, {
+        redirect: "error",
+        headers: key
+          ? { Authorization: `Bearer ${key}` }
           : undefined,
         cache: "no-store",
         signal: AbortSignal.timeout(3_000),
       });
-      reachable = true;
+      reachable = response.ok;
+      await response.body?.cancel();
     } catch {
       reachable = false;
     }

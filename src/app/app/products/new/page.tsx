@@ -58,7 +58,7 @@ export default function NewProductPage() {
     }
     const aiConfig = getTaskProvider("product_enrichment");
     if (!aiConfig) {
-      toast.error("请先在设置中为产品资料补全配置 AI 模型");
+      toast.error("请先在 API 配置中心为产品资料补全配置 AI 模型");
       return;
     }
 
@@ -69,9 +69,6 @@ export default function NewProductPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...aiConfig,
-          apiKey: aiConfig.apiKey,
-          provider: aiConfig.providerId,
-          model: aiConfig.model,
           messages: [
             {
               role: "user",

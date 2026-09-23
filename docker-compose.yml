@@ -4,7 +4,7 @@ services:
       context: .
       target: runner
     ports:
-      - "${PORT:-3456}:3456"
+      - "${BIND_ADDRESS:-127.0.0.1}:${PORT:-3456}:3456"
     volumes:
       - tradepilot_data:/app/data
       - ./plugins:/app/plugins
@@ -14,6 +14,12 @@ services:
       TRADEPILOT_DATA_DIR: /app/data
       TRADEPILOT_START_VIDEO_WORKER: "false"
       AUTH_SECRET: "${AUTH_SECRET:?AUTH_SECRET is required; run bash install.sh or set it in .env}"
+      TRADEPILOT_CONFIG_KEY: "${TRADEPILOT_CONFIG_KEY:-}"
+      OPENAI_API_KEY: "${OPENAI_API_KEY:-}"
+      OPENAI_REALTIME_MODEL: "${OPENAI_REALTIME_MODEL:-gpt-realtime}"
+      OPENAI_REALTIME_VOICE: "${OPENAI_REALTIME_VOICE:-marin}"
+      OPENAI_TRANSCRIPTION_MODEL: "${OPENAI_TRANSCRIPTION_MODEL:-gpt-4o-mini-transcribe}"
+      MONEYPRINTERTURBO_API_KEY: "${MONEYPRINTERTURBO_API_KEY:-}"
       AUTH_URL: "${AUTH_URL:-http://localhost:3456}"
       TRADEPILOT_ADMIN_EMAIL: "${TRADEPILOT_ADMIN_EMAIL:?TRADEPILOT_ADMIN_EMAIL is required; run bash install.sh or set it in .env}"
       TRADEPILOT_ADMIN_PASSWORD: "${TRADEPILOT_ADMIN_PASSWORD:?TRADEPILOT_ADMIN_PASSWORD is required; run bash install.sh or set it in .env}"
@@ -21,7 +27,34 @@ services:
       MONEYPRINTERTURBO_URL: http://moneyprinterturbo:8080
       FIRECRAWL_API_URL: "${FIRECRAWL_API_URL:-}"
       FIRECRAWL_API_KEY: "${FIRECRAWL_API_KEY:-}"
+      LIVEKIT_URL: "${LIVEKIT_URL:-}"
+      LIVEKIT_API_KEY: "${LIVEKIT_API_KEY:-}"
+      LIVEKIT_API_SECRET: "${LIVEKIT_API_SECRET:-}"
+      LIVEKIT_AGENT_NAME: "${LIVEKIT_AGENT_NAME:-tradepilot-customer-service}"
     restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+
+  livekit-agent:
+    profiles: ["voice"]
+    build:
+      context: ./agents/customer-service
+    volumes:
+      - tradepilot_data:/app/data:ro
+    environment:
+      TRADEPILOT_DATA_DIR: /app/data
+      TRADEPILOT_CONFIG_KEY: "${TRADEPILOT_CONFIG_KEY:-${AUTH_SECRET}}"
+      LIVEKIT_URL: "${LIVEKIT_URL:-}"
+      LIVEKIT_API_KEY: "${LIVEKIT_API_KEY:-}"
+      LIVEKIT_API_SECRET: "${LIVEKIT_API_SECRET:-}"
+      LIVEKIT_AGENT_NAME: "${LIVEKIT_AGENT_NAME:-tradepilot-customer-service}"
+      OPENAI_API_KEY: "${OPENAI_API_KEY:-}"
+      OPENAI_REALTIME_MODEL: "${OPENAI_REALTIME_MODEL:-gpt-realtime}"
+      OPENAI_REALTIME_VOICE: "${OPENAI_REALTIME_VOICE:-marin}"
+      OPENAI_TRANSCRIPTION_MODEL: "${OPENAI_TRANSCRIPTION_MODEL:-gpt-4o-mini-transcribe}"
+    init: true
+    restart: unless-stopped
+    stop_grace_period: 60s
     security_opt:
       - no-new-privileges:true
 

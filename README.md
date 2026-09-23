@@ -5,11 +5,11 @@
 <h1 align="center">TradePilot</h1>
 
 <p align="center">
-  <strong>开源 AI 外贸 CRM、订单履约与产品视频工作台</strong>
+  <strong>开源 AI 客服营销、外贸 CRM 与产品视频工作台</strong>
 </p>
 
 <p align="center">
-  客户 · 询盘 · 报价 · 订单 · 出货 · AI 模型 · 产品视频
+  询盘 · 客户 · 报价 · 订单 · AI 获客 · 实时语音客服 · 产品视频
 </p>
 
 <p align="center">
@@ -36,11 +36,9 @@
 
 [![TradePilot 全球贸易控制台](public/tradepilot-console.png)](https://tradepilot.us.kg/)
 
-| 在线演示 | 信息                                                   |
-| -------- | ------------------------------------------------------ |
-| 地址     | [https://tradepilot.us.kg/](https://tradepilot.us.kg/) |
-| 测试账号 | `admin@admin.com`                                  |
-| 测试密码 | `12345678`                                             |
+> 仓库中的在线演示链接不保证与当前代码同步。新部署使用自己配置的管理员账号，**不要将本地试用密码用于公网环境**。
+>
+> **部署状态说明：** Docker 是当前完整试用路径；Cloudflare Workers 已具备 OpenNext 构建入口，但 API 配置和视频任务仍依赖本地文件，尚不能作为等价的持久化部署。详见 [Cloudflare 部署与限制](docs/cloudflare-deployment.md)。
 
 TradePilot 面向 1-5 人外贸团队，把分散的客户资料、报价、订单、出货、AI 配置和产品内容生产放进同一个可自托管工作区。它不是只有一张 KPI 看板的演示项目，仓库同时包含业务 API、输入校验、测试、Docker 部署、视频 Worker 和第三方服务接入说明。
 
@@ -49,11 +47,11 @@ TradePilot 面向 1-5 人外贸团队，把分散的客户资料、报价、订�
 | 你需要解决的问题           | TradePilot 的处理方式                                             |
 | -------------------------- | ----------------------------------------------------------------- |
 | 客户、询盘、报价和订单分散 | 用一条业务链关联客户、报价、订单、出货和单证草稿                  |
-| AI 平台被单一供应商锁定    | BYOK，自行配置 OpenAI、DeepSeek、通义千问、Ollama 或兼容 API      |
+| AI 平台被单一供应商锁定    | 独立 API 配置中心，支持 12 个官方、聚合和本地接入选项      |
 | 产品网页和素材整理耗时     | Firecrawl 抓取产品资料、图片和视频，确认后再导入                  |
 | 产品视频制作链路割裂       | 本地 FFmpeg、MoneyPrinterTurbo、OpenMontage 三种生产路径统一管理  |
 | SaaS 数据与二次开发受限    | AGPL-3.0 开源，支持 Docker 自托管和源码级扩展                     |
-| 设置项容易配置失败         | 提供 Base URL、请求路径、模型映射、User-Agent、Headers 和代理覆盖 |
+| 设置项容易配置失败         | 四步配置引导、平台地址预设、任务模型覆盖与连接测试 |
 
 ## 核心能力
 
@@ -66,13 +64,41 @@ TradePilot 面向 1-5 人外贸团队，把分散的客户资料、报价、订�
 - 出货、物流、供应商、财务汇总与单证草稿
 - 基于真实业务记录生成的仪表盘、销售漏斗和待办提醒
 
-### AI 模型与 Ollama
+### 独立 API 配置中心
 
-- 支持 OpenAI、DeepSeek、通义千问与 OpenAI 兼容服务
-- 支持 Ollama 本地模型检测、推荐模型和安装命令
-- 可配置完整 API 请求地址、模型映射和自定义请求头
-- 支持自定义 User-Agent、本地代理与请求地址覆盖
-- API Key 保存在当前浏览器，通过 TradePilot 服务端发起请求
+登录后从 **系统 → API 配置中心**（`/app/api-config`）进入，不在“设置”页面分散填写。
+
+1. **接入文本模型**：选择平台，填写 API Key、模型 ID 和接口地址。
+2. **分配 AI 功能**：询盘、邮件、文字客服、客户资料识别、产品资料补全、报价、跟单、获客文案和视频脚本共用默认 API，也可逐项覆盖模型。
+3. **连接语音与视频**：集中管理 LiveKit / OpenAI Realtime、Firecrawl、视频适配器、MoneyPrinterTurbo。
+4. **验证并开始使用**：先保存，再测试连接；模型调用可能产生费用。
+
+| 分类 | 接入选项 |
+| --- | --- |
+| 官方平台 | OpenAI（ChatGPT）、Kimi（Moonshot）、豆包（火山方舟）、Google Gemini、智谱 GLM、DeepSeek、通义千问 |
+| 第三方聚合 | OpenRouter、硅基流动（SiliconFlow）、New API / One API 网关 |
+| 本地及自定义 | Ollama、其他 OpenAI 兼容 API |
+
+- 预设提供接口地址、模型 ID 填写提示和文档入口。新平台模型以账号控制台实际可用 ID 为准。
+- 聚合平台可按业务功能选择不同厂商模型，仍共用聚合平台自身的地址和 Key。
+- **Docker / Node 密钥存于服务端 AES-256-GCM 加密文件，不回显给浏览器。** 仅部署管理员可管理；当前是单实例配置，不是多租户密钥保险库。
+- 切换平台清空旧密钥、请求头与任务模型，避免将旧凭据发给新服务。旧浏览器配置仅在明确选择后迁移。
+- 文本接口采用 OpenAI Chat Completions 协议；不是所有图像、视频或实时语音模型都能通过这一接口调用。
+
+详见 [统一 API 配置指南](docs/api-configuration.md)。
+
+### LiveKit AI 语音客服与营销
+
+登录后进入 **AI 语音客服**（`/app/voice-agent`）：
+
+- 客服答疑 / 营销意向两种场景，中英文实时语音与字幕。
+- 收集客户意向后由操作员确认，再创建 CRM 客户。
+- 支持人工跟进请求与本地下载对话记录。
+- 独立 Python Agent Worker 使用 LiveKit + OpenAI Realtime，在配置中心保存连接信息后加载。
+
+**统一入口不等于一个 Key 访问所有服务。** 其他文本平台的 Key 不会用于 OpenAI Realtime。当前是内部工作台，不包含公开访客入口、自动电话外呼或真实人工坐席转接。获客功能生成营销文案，不自动搜集名单、投放或群发。
+
+详见 [LiveKit Agents 接入说明](docs/livekit-agents.md)。
 
 ### Firecrawl 产品采集
 
@@ -89,7 +115,7 @@ TradePilot 面向 1-5 人外贸团队，把分散的客户资料、报价、订�
 | AI 自动成片 | 社媒推广、客户介绍 | MoneyPrinterTurbo 处理配音、字幕、音乐和多素材 |
 | 高级制作    | 品牌项目、复杂镜头 | OpenMontage 命令适配器接入自定义流水线         |
 
-产品视频页包含引擎健康状态、素材输入、任务队列、进度、预览、下载、批量选择和删除。任务数据可写入持久卷，服务重启后仍可查询。
+产品视频页包含引擎健康状态、素材输入、任务队列、进度、预览、下载、批量选择和删除。可勾选使用统一 AI 模型生成脚本，再交给渲染服务。Docker 挂载数据卷后，视频任务可持久化；这不代表所有 CRM 业务数据已持久化。
 
 ## 快速部署
 
@@ -121,6 +147,27 @@ docker compose restart
 docker compose down
 ```
 
+### 最小 Docker 试用（推荐先从这里开始）
+
+仅启动 Web 和视频适配器，不自动拉取 MoneyPrinterTurbo / Redis，也不调用付费模型：
+
+```bash
+cp .env.example .env
+# 编辑 .env：设置随机 AUTH_SECRET、强管理员密码、AUTH_URL=http://localhost:3456
+# AUTH_SECRET 可用 openssl rand -hex 32 生成。不要覆盖已有部署的密钥。
+docker compose up -d --build tradepilot video-worker
+```
+
+使用 `.env` 中的管理员账号登录，然后进入 API 配置中心。语音 Worker 按需启动：
+
+```bash
+docker compose --profile voice up -d --build livekit-agent
+```
+
+**使用期间保持 Docker Desktop 运行。** 默认仅监听本机 `127.0.0.1:3456`，其他电脑不能直接访问。若页面打不开，先检查 Docker，再执行 `docker compose ps`；已创建的试用容器可用 `docker compose start tradepilot video-worker` 恢复。不要执行 `docker compose down -v`，以免删除数据卷。
+
+完整说明：[Docker 本地试用](docs/docker-trial.md)。
+
 ### 本地开发
 
 ```bash
@@ -141,29 +188,26 @@ npm start
 
 `npm start` 会同时管理 Next.js 和本地视频 Worker；无需再开第二个终端。只启动网页可设置 `TRADEPILOT_START_VIDEO_WORKER=false`。
 
-### Cloudflare Workers
+### Cloudflare Workers（构建预览，非 Docker 等价部署）
 
-仓库保留 OpenNext + Wrangler 部署配置。数据库连接和认证信息必须使用 Cloudflare Secrets，禁止写入 `wrangler.jsonc`：
+GitHub 用于托管源码；本项目有登录、服务端 API 和独立 Worker，**不能直接部署为 GitHub Pages 静态站点**。
 
-```bash
-npm install
-npx wrangler secret put DATABASE_URL
-npx wrangler secret put AUTH_SECRET
-npx wrangler secret put TRADEPILOT_ADMIN_EMAIL
-npx wrangler secret put TRADEPILOT_ADMIN_PASSWORD
-npm run deploy:cloudflare
-```
-
-初始化 PostgreSQL / Neon 表和管理员账号：
+仓库使用 OpenNext + Wrangler 生成 Cloudflare Worker：
 
 ```bash
-DATABASE_URL='postgresql://...' \
-TRADEPILOT_ADMIN_EMAIL='admin@example.com' \
-TRADEPILOT_ADMIN_PASSWORD='replace-with-a-strong-password' \
-npm run db:init
+npm ci
+npm run cfbuild
+npx wrangler deploy --dry-run
 ```
 
-Cloudflare Workers 不运行 Docker、FFmpeg 或本地文件系统任务。使用 Cloudflare 部署时，需要把 Firecrawl、MoneyPrinterTurbo 和 OpenMontage Worker 部署为独立服务，再通过环境变量连接。完整产品视频能力优先推荐 Docker 部署。
+**构建通过不代表功能可上线。** 当前仍有以下必须处理的限制：
+
+- API 配置中心和视频任务使用本地文件保存；Workers 没有等价的持久磁盘，配置保存会失败，不能用 `/tmp` 代替。
+- CRM 主体业务数据在进程内存中；不同 Worker 实例不共享这些数据。
+- Python LiveKit Agent、FFmpeg、MoneyPrinterTurbo 和抓取引擎需要独立服务，不会随 Web Worker 一起部署。
+- 仅配置 `DATABASE_URL` 不会自动将上述存储迁移到数据库。
+
+在接入持久化存储、配置线上强凭据并完成运行时验收前，不建议覆盖既有线上站点。Cloudflare 登录、Secrets、隔离预览、验收和回滚步骤见 [Cloudflare 部署说明](docs/cloudflare-deployment.md)。
 
 ## 工作流
 
@@ -177,7 +221,7 @@ flowchart LR
   F --> G[本地 FFmpeg]
   F --> H[MoneyPrinterTurbo]
   F --> I[OpenMontage]
-  J[OpenAI / DeepSeek / 通义千问 / Ollama] --> D
+  J[统一 API 配置中心：官方模型 / 聚合平台 / Ollama] --> D
   J --> F
 ```
 
@@ -197,11 +241,14 @@ cp .env.example .env
 | `TRADEPILOT_ADMIN_EMAIL`    | 部署管理员邮箱                              |
 | `TRADEPILOT_ADMIN_PASSWORD` | 部署管理员密码                              |
 | `DATABASE_URL`              | 可选，启用 PostgreSQL / Neon 注册账号       |
-| `TRADEPILOT_DATA_DIR`       | 产品视频任务持久化目录                      |
+| `TRADEPILOT_DATA_DIR`       | API 加密配置与产品视频任务目录（Docker / Node）                      |
 | `OPENMONTAGE_WORKER_URL`    | OpenMontage / 本地 FFmpeg Worker 地址       |
 | `MONEYPRINTERTURBO_URL`     | MoneyPrinterTurbo API 地址                  |
 | `FIRECRAWL_API_URL`         | Firecrawl Cloud 或自托管 API 地址           |
 | `FIRECRAWL_API_KEY`         | Firecrawl API Key                           |
+| `TRADEPILOT_CONFIG_KEY`     | 可选独立配置加密密钥；未设置时使用 `AUTH_SECRET`，至少 32 字符 |
+| `LIVEKIT_URL` / `LIVEKIT_API_KEY` / `LIVEKIT_API_SECRET` | LiveKit 连接参数 |
+| `OPENAI_API_KEY`            | 可选 OpenAI Realtime 环境回退凭据，不自动作为统一文本 Key |
 
 ## 数据与功能边界
 
@@ -213,6 +260,9 @@ cp .env.example .env
 - 单证为可下载的业务草稿，对外使用前必须核对卖方、包装、支付和合规字段。
 - 插件通过源码目录与脚本管理，不在生产环境执行未经审查的第三方运行时代码。
 - AI 输出、抓取内容和视频脚本都应由业务人员确认后使用。
+- 密钥、数据库 URL、真实客户资料、加密配置文件和数据卷都不能提交到 GitHub；更换加密密钥前须备份原密钥与配置文件。
+- 真实模型、实时语音、抓取与完整视频渲染需要对应账号权限和独立服务；本地 mock 测试不等于真实厂商联调。
+- 公网部署前须处理依赖安全告警、使用 HTTPS 和强凭据，不能照搬公开试用账号。
 
 ## 技术栈
 
@@ -221,7 +271,8 @@ cp .env.example .env
 | Web       | Next.js 16、React 19、TypeScript、Tailwind CSS |
 | UI        | Base UI、Lucide、Motion                        |
 | Auth / DB | NextAuth、Drizzle ORM、Neon PostgreSQL         |
-| AI        | OpenAI 兼容请求层、Ollama                      |
+| AI        | 统一配置、OpenAI 兼容请求层、Ollama                      |
+| 语音      | LiveKit Agents、OpenAI Realtime、Python / uv |
 | 采集      | Firecrawl                                      |
 | 视频      | FFmpeg、MoneyPrinterTurbo、OpenMontage Adapter |
 | 部署      | Docker Compose、OpenNext、Cloudflare Workers   |
@@ -234,7 +285,8 @@ tradepilot/
 ├── src/app/                 # 页面与 API 路由
 ├── src/components/          # 业务组件与 UI 基础组件
 ├── src/lib/                 # AI、业务、采集、视频与安全逻辑
-├── tests/                   # 业务、Firecrawl、产品视频测试
+├── tests/                   # 业务、配置安全、LiveKit、视频与构建测试
+├── agents/customer-service/ # 独立 Python LiveKit Agent Worker
 ├── workers/openmontage-adapter/
 ├── docs/                    # 集成与部署说明
 ├── docker-compose.yml
@@ -243,6 +295,11 @@ tradepilot/
 ```
 
 深入文档：
+
+- [统一 API 配置与 12 个提供商接入](docs/api-configuration.md)
+- [Docker 本地试用与恢复](docs/docker-trial.md)
+- [LiveKit AI 语音客服](docs/livekit-agents.md)
+- [Cloudflare 部署限制与验收](docs/cloudflare-deployment.md)
 
 - [Firecrawl 产品媒体采集](docs/firecrawl-product-media.md)
 - [MoneyPrinterTurbo 产品视频](docs/moneyprinterturbo-product-video.md)
@@ -255,11 +312,18 @@ tradepilot/
 
 ```bash
 npm test
+npx tsc --noEmit
 npm run lint
 npm run build
+# 如使用 LiveKit Worker（需安装 uv）
+uv run --directory agents/customer-service pytest -q
+uv run --directory agents/customer-service ruff check .
+# Cloudflare 构建检查，不会上传
+npm run cfbuild
+npx wrangler deploy --dry-run
 ```
 
-当前测试覆盖报价转订单、出货状态联动、输入完整性、Webhook 鉴权、Ollama 地址安全、Firecrawl SSRF 防护、视频任务持久化和 Worker 资产地址约束。
+当前测试覆盖报价转订单、出货联动、输入完整性、Webhook 鉴权、12 个提供商与任务路由、API 配置加密/版本冲突/密钥隔离、LiveKit 会话授权、Firecrawl SSRF 防护、视频任务持久化和 Worker 资产地址约束。全量 lint 与依赖审计应独立检查，不以构建成功代替安全验收。
 
 ## 适用场景
 

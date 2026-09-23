@@ -165,7 +165,7 @@ export default function OrderDetailPage() {
     if (!order) return;
     const aiConfig = getTaskProvider("order_suggestion");
     if (!aiConfig) {
-      setAiError("请先在设置中配置 AI 提供商");
+      setAiError("请先在 API 配置中心配置 AI 提供商");
       return;
     }
 
@@ -177,9 +177,6 @@ export default function OrderDetailPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...aiConfig,
-          apiKey: aiConfig.apiKey,
-          provider: aiConfig.providerId,
-          model: aiConfig.model,
           orderContext: {
             orderNo: order.no,
             status: order.status,
@@ -400,16 +397,16 @@ export default function OrderDetailPage() {
 
           {aiError && !loadingAI && (
             <div className="text-sm text-muted-foreground py-2">
-              {aiError === "请先在设置中配置 AI 提供商" ? (
+              {aiError === "请先在 API 配置中心配置 AI 提供商" ? (
                 <div className="text-center py-4">
                   <p className="mb-2">配置 AI 后即可获取跟单建议</p>
                   <Button
-                    render={<Link href="/app/settings" />}
+                    render={<Link href="/app/api-config" />}
                     nativeButton={false}
                     size="sm"
                     variant="outline"
                   >
-                    去设置页配置 AI
+                    前往 API 配置中心
                   </Button>
                 </div>
               ) : (

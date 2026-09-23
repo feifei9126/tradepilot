@@ -82,7 +82,7 @@ export default function InquiriesPage() {
   async function handleAIReply(inquiry: StoredInquiry) {
     const aiConfig = getTaskProvider("inquiry_reply");
     if (!aiConfig) {
-      toast.error("请先在设置中为询盘回复配置 AI 模型");
+      toast.error("请先在 API 配置中心为询盘回复配置 AI 模型");
       return;
     }
 
@@ -93,7 +93,7 @@ export default function InquiriesPage() {
       const res = await fetch(`/api/inquiries/${inquiry.id}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...aiConfig, provider: aiConfig.providerId }),
+        body: JSON.stringify(aiConfig),
       });
       const data = await res.json();
       if (res.ok && typeof data.reply === "string" && data.reply.trim()) {

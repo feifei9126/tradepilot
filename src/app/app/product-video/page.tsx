@@ -264,6 +264,7 @@ export default function ProductVideoPage() {
   const [sourceImages, setSourceImages] = useState("");
   const [sourceVideos, setSourceVideos] = useState("");
   const [brief, setBrief] = useState("");
+  const [useAIScript, setUseAIScript] = useState(false);
   const [statusFilter, setStatusFilter] = useState("all");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [deleteTargets, setDeleteTargets] = useState<string[]>([]);
@@ -483,6 +484,7 @@ export default function ProductVideoPage() {
           sourceImages: normalizedImages,
           sourceVideos: normalizedVideos,
           brief,
+          useAIScript,
         }),
       });
       const data = await res.json();
@@ -1244,6 +1246,11 @@ export default function ProductVideoPage() {
               />
             </div>
 
+            <div className="space-y-2 rounded-md border p-3 text-xs">
+              <label className="flex items-center gap-2"><input type="checkbox" checked={useAIScript} onChange={e => setUseAIScript(e.target.checked)}/>使用统一 AI 模型生成视频脚本</label>
+              <p className="text-muted-foreground">不勾选使用基础模板；AI 脚本会交给所选引擎。FFmpeg 仅展示文字，不提供 AI 配音。配音/字幕由 MoneyPrinterTurbo 处理。</p>
+              <Link href="/app/api-config" className="text-primary underline">统一配置模型、Firecrawl 与视频引擎 →</Link>
+            </div>
             <Button
               onClick={handleSubmit}
               disabled={!canSubmit}

@@ -1,3 +1,4 @@
+import { serviceEnvironment } from "../api-config/store";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
@@ -67,7 +68,7 @@ export function readManagedFirecrawlConfig(
 }
 
 export function getFirecrawlConfig(
-  environment: FirecrawlEnvironment = process.env,
+  environment: FirecrawlEnvironment = serviceEnvironment(),
   managedConfigPath = getFirecrawlManagedConfigPath(),
 ) {
   const explicitUrl = environment.FIRECRAWL_API_URL?.trim();
@@ -92,7 +93,7 @@ export function getFirecrawlConfig(
     }
   }
 
-  const managedConfig = readManagedFirecrawlConfig(managedConfigPath);
+  const managedConfig = (environment as NodeJS.ProcessEnv).TRADEPILOT_API_CONFIG_SAVED === "true" ? null : readManagedFirecrawlConfig(managedConfigPath);
   if (managedConfig) {
     return {
       configured: true,

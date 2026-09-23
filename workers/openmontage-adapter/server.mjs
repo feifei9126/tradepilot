@@ -243,7 +243,7 @@ async function handleCreate(req, res) {
     progress: 10,
     pipeline:
       engine === "openmontage" ? "openmontage-command" : "local-renderer",
-    script: [
+    script: (typeof payload.video?.script === "string" && payload.video.script.slice(0, 10000)) || [
       `TradePilot 已为 ${payload.product.name} 创建产品视频任务。`,
       engine === "openmontage"
         ? "任务已提交到 OpenMontage 命令流水线。"

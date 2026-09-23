@@ -115,9 +115,9 @@ export default function ContactsPage() {
       toast.error("请粘贴聊天记录内容");
       return;
     }
-    const aiConfig = getTaskProvider("customer_analysis");
+    const aiConfig = getTaskProvider("contact_import");
     if (!aiConfig) {
-      toast.error("请先在设置中为客户分析配置 AI 模型");
+      toast.error("请先在 API 配置中心为客户分析配置 AI 模型");
       return;
     }
 
@@ -130,7 +130,6 @@ export default function ContactsPage() {
           ...aiConfig,
           chatText,
           source: chatSource,
-          provider: aiConfig.providerId,
         }),
       });
       const data = await res.json();

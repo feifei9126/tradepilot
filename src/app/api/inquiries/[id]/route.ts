@@ -1,9 +1,9 @@
+import { callConfiguredAI } from "@/lib/ai/configured";
 import { NextRequest, NextResponse } from "next/server";
 import { store } from "@/lib/store";
 import {
   AIRequestConfigError,
   AIUpstreamError,
-  callChatCompletion,
 } from "@/lib/ai/chat-completions";
 
 export async function GET(
@@ -45,14 +45,12 @@ export async function PATCH(
 
 // Generate an AI reply draft. The route never sends a message to the customer.
 export async function POST(
-  req: NextRequest,
+  _req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
   const inquiry = store.inquiries.get(id);
   if (!inquiry) return NextResponse.json({ error: "未找到" }, { status: 404 });
-
-  const body = await req.json();
 
   const systemPrompt = `你是一位专业的外贸跟单助手。客户发来询盘，请根据以下信息生成专业、礼貌的英文回复。
 询盘客户: ${inquiry.customer}
@@ -66,8 +64,7 @@ export async function POST(
 4. 保持在 150-200 词以内`;
 
   try {
-    const { data } = await callChatCompletion({
-      ...body,
+    const { data } = await callConfiguredAI("inquiry_reply", {
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: inquiry.content },
@@ -87,7 +84,7 @@ export async function POST(
     return NextResponse.json({ reply, status: "quoted" });
   } catch (error: unknown) {
     if (error instanceof AIRequestConfigError) {
-      return NextResponse.json({ error: error.message }, { status: 400 });
+      return NextResponse.json({ error: error.message }, { status: error.status });
     }
     if (error instanceof AIUpstreamError) {
       return NextResponse.json(

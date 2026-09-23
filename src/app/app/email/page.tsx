@@ -133,7 +133,7 @@ export default function EmailPage() {
   async function handleAICompose(openAsReply = false) {
     const aiConfig = getTaskProvider("email_compose");
     if (!aiConfig) {
-      toast.error("请先在设置中为邮件草稿配置 AI 模型");
+      toast.error("请先在 API 配置中心为邮件草稿配置 AI 模型");
       return;
     }
     if (openAsReply && selected) openCompose("reply");
@@ -144,7 +144,6 @@ export default function EmailPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...aiConfig,
-          provider: aiConfig.providerId,
           type: selected ? "quotation_reply" : "cold_email",
           context: selected
             ? {

@@ -16,3 +16,10 @@ out/
 *.tsbuildinfo
 .impeccable/
 openmontage-workspace/
+
+# Python LiveKit worker
+.venv/
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+*.pyc

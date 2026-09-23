@@ -76,7 +76,7 @@ const sourceImagePath = await downloadPublicImage(video.sourceImages?.[0], outpu
 await writeFile(titlePath, wrapText(product.name || "Product showcase", 13, 2));
 await writeFile(
   subtitlePath,
-  wrapText(video.brief || product.description || "Built for global business", 28, 3),
+  wrapText(video.script || video.brief || product.description || "Built for global business", 28, 3),
 );
 
 const filters = sourceImagePath ? [
@@ -124,7 +124,7 @@ await runFfmpeg([
   "-frames:v", "1", "-q:v", "3", thumbnailPath,
 ]);
 
-const script = [
+const script = (typeof video.script === "string" && video.script.slice(0, 10000)) || [
   `开场：呈现 ${product.name || "产品"} 与品牌定位。`,
   `核心信息：${video.brief || product.description || "展示产品核心价值与采购场景。"}`,
   "结尾：展示询盘行动引导。",
