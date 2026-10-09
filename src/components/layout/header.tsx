@@ -12,6 +12,7 @@ import {
   Plus,
   Search,
   Settings,
+  UserRound,
   Users,
   Video,
 } from "lucide-react";
@@ -33,6 +34,7 @@ const quickLinks = [
   { href: "/app/products", label: "管理产品", icon: Package },
   { href: "/app/product-video", label: "创建产品视频", icon: Video },
   { href: "/app/settings", label: "配置 AI 提供商", icon: Settings },
+  { href: "/app/account", label: "个人中心", icon: UserRound },
 ];
 
 export function Header() {
@@ -165,11 +167,11 @@ export function Header() {
         <span className="hidden max-w-44 truncate text-xs text-muted-foreground lg:block">
           {session?.user?.email}
         </span>
-        <Avatar className="size-8 border border-border">
+        <Link href="/app/account" aria-label="个人中心" title="个人中心" className="rounded-full focus-visible:outline-2 focus-visible:outline-primary"><Avatar className="size-8 border border-border">
           <AvatarFallback className="bg-primary/10 text-xs font-bold text-primary">
             {session?.user?.name?.charAt(0)?.toUpperCase() || "T"}
           </AvatarFallback>
-        </Avatar>
+        </Avatar></Link>
         <Button
           variant="ghost"
           size="icon"

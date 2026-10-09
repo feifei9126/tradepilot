@@ -114,7 +114,7 @@ function getSuggestionDestination(actionLabel?: string) {
 export default function OrderDetailPage() {
   const params = useParams();
   const router = useRouter();
-  const { getTaskProvider } = useAIConfig();
+  const { getTaskProvider, ready, configurationUrl, unavailableReason, scope } = useAIConfig();
   const [order, setOrder] = useState<StoredOrder | null>(null);
   const [existingShipmentId, setExistingShipmentId] = useState<string | null>(
     null,
@@ -165,7 +165,7 @@ export default function OrderDetailPage() {
     if (!order) return;
     const aiConfig = getTaskProvider("order_suggestion");
     if (!aiConfig) {
-      setAiError("请先在 API 配置中心配置 AI 提供商");
+      setAiError(unavailableReason);
       return;
     }
 
@@ -397,16 +397,16 @@ export default function OrderDetailPage() {
 
           {aiError && !loadingAI && (
             <div className="text-sm text-muted-foreground py-2">
-              {aiError === "请先在 API 配置中心配置 AI 提供商" ? (
+              {!ready ? (
                 <div className="text-center py-4">
-                  <p className="mb-2">配置 AI 后即可获取跟单建议</p>
+                  <p className="mb-2">{aiError}</p>
                   <Button
-                    render={<Link href="/app/api-config" />}
+                    render={<Link href={configurationUrl} />}
                     nativeButton={false}
                     size="sm"
                     variant="outline"
                   >
-                    前往 API 配置中心
+                    {scope === "platform" ? "前往 API 配置中心" : "联系管理员配置工作区 AI"}
                   </Button>
                 </div>
               ) : (

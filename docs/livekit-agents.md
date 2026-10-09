@@ -56,7 +56,7 @@ LIVEKIT_AGENT_NAME=tradepilot-customer-service
 ```
 
 ```bash
-npm ci
+npm ci --legacy-peer-deps
 npm run dev
 ```
 

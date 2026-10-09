@@ -1,7 +1,8 @@
+import { withPlatform } from "@/lib/platform-route";
 import { NextRequest, NextResponse } from "next/server";
 import { networkInterfaces } from "os";
 
-export async function GET(req: NextRequest) {
+async function handleGET(req: NextRequest) {
   const nets = networkInterfaces();
   let lanIp = "localhost";
   
@@ -31,3 +32,5 @@ export async function GET(req: NextRequest) {
     },
   });
 }
+
+export const GET = withPlatform(handleGET);

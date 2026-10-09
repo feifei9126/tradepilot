@@ -1,19 +1,19 @@
 FROM public.ecr.aws/docker/library/node:22-alpine AS deps
 WORKDIR /app
 COPY package.json package-lock.json ./
-RUN npm ci --omit=dev
+RUN npm ci --omit=dev --legacy-peer-deps --registry=https://registry.npmjs.org
 
 FROM public.ecr.aws/docker/library/node:22-alpine AS builder
 WORKDIR /app
 COPY package.json package-lock.json ./
-RUN npm ci
+RUN npm ci --legacy-peer-deps --registry=https://registry.npmjs.org
 COPY . .
 RUN mkdir -p /app/plugins && npm run build
 
 FROM public.ecr.aws/docker/library/node:22-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production
-RUN apk add --no-cache font-dejavu \
+RUN apk add --no-cache font-dejavu postgresql16-client \
   && mkdir -p /app/data /app/openmontage-workspace \
   && chown -R node:node /app
 COPY --from=deps --chown=node:node /app/node_modules ./node_modules

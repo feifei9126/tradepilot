@@ -23,3 +23,8 @@ __pycache__/
 .pytest_cache/
 .ruff_cache/
 *.pyc
+
+# Database/configuration archives contain customer data and credentials
+backups/
+*.dump
+*.backup

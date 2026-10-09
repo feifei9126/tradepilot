@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -115,11 +116,18 @@ export default function BindPage() {
         <div>
           <h1 className="text-xl font-semibold">消息接入登记</h1>
           <p className="text-sm text-muted-foreground">
-            为自建接入端生成一次性登记令牌
+            租户安全接入尚未开放；可查看或移除历史登记
           </p>
         </div>
       </div>
 
+      <Card className="border-amber-300 bg-amber-50/50 dark:bg-amber-950/20">
+        <CardContent className="pt-5 text-sm space-y-2">
+          <p className="font-medium">此功能暂未开放</p>
+          <p>旧版设备登记和共享 Webhook 不具备租户级凭据与防重放保护，现已关闭生成、确认和消息写入。请勿把扫码登记理解为已连接 WhatsApp 或微信。</p>
+          <p className="text-muted-foreground">完成租户授权、凭据轮换和真实渠道联调后再开放；现有工作区内的历史登记仍可查看和解绑。</p>
+        </CardContent>
+      </Card>
       {/* Current Bindings */}
       <Card>
         <CardHeader>
@@ -193,14 +201,14 @@ export default function BindPage() {
           <div className="flex gap-2 items-center">
             <Button
               onClick={() => handleGenerate("whatsapp")}
-              disabled={generating || !whatsappPhone.trim()}
+              disabled={true}
             >
               {generating && qrChannel === "whatsapp" ? (
                 <Loader2 className="h-4 w-4 animate-spin mr-1" />
               ) : (
                 <QrCode className="h-4 w-4 mr-1" />
               )}
-              生成接入二维码
+              接入暂未开放
             </Button>
             {countdown > 0 && qrChannel === "whatsapp" && (
               <span className="text-xs text-muted-foreground">
@@ -210,7 +218,10 @@ export default function BindPage() {
           </div>
           {qrCode && qrChannel === "whatsapp" && (
             <div className="text-center p-4 border rounded-lg bg-muted/20">
-              <img
+              <Image
+                unoptimized
+                width={192}
+                height={192}
                 src={qrCode}
                 alt="WhatsApp QR Code"
                 className="mx-auto w-48 h-48"
@@ -260,14 +271,14 @@ export default function BindPage() {
           <div className="flex gap-2 items-center">
             <Button
               onClick={() => handleGenerate("wechat")}
-              disabled={generating || !wechatPhone.trim()}
+              disabled={true}
             >
               {generating && qrChannel === "wechat" ? (
                 <Loader2 className="h-4 w-4 animate-spin mr-1" />
               ) : (
                 <QrCode className="h-4 w-4 mr-1" />
               )}
-              生成接入二维码
+              接入暂未开放
             </Button>
             {countdown > 0 && qrChannel === "wechat" && (
               <span className="text-xs text-muted-foreground">
@@ -277,7 +288,10 @@ export default function BindPage() {
           </div>
           {qrCode && qrChannel === "wechat" && (
             <div className="text-center p-4 border rounded-lg bg-muted/20">
-              <img
+              <Image
+                unoptimized
+                width={192}
+                height={192}
                 src={qrCode}
                 alt="WeChat QR Code"
                 className="mx-auto w-48 h-48"

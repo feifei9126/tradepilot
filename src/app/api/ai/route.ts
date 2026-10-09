@@ -1,14 +1,12 @@
+import { withTenant } from "@/lib/tenant-route";
 import { callConfiguredAI } from "@/lib/ai/configured";
+import { aiErrorResponse } from "@/lib/ai/public-error";
 import { NextRequest, NextResponse } from "next/server";
-import { AIRequestConfigError, AIUpstreamError, type ChatMessage } from "@/lib/ai/chat-completions";
+import type { ChatMessage } from "@/lib/ai/chat-completions";
 
 type AIRequestBody = { task: string; messages?: ChatMessage[]; temperature?: number; maxTokens?: number; };
 
-function getMessage(error: unknown) {
-  return error instanceof Error ? error.message : "服务器内部错误";
-}
-
-export async function POST(req: NextRequest) {
+async function handlePOST(req: NextRequest) {
   try {
     const body = await req.json() as AIRequestBody;
 
@@ -16,7 +14,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "需要提供消息内容" }, { status: 400 });
     }
 
-    const { data, endpoint } = await callConfiguredAI(body.task, {
+    const { data } = await callConfiguredAI(body.task, {
       messages: body.messages,
       temperature: body.temperature,
       maxTokens: body.maxTokens ?? 2048,
@@ -30,22 +28,10 @@ export async function POST(req: NextRequest) {
       content,
       model: data.model,
       usage: data.usage || null,
-      endpoint,
     });
   } catch (error: unknown) {
-    if (error instanceof AIRequestConfigError) {
-      return NextResponse.json({ error: error.message }, { status: error.status });
-    }
-    console.error("AI API error:", error);
-    if (error instanceof AIUpstreamError) {
-      return NextResponse.json(
-        { error: error.message, detail: error.detail },
-        { status: error.status }
-      );
-    }
-    return NextResponse.json(
-      { error: getMessage(error) },
-      { status: 500 }
-    );
+    return aiErrorResponse(error);
   }
 }
+
+export const POST = withTenant(handlePOST);

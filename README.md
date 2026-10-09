@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  询盘 · 客户 · 报价 · 订单 · AI 获客 · 实时语音客服 · 产品视频
+  询盘 · 客户 · 报价 · 订单 · AI 营销 · AI 获客 · 实时语音客服 · 产品视频
 </p>
 
 <p align="center">
@@ -32,13 +32,15 @@
 
 ---
 
+> **SaaS 上线状态：仍为 NO-GO，暂不向公网开放自助注册。** 本分支已将核心业务迁移到租户隔离的 PostgreSQL，并新增工作区、团队与数据库管理。支付订阅、租户 AI 密钥/预算、SMTP/IMAP 和 Webhook 已有基础接入与安全控制；本轮完成审计 P1-01～P1-08 的源码整改及隔离验证，但真实供应商验收、依赖安全门禁和生产运维验收仍未完成。可在受控本地环境验证邀请制多工作区，不代表商用上线验收通过。历史问题与整改证据见 [SaaS 上线功能审计](docs/saas-launch-audit-2026-09-29.md)。
+
 ## 先看效果
 
 [![TradePilot 全球贸易控制台](public/tradepilot-console.png)](https://tradepilot.us.kg/)
 
 > 仓库中的在线演示链接不保证与当前代码同步。新部署使用自己配置的管理员账号，**不要将本地试用密码用于公网环境**。
 >
-> **部署状态说明：** Docker 是当前完整试用路径；Cloudflare Workers 已具备 OpenNext 构建入口，但 API 配置和视频任务仍依赖本地文件，尚不能作为等价的持久化部署。详见 [Cloudflare 部署与限制](docs/cloudflare-deployment.md)。
+> **部署状态说明：** Docker + PostgreSQL 是当前试用路径；Cloudflare Workers 有 OpenNext 构建入口，但本次数据库连接/迁移尚未在 Workers 运行时验收，部署管理员、API 配置和视频素材仍有本地存储依赖，不能作为等价部署。详见 [Cloudflare 部署与限制](docs/cloudflare-deployment.md)。
 
 TradePilot 面向 1-5 人外贸团队，把分散的客户资料、报价、订单、出货、AI 配置和产品内容生产放进同一个可自托管工作区。它不是只有一张 KPI 看板的演示项目，仓库同时包含业务 API、输入校验、测试、Docker 部署、视频 Worker 和第三方服务接入说明。
 
@@ -66,11 +68,11 @@ TradePilot 面向 1-5 人外贸团队，把分散的客户资料、报价、订�
 
 ### 独立 API 配置中心
 
-登录后从 **系统 → API 配置中心**（`/app/api-config`）进入，不在“设置”页面分散填写。
+**平台管理员**登录后从 **系统 → API 配置中心**（`/app/api-config`）管理实例服务，不在“设置”页面分散填写。以下四步与提供商选项描述平台入口；普通工作区的文本 Key、模型和预算在 **AI 用量**（`/app/ai-usage`）配置，Firecrawl Cloud Key 在 **AI 获客 → 获客服务配置** 配置。工作区配置需所有者/管理员操作，普通成员不能借用平台共享 Key。
 
 1. **接入文本模型**：选择平台，填写 API Key、模型 ID 和接口地址。
 2. **分配 AI 功能**：询盘、邮件、文字客服、客户资料识别、产品资料补全、报价、跟单、获客文案和视频脚本共用默认 API，也可逐项覆盖模型。
-3. **连接语音与视频**：集中管理 LiveKit / OpenAI Realtime、Firecrawl、视频适配器、MoneyPrinterTurbo。
+3. **连接语音与视频**：集中管理 LiveKit / OpenAI Realtime、视频适配器、MoneyPrinterTurbo；此处的 Firecrawl 仅用于实例诊断，不作为工作区业务抓取的凭据回退。
 4. **验证并开始使用**：先保存，再测试连接；模型调用可能产生费用。
 
 | 分类 | 接入选项 |
@@ -96,7 +98,7 @@ TradePilot 面向 1-5 人外贸团队，把分散的客户资料、报价、订�
 - 支持人工跟进请求与本地下载对话记录。
 - 独立 Python Agent Worker 使用 LiveKit + OpenAI Realtime，在配置中心保存连接信息后加载。
 
-**统一入口不等于一个 Key 访问所有服务。** 其他文本平台的 Key 不会用于 OpenAI Realtime。当前是内部工作台，不包含公开访客入口、自动电话外呼或真实人工坐席转接。获客功能生成营销文案，不自动搜集名单、投放或群发。
+**统一入口不等于一个 Key 访问所有服务。** 其他文本平台的 Key 不会用于 OpenAI Realtime。当前是内部工作台，不包含公开访客入口、自动电话外呼或真实人工坐席转接。AI 营销生成营销文案；AI 获客可在配置 Firecrawl 后按任务搜索公开网页、自动登记和初筛线索，但不登录社媒、自动投放或群发。
 
 详见 [LiveKit Agents 接入说明](docs/livekit-agents.md)。
 
@@ -105,7 +107,10 @@ TradePilot 面向 1-5 人外贸团队，把分散的客户资料、报价、订�
 - 从公开产品页提取名称、描述、规格、图片和视频
 - 导入前预览与人工确认，不直接污染产品数据
 - 抓取到的视频可进入 MoneyPrinterTurbo 重新编排
-- 本地环境提供 Docker 检测、部署进度、日志和连接验证
+- 工作区所有者/管理员先在 **AI 获客 → 获客服务配置** 保存自己的 Firecrawl Cloud Key 和日预算；不使用实例 Key 或任意自托管地址
+- 产品抓取与获客搜索共用工作区 UTC 日请求预算，失败和未结算请求也计次；这不是供应商的精确费用账单
+- 当前产品抓取入口仅对平台管理员开放，普通成员不能通过兼容 API 绕过；弹窗提供配置提示、预览与确认，不再负责安装/部署 Firecrawl
+- 独立平台诊断与 CLI 部署能力仍保留，不能把健康检查通过视作真实抓取验收
 
 ### 产品视频工作流
 
@@ -115,7 +120,7 @@ TradePilot 面向 1-5 人外贸团队，把分散的客户资料、报价、订�
 | AI 自动成片 | 社媒推广、客户介绍 | MoneyPrinterTurbo 处理配音、字幕、音乐和多素材 |
 | 高级制作    | 品牌项目、复杂镜头 | OpenMontage 命令适配器接入自定义流水线         |
 
-产品视频页包含引擎健康状态、素材输入、任务队列、进度、预览、下载、批量选择和删除。可勾选使用统一 AI 模型生成脚本，再交给渲染服务。Docker 挂载数据卷后，视频任务可持久化；这不代表所有 CRM 业务数据已持久化。
+产品视频页包含引擎健康状态、素材输入、任务队列、进度、预览、下载、批量选择和删除。可勾选使用统一 AI 模型生成脚本，再交给渲染服务。视频任务元数据按工作区保存到 PostgreSQL，渲染文件保存到 Worker 卷或外部对象存储；两者需分别备份，数据库恢复不会还原 MP4 文件。
 
 ## 快速部署
 
@@ -131,12 +136,12 @@ bash install.sh
 
 安装器会：
 
-1. 生成认证密钥和随机管理员密码。
-2. 构建并启动 TradePilot 与本地视频 Worker。
+1. 补充缺失的认证密钥、管理员密码和随机 PostgreSQL 密码，不覆盖已有账号配置。
+2. 启动 PostgreSQL，执行前向迁移与首次账号初始化，再启动 TradePilot 和本地视频 Worker。
 3. 在后台启动 MoneyPrinterTurbo 和 Redis。
-4. 在终端输出登录账号、密码和服务状态命令。
+4. 输出首次初始化账号、密码和状态命令；已有账号以个人中心修改后的密码为准，数据库密码不打印。
 
-完成后访问 [http://localhost:3456](http://localhost:3456)。
+默认访问 [http://localhost:3461](http://localhost:3461)，以安装器实际输出为准。
 
 常用命令：
 
@@ -149,12 +154,14 @@ docker compose down
 
 ### 最小 Docker 试用（推荐先从这里开始）
 
-仅启动 Web 和视频适配器，不自动拉取 MoneyPrinterTurbo / Redis，也不调用付费模型：
+启动 Web、内置 PostgreSQL、一次性迁移与视频适配器，不自动拉取 MoneyPrinterTurbo / Redis，也不调用付费模型：
 
 ```bash
-cp .env.example .env
-# 编辑 .env：设置随机 AUTH_SECRET、强管理员密码、AUTH_URL=http://localhost:3456
-# AUTH_SECRET 可用 openssl rand -hex 32 生成。不要覆盖已有部署的密钥。
+cp .env.example .env # 仅首次且 .env 不存在时执行；已有配置不要覆盖
+chmod 600 .env
+# 编辑 .env：填写随机 AUTH_SECRET、POSTGRES_PASSWORD、强管理员密码
+# 默认 AUTH_URL=http://localhost:3461；随机值可用 openssl rand -hex 32 生成。
+# 不要覆盖已有部署的加密密钥；修改端口时同时修改 PORT 和 AUTH_URL。
 docker compose up -d --build tradepilot video-worker
 ```
 
@@ -164,20 +171,25 @@ docker compose up -d --build tradepilot video-worker
 docker compose --profile voice up -d --build livekit-agent
 ```
 
-**使用期间保持 Docker Desktop 运行。** 默认仅监听本机 `127.0.0.1:3456`，其他电脑不能直接访问。若页面打不开，先检查 Docker，再执行 `docker compose ps`；已创建的试用容器可用 `docker compose start tradepilot video-worker` 恢复。不要执行 `docker compose down -v`，以免删除数据卷。
+**使用期间保持 Docker Desktop 运行。** 默认仅监听本机 `127.0.0.1:3461`，其他电脑不能直接访问。若页面打不开，先检查 Docker，再执行 `docker compose ps`；已创建的试用容器可先启动 `postgres`，再启动 `tradepilot video-worker`；有版本变化时使用 `up` 重新执行迁移。不要执行 `docker compose down -v`，以免删除数据卷。
 
 完整说明：[Docker 本地试用](docs/docker-trial.md)。
 
 ### 本地开发
 
+> 当前 NextAuth 版本把 Nodemailer 声明为可选 peer（范围仅到 8.x），而 TradePilot 的租户 SMTP 使用 Nodemailer 10。项目不使用 NextAuth Email Provider，因此安装命令需带 `--legacy-peer-deps`；此参数会跳过 npm 的 peer 依赖校验，依赖升级后应复查并在上游兼容后移除。
+
 ```bash
 git clone https://github.com/feifei9126/tradepilot.git
 cd tradepilot
-npm install
+npm ci --legacy-peer-deps
+# 准备 PostgreSQL，配置 .env.local 的 PG*、AUTH_SECRET 和管理员账号
+# 详细步骤见 docs/database-management.md
+npm run db:init
 npm run dev
 ```
 
-开发地址为 [http://localhost:3458](http://localhost:3458)。未配置环境变量时使用演示账号 `demo@tradepilot.dev` / `12345678`。
+开发地址为 [http://localhost:3458](http://localhost:3458)。数据库是必需项，不可用时业务返回 503，不会回退共享内存。演示账号仅在显式设置 `TRADEPILOT_SEED_DEMO=true` 初始化时创建，生产不得使用演示密码。
 
 生产运行：
 
@@ -195,17 +207,17 @@ GitHub 用于托管源码；本项目有登录、服务端 API 和独立 Worker�
 仓库使用 OpenNext + Wrangler 生成 Cloudflare Worker：
 
 ```bash
-npm ci
+npm ci --legacy-peer-deps
 npm run cfbuild
 npx wrangler deploy --dry-run
 ```
 
 **构建通过不代表功能可上线。** 当前仍有以下必须处理的限制：
 
-- API 配置中心和视频任务使用本地文件保存；Workers 没有等价的持久磁盘，配置保存会失败，不能用 `/tmp` 代替。
-- CRM 主体业务数据在进程内存中；不同 Worker 实例不共享这些数据。
+- 部署管理员与 API 配置仍使用本地文件；Workers 没有等价持久磁盘，不能用 `/tmp` 代替。
+- CRM、获客和视频任务元数据已迁移 PostgreSQL，但连接池、事务锁、迁移启动与 TLS 仍须在 Workers 运行时独立验收；不能拿 Docker 测试结果替代。
 - Python LiveKit Agent、FFmpeg、MoneyPrinterTurbo 和抓取引擎需要独立服务，不会随 Web Worker 一起部署。
-- 仅配置 `DATABASE_URL` 不会自动将上述存储迁移到数据库。
+- `DATABASE_URL` 不会自动迁移旧版 JSON 文件、媒体或解密主密钥，也不会让外部 Worker 自动上线。
 
 在接入持久化存储、配置线上强凭据并完成运行时验收前，不建议覆盖既有线上站点。Cloudflare 登录、Secrets、隔离预览、验收和回滚步骤见 [Cloudflare 部署说明](docs/cloudflare-deployment.md)。
 
@@ -239,13 +251,14 @@ cp .env.example .env
 | --------------------------- | ------------------------------------------- |
 | `AUTH_SECRET`               | NextAuth 会话签名密钥，生产环境必须随机生成 |
 | `TRADEPILOT_ADMIN_EMAIL`    | 部署管理员邮箱                              |
-| `TRADEPILOT_ADMIN_PASSWORD` | 部署管理员密码                              |
-| `DATABASE_URL`              | 可选，启用 PostgreSQL / Neon 注册账号       |
+| `TRADEPILOT_ADMIN_PASSWORD` | 生产初始密码至少 16 位、两类字符；已保存哈希优先，不被环境变量重置 |
+| `DATABASE_URL`              | 外部 PostgreSQL 连接；Docker 也可使用离散 `PG*` 变量（业务数据库必需） |
+| `METRICS_TOKEN`              | 可选，启用 Bearer Token 保护的 Prometheus `/api/metrics` 端点 |
 | `TRADEPILOT_DATA_DIR`       | API 加密配置与产品视频任务目录（Docker / Node）                      |
 | `OPENMONTAGE_WORKER_URL`    | OpenMontage / 本地 FFmpeg Worker 地址       |
 | `MONEYPRINTERTURBO_URL`     | MoneyPrinterTurbo API 地址                  |
-| `FIRECRAWL_API_URL`         | Firecrawl Cloud 或自托管 API 地址           |
-| `FIRECRAWL_API_KEY`         | Firecrawl API Key                           |
+| `FIRECRAWL_API_URL`         | 平台实例 Firecrawl 诊断地址；不作为租户搜索/产品抓取回退 |
+| `FIRECRAWL_API_KEY`         | 平台实例 Firecrawl 诊断 Key；业务使用工作区加密 Cloud Key |
 | `TRADEPILOT_CONFIG_KEY`     | 可选独立配置加密密钥；未设置时使用 `AUTH_SECRET`，至少 32 字符 |
 | `LIVEKIT_URL` / `LIVEKIT_API_KEY` / `LIVEKIT_API_SECRET` | LiveKit 连接参数 |
 | `OPENAI_API_KEY`            | 可选 OpenAI Realtime 环境回退凭据，不自动作为统一文本 Key |
@@ -254,15 +267,15 @@ cp .env.example .env
 
 开源项目的可信度来自边界清楚，而不是功能列表越长越好：
 
-- 客户、询盘、报价和订单的默认演示数据保存在进程内，服务重启后恢复种子数据。
-- PostgreSQL / Neon 当前用于注册账号；业务多租户持久化仍需要继续接入。
-- 邮件中心保存草稿和非敏感连接参数，真实 IMAP/SMTP 收发需要独立 Worker。
+- 当前 CRM 与获客等核心业务数据以 PostgreSQL 为持久化存储；数据库不可用时业务请求失败，不回退到共享内存样例数据。管理员配置、媒体文件和浏览器草稿仍分别位于配置卷、Worker/对象存储和浏览器本地，须按[数据库管理指南](docs/database-management.md)分别备份。
+- 工作区和团队权限已有数据库与服务端隔离基础，但这不等于全部 API 均已完成生产级客户对象权限审计；公网 SaaS 当前仍为 NO-GO。
+- 邮件支持账号配置、草稿及部分 IMAP/SMTP 接入代码；真实生产邮件链路、租户级运行、退订合规和供应商验收仍须完成，不应仅凭页面宣称全自动邮件营销已就绪。
 - 单证为可下载的业务草稿，对外使用前必须核对卖方、包装、支付和合规字段。
 - 插件通过源码目录与脚本管理，不在生产环境执行未经审查的第三方运行时代码。
 - AI 输出、抓取内容和视频脚本都应由业务人员确认后使用。
 - 密钥、数据库 URL、真实客户资料、加密配置文件和数据卷都不能提交到 GitHub；更换加密密钥前须备份原密钥与配置文件。
 - 真实模型、实时语音、抓取与完整视频渲染需要对应账号权限和独立服务；本地 mock 测试不等于真实厂商联调。
-- 公网部署前须处理依赖安全告警、使用 HTTPS 和强凭据，不能照搬公开试用账号。
+- 仓库含 CI 依赖审计与 Dependabot 配置，但每次安全告警仍须人工分级修复；公网部署前必须使用 HTTPS、独立强凭据和 Secret Manager，不能照搬公开试用账号。
 
 ## 技术栈
 
@@ -270,7 +283,7 @@ cp .env.example .env
 | --------- | ---------------------------------------------- |
 | Web       | Next.js 16、React 19、TypeScript、Tailwind CSS |
 | UI        | Base UI、Lucide、Motion                        |
-| Auth / DB | NextAuth、Drizzle ORM、Neon PostgreSQL         |
+| Auth / DB | NextAuth、Drizzle ORM、pg、PostgreSQL 16（支持外部 PostgreSQL） |
 | AI        | 统一配置、OpenAI 兼容请求层、Ollama                      |
 | 语音      | LiveKit Agents、OpenAI Realtime、Python / uv |
 | 采集      | Firecrawl                                      |
@@ -298,6 +311,12 @@ tradepilot/
 
 - [统一 API 配置与 12 个提供商接入](docs/api-configuration.md)
 - [Docker 本地试用与恢复](docs/docker-trial.md)
+- [SaaS 多工作区 / 团队权限（初学者）](docs/saas-multi-user.md)
+- [数据库配置 / 迁移 / 备份恢复（初学者）](docs/database-management.md)
+- [SaaS 上线审计与整改证据](docs/saas-launch-audit-2026-09-29.md)
+- [生产运维、监控与发布门禁](docs/production-operations.md)
+- [AI 获客使用说明](docs/prospecting.md)
+- [AI 营销使用说明](docs/ai-marketing.md)
 - [LiveKit AI 语音客服](docs/livekit-agents.md)
 - [Cloudflare 部署限制与验收](docs/cloudflare-deployment.md)
 
@@ -315,6 +334,8 @@ npm test
 npx tsc --noEmit
 npm run lint
 npm run build
+# 必须显式指定独立的 loopback 测试库（库名以 _test 结尾，不能用生产库）
+TEST_DATABASE_URL=独立测试库连接串 npm run test:db
 # 如使用 LiveKit Worker（需安装 uv）
 uv run --directory agents/customer-service pytest -q
 uv run --directory agents/customer-service ruff check .
@@ -323,7 +344,7 @@ npm run cfbuild
 npx wrangler deploy --dry-run
 ```
 
-当前测试覆盖报价转订单、出货联动、输入完整性、Webhook 鉴权、12 个提供商与任务路由、API 配置加密/版本冲突/密钥隔离、LiveKit 会话授权、Firecrawl SSRF 防护、视频任务持久化和 Worker 资产地址约束。全量 lint 与依赖审计应独立检查，不以构建成功代替安全验收。
+单元测试覆盖业务流程、输入限制、账号会话、服务配置、请求安全与媒体地址。独立 PostgreSQL 集成测试覆盖双租户 CRUD/导入导出隔离、复合外键、权限、并发名额、会话撤销、迁移/初始化重跑和数据库故障拒绝。内部路由测试不替代真实 HTTP 登录、付费厂商联调、HTTPS/安全审计、压测或灾备制度；不得以构建成功宣称生产验收完成。
 
 ## 适用场景
 

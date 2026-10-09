@@ -3,9 +3,11 @@
 import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useSession } from "next-auth/react";
 import { motion } from "motion/react";
 import {
   BarChart3,
+  Database,
   Building2,
   ChevronDown,
   ChevronUp,
@@ -29,7 +31,10 @@ import {
   Ship,
   Smartphone,
   Target,
+  Radar,
   Users,
+  UserRound,
+  UserCog,
   Video,
   type LucideIcon,
 } from "lucide-react";
@@ -65,7 +70,13 @@ const navGroups: { id: NavGroupId; label: string }[] = [
 ];
 
 const allNavItems: NavItem[] = [
+  { href: "/app/saas", labelKey: "nav.saas", icon: Building2, group: "system" },
+  { href: "/app/account", labelKey: "nav.account", icon: UserRound, group: "system" },
+  { href: "/app/team", labelKey: "nav.team", icon: UserCog, group: "system" },
+  { href: "/app/database", labelKey: "nav.database", icon: Database, group: "system" },
+  { href: "/app/billing", labelKey: "nav.billing", icon: DollarSign, group: "system" },
   { href: "/app/api-config", labelKey: "nav.api_config", icon: KeyRound, group: "system" },
+  { href: "/app/ai-usage", labelKey: "nav.ai_usage", icon: BarChart3, group: "system" },
   { href: "/app/voice-agent", labelKey: "nav.voice_agent", icon: Headphones, group: "growth" },
   {
     href: "/app",
@@ -148,6 +159,7 @@ const allNavItems: NavItem[] = [
     icon: Target,
     group: "growth",
   },
+  { href: "/app/prospecting", labelKey: "nav.prospecting", icon: Radar, group: "growth" },
   {
     href: "/app/email",
     labelKey: "nav.email",
@@ -213,6 +225,7 @@ function Brand() {
 }
 
 export function Sidebar() {
+  const { data: session } = useSession();
   const pathname = usePathname();
   const { t } = useTranslation();
   const { order, hidden, loaded, toggleVisibility, moveUp, moveDown, reset } =
@@ -235,7 +248,12 @@ export function Sidebar() {
 
   const navigation = (onNavigate?: () => void) =>
     navGroups.map((group) => {
-      const items = visibleItems.filter((item) => item.group === group.id);
+      const items = visibleItems.filter((item) => {
+        if (item.group !== group.id) return false;
+        if (item.href === "/app/team") return session?.user?.role === "owner" || session?.user?.role === "admin";
+        if (["/app/database", "/app/saas", "/app/api-config"].includes(item.href)) return session?.user?.isPlatformAdmin === true;
+        return true;
+      });
       if (items.length === 0) return null;
 
       return (

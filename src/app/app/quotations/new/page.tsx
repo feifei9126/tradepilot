@@ -42,7 +42,7 @@ interface QuoteItem {
 
 export default function NewQuotationPage() {
   const router = useRouter();
-  const { getTaskProvider } = useAIConfig();
+  const { getTaskProvider, unavailableReason } = useAIConfig();
 
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
@@ -151,7 +151,7 @@ export default function NewQuotationPage() {
       return;
     }
     if (!quotationProvider) {
-      toast.error("请先在 API 配置中心配置 AI 提供商，或使用本地成本草稿");
+      toast.error(`${unavailableReason}；也可使用本地成本草稿`);
       return;
     }
 

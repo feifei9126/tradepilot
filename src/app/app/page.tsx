@@ -246,7 +246,7 @@ export default function AppDashboard() {
 
   return (
     <div className="page-stack">
-      {ai.loaded && !ai.ready && <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-primary/20 bg-primary/5 p-4"><div><h2 className="font-semibold">先连接 AI，再开始业务</h2><p className="text-sm text-muted-foreground">在「系统 → API 配置中心」按四步引导，统一接入询盘、获客、客服与产品视频。</p></div><Button render={<Link href="/app/api-config" />}>开始 API 配置</Button></div>}
+      {ai.loaded && !ai.ready && <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-primary/20 bg-primary/5 p-4"><div><h2 className="font-semibold">先连接 AI，再开始业务</h2><p className="text-sm text-muted-foreground">{ai.unavailableReason}。{ai.scope === "platform" ? "实例管理员可在 API 配置中心设置平台服务。" : "普通租户使用工作区自己的密钥和预算；Firecrawl 在 AI 获客中单独配置。"}</p></div><Button render={<Link href={ai.configurationUrl} />}>{ai.scope === "platform" ? "开始 API 配置" : "查看工作区 AI 配置"}</Button></div>}
       <div className="page-heading">
         <div>
           <p className="page-kicker">{t("dashboard.title")} / GLOBAL OPS</p>

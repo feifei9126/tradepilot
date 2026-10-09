@@ -1,46 +1,31 @@
+import { getStore } from "@/lib/workspace-context";
+import { withTenant } from "@/lib/tenant-route";
 import { NextRequest, NextResponse } from "next/server";
-import {
-  store,
-  type StoredDocument,
-  type StoredLineItem,
-  type StoredOrder,
-} from "@/lib/store";
-
-const DOC_TEMPLATES: Record<string, { label: string; desc: string }> = {
-  commercial_invoice: { label: "商业发票 Commercial Invoice", desc: "CI" },
-  packing_list: { label: "装箱单 Packing List", desc: "PL" },
-  proforma_invoice: { label: "形式发票 Proforma Invoice", desc: "PI" },
+import { type StoredContact, type StoredDocument, type StoredLineItem, type StoredOrder } from "@/lib/store";
+const DOC_TEMPLATES: Record<string, {
+    label: string;
+    desc: string;
+}> = {
+    commercial_invoice: { label: "商业发票 Commercial Invoice", desc: "CI" },
+    packing_list: { label: "装箱单 Packing List", desc: "PL" },
+    proforma_invoice: { label: "形式发票 Proforma Invoice", desc: "PI" },
 };
-
 function escapeHtml(value: unknown) {
-  return String(value ?? "").replace(
-    /[&<>"']/g,
-    (character) =>
-      ({
+    return String(value ?? "").replace(/[&<>"']/g, (character) => ({
         "&": "&amp;",
         "<": "&lt;",
         ">": "&gt;",
         '"': "&quot;",
         "'": "&#39;",
-      })[character] || character,
-  );
+    })[character] || character);
 }
-
-function generateDocumentHTML(
-  doc: StoredDocument,
-  order: StoredOrder | null | undefined,
-): string {
-  const typeInfo = DOC_TEMPLATES[doc.type] || { label: doc.type, desc: "" };
-  const items: StoredLineItem[] = order?.items || [];
-  const subtotal = items.reduce(
-    (sum, item) => sum + (item.amount ?? item.quantity * (item.unitPrice || 0)),
-    0,
-  );
-  const currency = escapeHtml(order?.currency || "USD");
-  const now = new Date().toISOString().slice(0, 10);
-  const contact = order?.contactId ? store.contacts.get(order.contactId) : null;
-
-  return `<!DOCTYPE html>
+function generateDocumentHTML(doc: StoredDocument, order: StoredOrder | null | undefined, contact: StoredContact | null | undefined): string {
+    const typeInfo = DOC_TEMPLATES[doc.type] || { label: doc.type, desc: "" };
+    const items: StoredLineItem[] = order?.items || [];
+    const subtotal = items.reduce((sum, item) => sum + (item.amount ?? item.quantity * (item.unitPrice || 0)), 0);
+    const currency = escapeHtml(order?.currency || "USD");
+    const now = new Date().toISOString().slice(0, 10);
+    return `<!DOCTYPE html>
 <html><head><meta charset="utf-8"><title>${escapeHtml(typeInfo.label)} - ${escapeHtml(doc.orderNo)}</title>
 <style>
   @page { margin: 20mm 15mm; size: A4; }
@@ -80,8 +65,7 @@ function generateDocumentHTML(
   <table>
     <tr><th style="width:40px">No.</th><th>Description / 品名描述</th><th style="width:60px">Qty / 数量</th><th style="width:50px">Unit</th><th style="width:80px">Unit Price / 单价</th><th style="width:90px">Amount / 金额</th></tr>
     ${items
-      .map(
-        (item, idx) => `
+        .map((item, idx) => `
     <tr>
       <td>${idx + 1}</td>
       <td>${escapeHtml(item.productName || `Item ${idx + 1}`)}</td>
@@ -89,9 +73,8 @@ function generateDocumentHTML(
       <td class="amount">${escapeHtml(item.unit || "pcs")}</td>
       <td class="amount">${currency} ${(Number(item.unitPrice) || 0).toFixed(2)}</td>
       <td class="amount">${currency} ${(Number(item.amount) || (Number(item.quantity) || 0) * (Number(item.unitPrice) || 0)).toFixed(2)}</td>
-    </tr>`,
-      )
-      .join("")}
+    </tr>`)
+        .join("")}
     <tr class="total-row"><td colspan="5" style="text-align:right">Total / 合计 (${currency})</td><td class="amount">${currency} ${subtotal.toFixed(2)}</td></tr>
   </table>
   <div style="margin-top: 16px; font-size: 11px;">
@@ -113,41 +96,35 @@ function generateDocumentHTML(
   </div>
 </div></body></html>`;
 }
-
-export async function GET(req: NextRequest) {
-  try {
-    const url = new URL(req.url);
-    const id = url.searchParams.get("id");
-    const download = url.searchParams.get("download") === "1";
-    if (!id) {
-      // List all generated documents
-      const docs = store.documents
-        .list()
-        .filter((d) => d.status === "generated");
-      return NextResponse.json({ documents: docs });
+async function handleGET(req: NextRequest) {
+    const store = getStore();
+    try {
+        const url = new URL(req.url);
+        const id = url.searchParams.get("id");
+        const download = url.searchParams.get("download") === "1";
+        if (!id) {
+            // List all generated documents
+            const docs = (await store.documents
+                .list()).filter((d) => d.status === "generated");
+            return NextResponse.json({ documents: docs });
+        }
+        const doc = (await store.documents.get(id));
+        if (!doc)
+            return NextResponse.json({ error: "文档未找到" }, { status: 404 });
+        const order = doc.orderId ? (await store.orders.get(doc.orderId)) : null;
+        const contact = order?.contactId ? await store.contacts.get(order.contactId) : null;
+        const html = generateDocumentHTML(doc, order, contact);
+        const fileName = `${doc.type}_${doc.orderNo}`.replace(/[^a-zA-Z0-9._-]/g, "_");
+        return new NextResponse(html, {
+            headers: {
+                "Content-Type": "text/html; charset=utf-8",
+                "Content-Disposition": `${download ? "attachment" : "inline"}; filename="${fileName}.html"`,
+            },
+        });
     }
-
-    const doc = store.documents.get(id);
-    if (!doc)
-      return NextResponse.json({ error: "文档未找到" }, { status: 404 });
-
-    const order = doc.orderId ? store.orders.get(doc.orderId) : null;
-    const html = generateDocumentHTML(doc, order);
-
-    const fileName = `${doc.type}_${doc.orderNo}`.replace(
-      /[^a-zA-Z0-9._-]/g,
-      "_",
-    );
-    return new NextResponse(html, {
-      headers: {
-        "Content-Type": "text/html; charset=utf-8",
-        "Content-Disposition": `${download ? "attachment" : "inline"}; filename="${fileName}.html"`,
-      },
-    });
-  } catch (error: unknown) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "文档预览失败" },
-      { status: 500 },
-    );
-  }
+    catch (error: unknown) {
+        return NextResponse.json({ error: error instanceof Error ? error.message : "文档预览失败" }, { status: 500 });
+    }
 }
+
+export const GET = withTenant(handleGET);

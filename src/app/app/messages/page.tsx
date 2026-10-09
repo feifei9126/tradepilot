@@ -50,7 +50,7 @@ const CHANNEL_COLORS: Record<string, string> = {
 
 export default function MessagesPage() {
   const router = useRouter();
-  const { getTaskProvider } = useAIConfig();
+  const { getTaskProvider, unavailableReason } = useAIConfig();
   const [messages, setMessages] = useState<StoredMessage[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedContact, setSelectedContact] = useState<string | null>(null);
@@ -158,7 +158,7 @@ export default function MessagesPage() {
   async function handleAIReply(msg: StoredMessage) {
     const aiConfig = getTaskProvider("message_reply");
     if (!aiConfig) {
-      toast.error("请先在 API 配置中心为消息回复配置 AI 模型");
+      toast.error(unavailableReason);
       return;
     }
     setReplying(msg.id);

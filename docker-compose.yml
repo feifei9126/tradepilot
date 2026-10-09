@@ -1,10 +1,51 @@
 services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: tradepilot
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required; set it in .env}"
+      POSTGRES_DB: tradepilot
+    volumes:
+      - tradepilot_postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tradepilot -d tradepilot"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+
+  db-init:
+    build:
+      context: .
+      target: runner
+    command: ["node", "scripts/init-db.mjs"]
+    environment:
+      NODE_ENV: production
+      PGHOST: postgres
+      PGPORT: "5432"
+      PGUSER: tradepilot
+      PGPASSWORD: "${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required; set it in .env}"
+      PGDATABASE: tradepilot
+      PGSSLMODE: disable
+      TRADEPILOT_ADMIN_EMAIL: "${TRADEPILOT_ADMIN_EMAIL:?TRADEPILOT_ADMIN_EMAIL is required; set it in .env}"
+      TRADEPILOT_ADMIN_PASSWORD: "${TRADEPILOT_ADMIN_PASSWORD:?TRADEPILOT_ADMIN_PASSWORD is required; set it in .env}"
+      TRADEPILOT_WORKSPACE_SLUG: "${TRADEPILOT_WORKSPACE_SLUG:-tradepilot-admin}"
+      TRADEPILOT_RESET_ADMIN_PASSWORD: "${TRADEPILOT_RESET_ADMIN_PASSWORD:-false}"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+    security_opt:
+      - no-new-privileges:true
+
   tradepilot:
     build:
       context: .
       target: runner
     ports:
-      - "${BIND_ADDRESS:-127.0.0.1}:${PORT:-3456}:3456"
+      - "${BIND_ADDRESS:-127.0.0.1}:${PORT:-3461}:3456"
     volumes:
       - tradepilot_data:/app/data
       - ./plugins:/app/plugins
@@ -12,15 +53,40 @@ services:
       NODE_ENV: production
       TRADEPILOT_PORT: "3456"
       TRADEPILOT_DATA_DIR: /app/data
+      PGHOST: postgres
+      PGPORT: "5432"
+      PGUSER: tradepilot
+      PGPASSWORD: "${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required; set it in .env}"
+      PGDATABASE: tradepilot
+      PGSSLMODE: disable
+      TRADEPILOT_WORKSPACE_SLUG: "${TRADEPILOT_WORKSPACE_SLUG:-tradepilot-admin}"
       TRADEPILOT_START_VIDEO_WORKER: "false"
       AUTH_SECRET: "${AUTH_SECRET:?AUTH_SECRET is required; run bash install.sh or set it in .env}"
       TRADEPILOT_CONFIG_KEY: "${TRADEPILOT_CONFIG_KEY:-}"
+      METRICS_TOKEN: "${METRICS_TOKEN:-}"
+      TRADEPILOT_TRUSTED_CLIENT_IP_HEADER: "${TRADEPILOT_TRUSTED_CLIENT_IP_HEADER:-}"
+      TRADEPILOT_PROXY_AUTH_SECRET: "${TRADEPILOT_PROXY_AUTH_SECRET:-}"
+      AI_PLATFORM_MONTHLY_REQUEST_LIMIT: "${AI_PLATFORM_MONTHLY_REQUEST_LIMIT:-10000}"
+      AI_PLATFORM_MONTHLY_TOKEN_LIMIT: "${AI_PLATFORM_MONTHLY_TOKEN_LIMIT:-10000000}"
+      FIRECRAWL_TENANT_DAILY_REQUEST_LIMIT: "${FIRECRAWL_TENANT_DAILY_REQUEST_LIMIT:-20}"
+      TRADEPILOT_MAIL_PRIVATE_ALLOWLIST: "${TRADEPILOT_MAIL_PRIVATE_ALLOWLIST:-}"
+      MARKETING_POLICY_VERSION: "${MARKETING_POLICY_VERSION:-2026-10-07}"
+      STRIPE_SECRET_KEY: "${STRIPE_SECRET_KEY:-}"
+      STRIPE_WEBHOOK_SECRET: "${STRIPE_WEBHOOK_SECRET:-}"
+      TRADEPILOT_MEDIA_MAX_BYTES: "${TRADEPILOT_MEDIA_MAX_BYTES:-104857600}"
+      S3_BUCKET: "${S3_BUCKET:-}"
+      S3_REGION: "${S3_REGION:-auto}"
+      S3_ENDPOINT: "${S3_ENDPOINT:-}"
+      S3_ACCESS_KEY_ID: "${S3_ACCESS_KEY_ID:-}"
+      S3_SECRET_ACCESS_KEY: "${S3_SECRET_ACCESS_KEY:-}"
+      S3_FORCE_PATH_STYLE: "${S3_FORCE_PATH_STYLE:-false}"
+      S3_SERVER_SIDE_ENCRYPTION: "${S3_SERVER_SIDE_ENCRYPTION:-}"
       OPENAI_API_KEY: "${OPENAI_API_KEY:-}"
       OPENAI_REALTIME_MODEL: "${OPENAI_REALTIME_MODEL:-gpt-realtime}"
       OPENAI_REALTIME_VOICE: "${OPENAI_REALTIME_VOICE:-marin}"
       OPENAI_TRANSCRIPTION_MODEL: "${OPENAI_TRANSCRIPTION_MODEL:-gpt-4o-mini-transcribe}"
       MONEYPRINTERTURBO_API_KEY: "${MONEYPRINTERTURBO_API_KEY:-}"
-      AUTH_URL: "${AUTH_URL:-http://localhost:3456}"
+      AUTH_URL: "${AUTH_URL:-http://localhost:3461}"
       TRADEPILOT_ADMIN_EMAIL: "${TRADEPILOT_ADMIN_EMAIL:?TRADEPILOT_ADMIN_EMAIL is required; run bash install.sh or set it in .env}"
       TRADEPILOT_ADMIN_PASSWORD: "${TRADEPILOT_ADMIN_PASSWORD:?TRADEPILOT_ADMIN_PASSWORD is required; run bash install.sh or set it in .env}"
       OPENMONTAGE_WORKER_URL: http://video-worker:8787
@@ -31,6 +97,15 @@ services:
       LIVEKIT_API_KEY: "${LIVEKIT_API_KEY:-}"
       LIVEKIT_API_SECRET: "${LIVEKIT_API_SECRET:-}"
       LIVEKIT_AGENT_NAME: "${LIVEKIT_AGENT_NAME:-tradepilot-customer-service}"
+    depends_on:
+      db-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3456/api/health/ready').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
     restart: unless-stopped
     security_opt:
       - no-new-privileges:true
@@ -119,6 +194,7 @@ services:
       - no-new-privileges:true
 
 volumes:
+  tradepilot_postgres:
   tradepilot_data:
   video_worker_data:
   moneyprinterturbo_storage:

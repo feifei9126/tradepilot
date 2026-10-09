@@ -1,12 +1,15 @@
 import { callConfiguredAI } from "@/lib/ai/configured";
 import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
-import { store, type StoredContact } from "@/lib/store";
+import type { StoredContact } from "@/lib/store";
+import { currentWorkspace, getStore } from "@/lib/workspace-context";
+import { resolveContactAccess } from "@/lib/contact-access";
+import { CrmError } from "@/lib/crm-repository";
+import { DatabaseUnavailableError } from "@/db";
 import { isValidEmail } from "@/lib/validation";
-import {
-  AIRequestConfigError,
-  AIUpstreamError,
-} from "@/lib/ai/chat-completions";
+import { aiErrorResponse } from "@/lib/ai/public-error";
+import { TenantAIError } from "@/lib/tenant-ai";
+import { AIRequestConfigError, AIUpstreamError } from "@/lib/ai/chat-completions";
 
 interface ImportedContact {
   name?: string;
@@ -81,10 +84,10 @@ export async function importContacts(
       jsonMatch ? JSON.parse(jsonMatch[0]) : { contacts: [] }
     ) as { contacts?: ImportedContact[] };
 
-    // Save to store
+    // Validate AI output before atomically writing to the authenticated workspace.
     const contacts = (Array.isArray(parsed.contacts) ? parsed.contacts : [])
       .filter(
-        (contact) => typeof contact.name === "string" && contact.name.trim(),
+        (contact) => contact && typeof contact.name === "string" && contact.name.trim(),
       )
       .slice(0, 100);
     if (contacts.length === 0) {
@@ -118,26 +121,25 @@ export async function importContacts(
         phone: typeof c.phone === "string" ? c.phone.trim().slice(0, 80) : "",
         createdAt: new Date().toISOString().slice(0, 10),
       };
-      store.contacts.add(contact);
       return contact;
     });
 
-    return NextResponse.json({ contacts: saved, raw: content });
+    const repository = getStore();
+    const workspace = currentWorkspace();
+    if (!workspace) throw new CrmError("请先登录", 401);
+    for (const contact of saved) Object.assign(contact, await resolveContactAccess({ workspace, body: {}, create: true }));
+    await repository.write(async client => {
+      for (const contact of saved) await repository.save(client, "contacts", contact, true);
+      await repository.auditIn(client, "contacts.import", undefined, { count: saved.length });
+    });
+    return NextResponse.json({ contacts: saved });
   } catch (error: unknown) {
-    if (error instanceof AIRequestConfigError) {
-      return NextResponse.json(
-        { error: error.message },
-        { status: error.status },
-      );
-    }
-    if (error instanceof AIUpstreamError) {
-      return NextResponse.json(
-        { error: error.message, detail: error.detail },
-        { status: error.status },
-      );
+    if (error instanceof CrmError || error instanceof DatabaseUnavailableError) throw error;
+    if (error instanceof AIRequestConfigError || error instanceof AIUpstreamError || error instanceof TenantAIError) {
+      return aiErrorResponse(error);
     }
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "聊天记录导入失败" },
+      { error: "聊天记录导入失败，请检查 AI 输出和服务配置后重试" },
       { status: 500 },
     );
   }

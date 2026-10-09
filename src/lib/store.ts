@@ -21,6 +21,10 @@ export interface StoredContact {
   lastContactedAt?: string;
   nextFollowUpAt?: string;
   createdAt: string;
+  /** Customer-level access control. Legacy records without these fields remain workspace-visible. */
+  ownerUserId?: string;
+  visibility?: "private" | "team" | "workspace";
+  teamId?: string;
 }
 export interface StoredProduct {
   stockQuantity?: number;

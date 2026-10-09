@@ -22,10 +22,11 @@ TradePilot 的 Web 使用 Next.js + OpenNext，生成 `.open-next/worker.js` 和
 ### 1. 配置与业务数据持久化
 
 - `src/lib/api-config/store.ts` 使用同步文件读取、AES-256-GCM 加密、临时文件与原子重命名，适用于单实例 Node + 持久磁盘。
-- `src/lib/product-video/job-repository.ts` 将任务写入 JSON 文件，也需要持久磁盘。
+- 当前核心 CRM、获客、邮件草稿/账号参数和视频任务**元数据**已经改为 PostgreSQL 按工作区持久化，Docker 使用版本化迁移及工作区事务锁；不是原来的全局内存 CRM。
+- 部署管理员档案与实例 API 配置仍使用本地持久文件，视频/素材仍依赖外部 Worker 卷或对象存储；尚未完成多副本一致性。
 - Workers 的文件系统是虚拟文件系统；`/tmp` 是请求级临时空间，不能跨请求保存 API Key 或视频任务。**不要通过把数据目录改成 `/tmp` 来“修复”保存。**
-- 需要为配置与任务接入 D1、Durable Objects、外部 PostgreSQL 或其他合适的持久化服务，同时实现并发版本校验、加密、权限隔离和备份；仅添加 binding 不会自动迁移现有文件存储代码。
-- 客户、询盘、订单等主体业务数据仍是进程内存状态，不同 Worker 实例不共享。当前 `DATABASE_URL` 主要用于注册账号，不意味着 CRM 全部持久化。
+- 需要验证 Workers → 外部 PostgreSQL 的驱动/连接池/TLS/网络适配，并用独立初始化环境运行迁移；当前 Docker 的 `postgres` 主机名与内部明文连接参数不能直接用于 Workers。仅配置 `DATABASE_URL` 或 binding 不代表 Workers 已验收。
+- 需要为剩余本地管理员/配置文件接入合适的持久化服务，同时保留加密、会话撤销、并发版本校验和平台/租户权限边界；不要把请求级 `/tmp` 当持久化。参见 [数据库管理](./database-management.md) 的数据边界。
 
 ### 2. 独立计算服务
 
@@ -59,7 +60,7 @@ npx wrangler whoami
 GitHub 用于推送源码，Cloudflare 用于运行 Web Worker；两种授权互不替代。如账号包含多个 Cloudflare Account，先确认目标账户，不要随机选择或覆盖未知 Worker。
 
 ```bash
-npm ci
+npm ci --legacy-peer-deps
 npm test
 npx tsc --noEmit
 npm run cfbuild
@@ -87,7 +88,7 @@ npx wrangler deploy --dry-run
    npx wrangler secret put DATABASE_URL
    ```
 
-3. 配置持久化服务的 binding / 连接并运行相应迁移。当前仓库没有完成这一层，不能省略或宣称已接入。
+3. 验证外部 PostgreSQL binding / 连接与 TLS，运行当前迁移；另完成本地管理员/实例配置的 Workers 存储适配。Docker 已完成核心数据库层，不代表 Workers 运行时与剩余文件存储层已接入。
 4. 确认 OpenNext 构建、dry-run、权限和存储测试后，用对应配置执行部署。当前默认命令为：
 
    ```bash

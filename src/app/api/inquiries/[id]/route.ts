@@ -1,58 +1,60 @@
+import { getStore } from "@/lib/workspace-context";
+import { withTenant } from "@/lib/tenant-route";
 import { callConfiguredAI } from "@/lib/ai/configured";
 import { NextRequest, NextResponse } from "next/server";
-import { store } from "@/lib/store";
-import {
-  AIRequestConfigError,
-  AIUpstreamError,
-} from "@/lib/ai/chat-completions";
-
-export async function GET(
-  _req: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
-  const { id } = await params;
-  const inquiry = store.inquiries.get(id);
-  if (!inquiry) return NextResponse.json({ error: "未找到" }, { status: 404 });
-  return NextResponse.json(inquiry);
+import { AIRequestConfigError, AIUpstreamError } from "@/lib/ai/chat-completions";
+import { TenantAIError } from "@/lib/tenant-ai";
+import { aiErrorResponse } from "@/lib/ai/public-error";
+async function handleGET(_req: NextRequest, { params }: {
+    params: Promise<{
+        id: string;
+    }>;
+}) {
+    const store = getStore();
+    const { id } = await params;
+    const inquiry = (await store.inquiries.get(id));
+    if (!inquiry)
+        return NextResponse.json({ error: "未找到" }, { status: 404 });
+    return NextResponse.json(inquiry);
 }
-
-export async function PATCH(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
-  const { id } = await params;
-  const body = await req.json();
-  const patch: {
-    status?: "pending" | "quoted" | "converted" | "lost";
-    aiReply?: string;
-  } = {};
-  if (["pending", "quoted", "converted", "lost"].includes(body.status)) {
-    patch.status = body.status;
-  }
-  if (typeof body.aiReply === "string") {
-    patch.aiReply = body.aiReply.trim().slice(0, 20_000);
-  }
-  if (Object.keys(patch).length === 0) {
-    return NextResponse.json(
-      { error: "没有可更新的询盘字段" },
-      { status: 400 },
-    );
-  }
-  const updated = store.inquiries.update(id, patch);
-  if (!updated) return NextResponse.json({ error: "未找到" }, { status: 404 });
-  return NextResponse.json(updated);
+async function handlePATCH(req: NextRequest, { params }: {
+    params: Promise<{
+        id: string;
+    }>;
+}) {
+    const store = getStore();
+    const { id } = await params;
+    const body = await req.json();
+    const patch: {
+        status?: "pending" | "quoted" | "converted" | "lost";
+        aiReply?: string;
+    } = {};
+    if (["pending", "quoted", "converted", "lost"].includes(body.status)) {
+        patch.status = body.status;
+    }
+    if (typeof body.aiReply === "string") {
+        patch.aiReply = body.aiReply.trim().slice(0, 20000);
+    }
+    if (Object.keys(patch).length === 0) {
+        return NextResponse.json({ error: "没有可更新的询盘字段" }, { status: 400 });
+    }
+    const updated = (await store.inquiries.update(id, patch));
+    if (!updated)
+        return NextResponse.json({ error: "未找到" }, { status: 404 });
+    return NextResponse.json(updated);
 }
-
 // Generate an AI reply draft. The route never sends a message to the customer.
-export async function POST(
-  _req: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
-  const { id } = await params;
-  const inquiry = store.inquiries.get(id);
-  if (!inquiry) return NextResponse.json({ error: "未找到" }, { status: 404 });
-
-  const systemPrompt = `你是一位专业的外贸跟单助手。客户发来询盘，请根据以下信息生成专业、礼貌的英文回复。
+async function handlePOST(_req: NextRequest, { params }: {
+    params: Promise<{
+        id: string;
+    }>;
+}) {
+    const store = getStore();
+    const { id } = await params;
+    const inquiry = (await store.inquiries.get(id));
+    if (!inquiry)
+        return NextResponse.json({ error: "未找到" }, { status: 404 });
+    const systemPrompt = `你是一位专业的外贸跟单助手。客户发来询盘，请根据以下信息生成专业、礼貌的英文回复。
 询盘客户: ${inquiry.customer}
 询盘主题: ${inquiry.subject}
 询盘内容: ${inquiry.content}
@@ -62,39 +64,28 @@ export async function POST(
 2. 针对客户的具体问题做出回应
 3. 结尾引导客户下一步行动
 4. 保持在 150-200 词以内`;
-
-  try {
-    const { data } = await callConfiguredAI("inquiry_reply", {
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: inquiry.content },
-      ],
-      maxTokens: 500,
-      temperature: 0.7,
-    });
-    const reply = data.choices?.[0]?.message?.content || "";
-    if (!reply.trim()) {
-      return NextResponse.json(
-        { error: "AI 未返回有效回复内容" },
-        { status: 502 },
-      );
+    try {
+        const { data } = await callConfiguredAI("inquiry_reply", {
+            messages: [
+                { role: "system", content: systemPrompt },
+                { role: "user", content: inquiry.content },
+            ],
+            maxTokens: 500,
+            temperature: 0.7,
+        });
+        const reply = data.choices?.[0]?.message?.content || "";
+        if (!reply.trim()) {
+            return NextResponse.json({ error: "AI 未返回有效回复内容" }, { status: 502 });
+        }
+        (await store.inquiries.update(id, { aiReply: reply, status: "quoted" }));
+        return NextResponse.json({ reply, status: "quoted" });
     }
-    store.inquiries.update(id, { aiReply: reply, status: "quoted" });
-
-    return NextResponse.json({ reply, status: "quoted" });
-  } catch (error: unknown) {
-    if (error instanceof AIRequestConfigError) {
-      return NextResponse.json({ error: error.message }, { status: error.status });
+    catch (error: unknown) {
+        if (error instanceof AIRequestConfigError || error instanceof AIUpstreamError || error instanceof TenantAIError) return aiErrorResponse(error);
+        return NextResponse.json({ error: "AI 回复生成失败，请稍后重试" }, { status: 503, headers: { "Cache-Control": "no-store, private" } });
     }
-    if (error instanceof AIUpstreamError) {
-      return NextResponse.json(
-        { error: error.message, detail: error.detail },
-        { status: error.status },
-      );
-    }
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "AI 回复生成失败" },
-      { status: 500 },
-    );
-  }
 }
+
+export const GET = withTenant(handleGET);
+export const PATCH = withTenant(handlePATCH);
+export const POST = withTenant(handlePOST);

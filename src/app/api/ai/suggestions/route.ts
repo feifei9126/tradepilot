@@ -1,11 +1,9 @@
+import { withTenant } from "@/lib/tenant-route";
 import { callConfiguredAI } from "@/lib/ai/configured";
+import { aiErrorResponse } from "@/lib/ai/public-error";
 import { NextRequest, NextResponse } from "next/server";
-import {
-  AIRequestConfigError,
-  AIUpstreamError,
-} from "@/lib/ai/chat-completions";
 
-export async function POST(req: NextRequest) {
+async function handlePOST(req: NextRequest) {
   try {
     const body = await req.json();
     const { orderContext } = body;
@@ -78,24 +76,13 @@ Return JSON array: [{ type: "risk"|"opportunity"|"action"|"reminder", priority: 
         actionLabel: typeof value.actionLabel === "string" ? value.actionLabel.slice(0, 100) : undefined,
       }));
       if (suggestions.length === 0) throw new Error("no valid suggestions");
-      return NextResponse.json({ suggestions, raw: content });
+      return NextResponse.json({ suggestions });
     } catch {
-      return NextResponse.json({ error: "AI 返回的跟单建议结构无效", suggestions: [], raw: content }, { status: 502 });
+      return NextResponse.json({ error: "AI 返回的跟单建议结构无效", suggestions: [] }, { status: 502 });
     }
   } catch (error: unknown) {
-    if (error instanceof AIRequestConfigError) {
-      return NextResponse.json({ error: error.message }, { status: error.status });
-    }
-    console.error("AI suggestions error:", error);
-    if (error instanceof AIUpstreamError) {
-      return NextResponse.json(
-        { error: error.message, detail: error.detail },
-        { status: error.status },
-      );
-    }
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "服务器内部错误" },
-      { status: 500 },
-    );
+    return aiErrorResponse(error);
   }
 }
+
+export const POST = withTenant(handlePOST);

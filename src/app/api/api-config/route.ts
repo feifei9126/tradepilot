@@ -3,6 +3,7 @@ import {
   configAccess,
   mutationOrigin,
   boundedJson,
+  RequestBodyError,
 } from "@/lib/api-config/access";
 import {
   configSchema,
@@ -58,7 +59,7 @@ export async function PUT(request: Request) {
               ? error.message
               : "保存失败",
       },
-      { status: error instanceof ConfigConflict ? 409 : 400, headers },
+      { status: error instanceof RequestBodyError ? error.status : error instanceof ConfigConflict ? 409 : 400, headers },
     );
   }
 }

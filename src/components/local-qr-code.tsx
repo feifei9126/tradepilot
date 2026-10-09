@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useEffect, useState } from "react";
 import QRCode from "qrcode";
 
@@ -23,5 +24,5 @@ export function LocalQrCode({ value, alt, size = 160, className }: {
   if (!value || result.value !== value || !result.dataUrl) {
     return <div className={className} role="status"><span className="sr-only">正在生成二维码</span></div>;
   }
-  return <img src={result.dataUrl} alt={alt} width={size} height={size} className={className} />;
+  return <Image unoptimized src={result.dataUrl} alt={alt} width={size} height={size} className={className} />;
 }

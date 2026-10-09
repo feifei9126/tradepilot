@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import test from "node:test";
+import { workspaceTest as test } from "../helpers/workspace";
 
 import { GET as listQuotations } from "../../src/app/api/quotations/route";
 import { PATCH as updateQuotation } from "../../src/app/api/quotations/[id]/route";

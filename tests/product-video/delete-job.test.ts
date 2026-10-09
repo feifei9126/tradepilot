@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { removeProductVideoJob } from "../../src/app/api/product-videos/[id]/route";
+import { removeProductVideoJob } from "../../src/lib/product-video/remove-job";
 import type { StoredProductVideoJob } from "../../src/lib/store";
 
 test("video task is removed even when Worker cleanup fails", async () => {

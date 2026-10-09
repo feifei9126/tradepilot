@@ -1,0 +1,55 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: tradepilot_test
+          POSTGRES_PASSWORD: tradepilot_ci_only
+          POSTGRES_DB: tradepilot_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U tradepilot_test -d tradepilot_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      TEST_DATABASE_URL: postgresql://tradepilot_test:tradepilot_ci_only@127.0.0.1:5432/tradepilot_test?sslmode=disable
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.22.0
+          cache: npm
+      - name: Install locked dependencies
+        # Auth.js currently declares Nodemailer 7/8 as an optional peer; TradePilot uses
+        # Nodemailer 10 directly for tenant SMTP and does not use the Auth.js Email provider.
+        run: npm ci --legacy-peer-deps --registry=https://registry.npmjs.org
+      - name: Lint
+        run: npm run lint
+      - name: Type check
+        run: npx tsc --noEmit
+      - name: Production build
+        run: npm run build
+      - name: Unit and business tests
+        run: npm test
+      - name: PostgreSQL tenant-isolation integration tests
+        run: npm run test:db
+      - name: Audit locked npm dependencies (high/critical findings fail CI)
+        run: npm audit --audit-level=high --registry=https://registry.npmjs.org

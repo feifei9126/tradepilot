@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import test from "node:test";
+import { workspaceTest as test } from "../helpers/workspace";
 
 import { POST as saveCustomFields } from "../../src/app/api/custom-fields/route";
 import { POST as saveEmailAccount } from "../../src/app/api/email/accounts/route";

@@ -1,29 +1,16 @@
-import { readAPIConfig } from "../api-config/store";
 import { assertPublicUrl } from "./security";
 import type { FirecrawlScrapeResponse } from "./types";
-import { getFirecrawlConfig } from "./config";
 
-function headers() {
-  const result: Record<string, string> = { "Content-Type": "application/json" };
-  const key = readAPIConfig().firecrawl.apiKey;
-  if (key) result.Authorization = `Bearer ${key}`;
-  return result;
-}
-
-export async function scrapeWithFirecrawl(sourceUrl: string) {
+/** Cloud adapter requires an explicit workspace credential. It never reads
+ * instance configuration; callers must reserve the tenant quota first. */
+export async function scrapeWithFirecrawl(sourceUrl: string, tenant: { apiKey: string }) {
   await assertPublicUrl(sourceUrl);
-  const config = getFirecrawlConfig();
-  if (!config.configured || !config.url) {
-    throw new Error(
-      ("error" in config ? config.error : undefined) ||
-        "Firecrawl 尚未配置，请先完成一键部署或设置服务地址",
-    );
-  }
+  if (!tenant.apiKey.trim()) throw new Error("Firecrawl Cloud API Key 未配置");
 
-  const response = await fetch(`${config.url}/v1/scrape`, {
+  const response = await fetch("https://api.firecrawl.dev/v1/scrape", {
     method: "POST",
     redirect: "error",
-    headers: headers(),
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${tenant.apiKey}` },
     body: JSON.stringify({
       url: sourceUrl,
       formats: ["markdown", "html", "links"],

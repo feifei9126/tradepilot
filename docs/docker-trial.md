@@ -1,49 +1,85 @@
-# Docker 本地试用
+# Docker 本地试用（PostgreSQL / 多用户版）
 
-这套试用只启动 CRM Web 和视频适配器，不自动启用需要外部服务密钥的语音服务，也不拉取 MoneyPrinterTurbo/Redis。
+默认启动 PostgreSQL 16、一次性数据库初始化、CRM Web 和视频适配器。以下手动命令不启动需要外部服务密钥的语音服务，也不拉取 MoneyPrinterTurbo / Redis。`bash install.sh` 另会在后台启动 MoneyPrinterTurbo；不要把两种启动方式混淆。
 
-## 首次配置
+## 1. 首次配置
 
 在项目根目录创建 `.env`（不要提交到 Git），设置：
 
 ```dotenv
 BIND_ADDRESS=127.0.0.1
-PORT=3456
-AUTH_URL=http://localhost:3456
+PORT=3461
+AUTH_URL=http://localhost:3461
 AUTH_SECRET=替换为随机密钥
 TRADEPILOT_ADMIN_EMAIL=admin@tradepilot.local
 TRADEPILOT_ADMIN_PASSWORD=替换为高强度密码
+POSTGRES_PASSWORD=替换为独立数据库强密码
+TRADEPILOT_WORKSPACE_SLUG=tradepilot-admin
+TRADEPILOT_RESET_ADMIN_PASSWORD=false
 ```
 
-可分别使用 `openssl rand -hex 32` 和 `openssl rand -hex 18` 生成密钥及密码。建议 `chmod 600 .env`。如果已有 `.env`，保留现有配置，只补充缺失项。
+可分别使用 `openssl rand -hex 32` 和 `openssl rand -hex 18` 生成密钥及密码。生产模式的管理员初始密码至少 16 位、包含两类字符，并拒绝公开示例/明显弱密码；首次登录还须改密。建议 `chmod 600 .env`。如果已有 env 文件，保留原认证/配置密钥、管理员身份和端口，不要用示例覆盖已有配置；历史弱管理员密码需按下文升级注意事项处理。`AUTH_URL` 与浏览器访问地址必须一致。默认绑定 loopback；不建议把本地试用直接暴露到公网。
 
 ```bash
+# 在项目根目录；先校验，不输出含密码的完整配置
+docker compose config --quiet
 docker compose up -d --build tradepilot video-worker
-docker compose ps
+docker compose ps -a
+docker compose logs --tail=50 db-init
 ```
 
-打开 `http://localhost:3456/auth/login`，使用 `.env` 中的管理员账号登录。先打开 **系统 → API 配置中心**（`/app/api-config`），按四步向导填写服务配置。AI 语音客服页面位于 `/app/voice-agent`。
+启动顺序是 PostgreSQL 健康 → `db-init` 迁移及初始化成功（退出 0）→ Web。初始化重跑不会覆盖已有数据库用户密码，也不会重新启用被停用的账号。首次会创建部署工作区；示例业务数据默认不导入。
 
-默认只监听本机，不能直接从其他电脑访问。不要在尚未修复现有依赖安全问题、配置 HTTPS 和验证权限之前开放公网。
+打开 `http://localhost:3461/auth/login`，使用配置的部署管理员登录；若已在个人中心改过密码，以保存后的密码为准。部署管理员拥有平台管理权限，不应共享给客户。
 
-## 日常操作
+## 2. 开始使用
+
+1. **系统 → SaaS 管理**：创建独立公司/工作区，设置人数上限并指定所有者；创建完成的一次性临时密码只显示一次。
+2. 所有者登录，按提示在 **个人中心** 改密；旧会话将失效，需要重新登录。
+3. **系统 → 团队管理**：所有者可创建管理员/成员；管理员只能管理普通成员。普通成员不具备团队管理或平台管理权限。
+4. **系统 → 数据库管理**（仅平台管理员）：检查连接、结构迁移、统计、容量与 TLS；页面不提供任意 SQL、清空或在线恢复操作。
+5. 普通工作区所有者/管理员在 **AI 用量** 配置自己的文本 Key、模型与月预算，在 **AI 获客 → 获客服务配置** 配置自己的 Firecrawl Cloud Key 与日预算；成员只能查看就绪状态，不能修改 Key 或借用实例 Key。文本额度取有效套餐、平台硬上限、工作区预算的最小值；搜索与产品抓取共用 UTC 日请求上限，失败也计次。**API 配置中心**仅平台管理员管理实例级服务，不替代上述工作区配置。
+6. 阅读页面内的 AI 获客/营销说明；邮件中心「保存草稿」不发邮件，「复制订阅申请链接」也不代表收件人已确认同意。真实收发及供应商费用需另行验证。
+
+详细说明见 [SaaS 多用户管理](./saas-multi-user.md)、[数据库管理](./database-management.md)、[个人中心](./account.md)。
+
+## 3. 已有预览的安全升级
+
+本机既有预览使用独立项目名 `tradepilot-preview` 和 `.env.preview`；不能混用默认项目或其他实例的卷。**本轮源码整改没有执行这些升级命令，3461 仍是旧镜像，现有试用密码未改。** 新生产代码会拒绝历史弱管理员密码；升级前先在受控旧实例的个人中心改为强密码，并按 [个人中心升级说明](account.md#生产管理员与升级注意事项) 备份，不能删除管理员文件来绕过检查。数据库密钥补充在私有 `.env.preview.database`，不覆盖原预览文件：
 
 ```bash
-# 查看日志（注意不要公开含敏感信息的日志）
-docker compose logs --tail=100 tradepilot video-worker
-# 停止试用服务
+docker compose -p tradepilot-preview --env-file .env.preview --env-file .env.preview.database config --quiet
+docker compose -p tradepilot-preview --env-file .env.preview --env-file .env.preview.database up -d --build tradepilot video-worker
+```
+
+升级前备份原 env、Web 数据卷、Worker 媒体卷和旧镜像；已有数据库还需数据库备份。旧版内存 CRM 无可自动恢复的持久历史，本次不会把其示例数组伪装成客户数据。旧获客 JSON/视频任务文件可随卷归档，但**不会自动导入新数据库**；如确有历史数据，需要单独核对格式、租户归属和去重后做迁移。不要直接删除旧文件。
+
+## 4. 日常操作
+
+下列通用命令默认使用 `.env` / 默认项目。已有预览需加上前述项目名和两个 `--env-file` 参数：
+
+```bash
+# 日志可能敏感，不要公开
+docker compose logs --tail=100 postgres db-init tradepilot video-worker
+# 暂停 Web / Worker，保留数据库和所有卷
 docker compose stop tradepilot video-worker
-# 恢复已创建的容器
+# 恢复已创建的容器（环境不变）
 docker compose start tradepilot video-worker
-# 修改代码或配置后重建
+# 修改代码或配置后更新；仅 restart 不会更新容器环境
 docker compose up -d --build tradepilot video-worker
+# 数据库备份；复制到宿主机及异地，见数据库管理指南
+docker compose exec tradepilot npm run db:backup -- /app/data/backups/before-upgrade.dump
 ```
 
-容器配置为 `unless-stopped`；需保持 Docker Desktop 运行。不要用 `down -v`，该命令会删除命名卷。
+容器配置为 `unless-stopped`；需保持 Docker Desktop 运行。**不要用 `down -v`，该命令会删除数据库及命名卷。** 恢复只能指向独立空库，不能覆盖在线库。
 
-## 功能边界
+## 5. 数据与功能边界
 
-- **CRM 核心客户等业务数据仍使用原项目内存存储，容器重启会丢失这些数据。** 命名卷不等于 CRM 已完成数据库持久化，试用请勿录入重要或真实客户资料。
-- 视频适配器健康不代表所有渲染链路均已验证；此试用未启动 MoneyPrinterTurbo。
-- LiveKit 页面可浏览，但实际语音会话需配置 `LIVEKIT_URL`、`LIVEKIT_API_KEY`、`LIVEKIT_API_SECRET` 和 `OPENAI_API_KEY`。参见 `docs/livekit-agents.md`，配置后启动 `voice` profile 中的 `livekit-agent` 服务。
-- Docker 镜像构建和运行不应启动 Cloudflare 开发模拟器；`next.config.ts` 仅在开发阶段初始化它。
+- 工作区、数据库账号、核心 CRM、获客记录、邮件草稿/账号参数、视频任务元数据及字段/流程配置已按工作区存入 PostgreSQL。数据库故障返回 503，不回退共享内存或文件。
+- 隔离是服务端工作区上下文 + tenant-bound SQL + 复合外键；目前没有启用 PostgreSQL RLS。客户已有负责人、团队和 private/team/workspace 访问检查，但不能据此承诺完整的字段/部门权限或所有关联资源都已端到端验收。
+- 部署管理员档案、加密的实例 API 配置仍在 Web 数据卷；素材/视频在 Worker 卷或对象存储；浏览器部分草稿在 localStorage。**数据库 dump 不是整站备份**，当前也未完成多副本配置一致性。
+- 邮件页面保存草稿不发送；后端已有 SMTP 发送、IMAP 同步、double opt-in 和退订抑制，真实收发仍需接口集成与测试邮箱验收。Webhook 已有租户凭据、轮换/签名/重放校验及入站记录，但未完成真实业务分发验收；手机/设备绑定仍 fail-closed 暂停。视频 Worker 健康不等于所有付费/外部渲染链路均已验证。
+- LiveKit 实际语音会话需要 LiveKit / OpenAI 配置与独立 Agent。参见 [LiveKit 指南](./livekit-agents.md)，配置后启动 `voice` profile 中的 `livekit-agent`。
+- Docker 构建和运行不启动 Cloudflare 开发模拟器；`next.config.ts` 仅开发阶段初始化它。Cloudflare 另需运行时/存储适配。
+
+**本文描述本机多用户验证路径，不是公网 SaaS 上线许可。** 支付与租户 AI 配额等基础代码已存在；真实支付生命周期、邮件/退订合规、外部供应商链路、依赖安全门禁，以及 HTTPS、Secret/最小权限、监控/压测与灾备仍未完成生产验收。以审计文档最新整改表为准。

@@ -60,6 +60,7 @@ export const DEFAULT_ORDER = [
   "/app/messages",
   "/app/voice-agent",
   "/app/leads",
+  "/app/prospecting",
   "/app/shipments",
   "/app/logistics",
   "/app/finance",
@@ -67,6 +68,10 @@ export const DEFAULT_ORDER = [
   "/app/documents",
   "/app/plugins",
   "/app/api-config",
+  "/app/account",
+  "/app/team",
+  "/app/database",
+  "/app/saas",
   "/app/settings",
 ];
 

@@ -48,6 +48,16 @@ test("Cloudflare native dependencies resolve from the official npm registry", as
   assert.deepEqual(nonOfficialPackages, []);
 });
 
+test("all resolved packages use the official npm registry, not a machine-specific mirror", async () => {
+  const packages = await readLockPackages();
+  const nonOfficialPackages = Object.entries(packages)
+    .filter(([, entry]) => typeof entry.resolved === "string")
+    .filter(([, entry]) => !entry.resolved.startsWith(officialNpmRegistry))
+    .map(([packagePath]) => packagePath);
+
+  assert.deepEqual(nonOfficialPackages, []);
+});
+
 test("package lock includes the Tailwind Oxide WASM dependency closure", async () => {
   const packages = await readLockPackages();
   const missingPackages = requiredOxideWasmPackages.filter(

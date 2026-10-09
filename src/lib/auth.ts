@@ -2,21 +2,10 @@ import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 
 import { findUserByCredentials } from "@/lib/registration";
+import { getAccountProfile, getAuthSessionState, verifyDeploymentAdmin } from "@/lib/account";
+import { applyAccountSessionState, usableSessionClaims } from "@/lib/auth-session";
 
-const developmentEmail = "demo@tradepilot.dev";
-const developmentPassword = "12345678";
-
-function configuredCredentials() {
-  const development = process.env.NODE_ENV !== "production";
-  return {
-    email:
-      process.env.TRADEPILOT_ADMIN_EMAIL ||
-      (development ? developmentEmail : ""),
-    password:
-      process.env.TRADEPILOT_ADMIN_PASSWORD ||
-      (development ? developmentPassword : ""),
-  };
-}
+import { reserveLoginAttempt, finishLoginAttempt } from "@/lib/login-security";
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
   secret: process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET,
@@ -30,29 +19,38 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         email: { label: "Email", type: "email" },
         password: { label: "Password", type: "password" },
       },
-      async authorize(credentials) {
+      async authorize(credentials, request) {
         if (!credentials?.email || !credentials?.password) return null;
 
         const email = String(credentials.email).trim().toLowerCase();
         const password = String(credentials.password);
-        const configured = configuredCredentials();
-
-        if (
-          configured.email &&
-          configured.password &&
-          email === configured.email.trim().toLowerCase() &&
-          password === configured.password
-        ) {
+        if (email.length > 320 || password.length > 128) return null;
+        // Fail closed on a missing/unavailable shared database; no in-memory fallback.
+        let attempt;
+        try { attempt = await reserveLoginAttempt(email, request); } catch { return null; }
+        if (!attempt.allowed) return null;
+        let configured;
+        try { configured = await verifyDeploymentAdmin(email, password); } catch { await finishLoginAttempt(attempt, false).catch(() => {}); return null; }
+        if (configured) {
+          try { await finishLoginAttempt(attempt, true); } catch { return null; }
           return {
             id: "deployment-admin",
             email: configured.email,
-            name: "TradePilot Admin",
+            name: configured.name,
             companyId: "deployment-workspace",
             role: "owner",
+            sessionVersion: configured.sessionVersion,
+            isDeploymentWorkspace: true,
+            isPlatformAdmin: true,
+            mustChangePassword: configured.mustChangePassword,
           };
         }
+        const deploymentEmail = process.env.TRADEPILOT_ADMIN_EMAIL?.trim().toLowerCase() ||
+          (process.env.NODE_ENV !== "production" ? "demo@tradepilot.dev" : "");
+        if (email === deploymentEmail) { await finishLoginAttempt(attempt, false).catch(() => {}); return null; } // Never let a seeded DB password bypass an overridden admin password.
 
         const user = await findUserByCredentials(email, password);
+        try { await finishLoginAttempt(attempt, Boolean(user)); } catch { return null; }
         if (!user) return null;
 
         return {
@@ -61,23 +59,38 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           name: user.name,
           companyId: user.companyId,
           role: user.role,
+          sessionVersion: user.sessionVersion,
+          isDeploymentWorkspace: user.isDeploymentWorkspace,
+          isPlatformAdmin: user.isPlatformAdmin,
+          mustChangePassword: user.mustChangePassword,
         };
       },
     }),
   ],
   callbacks: {
-    async jwt({ token, user }) {
+    async jwt({ token, user, trigger }) {
       if (user) {
         token.companyId = user.companyId;
         token.role = user.role;
+        token.sessionVersion = user.sessionVersion || "0";
+        token.isDeploymentWorkspace = user.isDeploymentWorkspace ?? false;
+        token.isPlatformAdmin = user.isPlatformAdmin ?? false;
+        token.mustChangePassword = user.mustChangePassword ?? false;
+        token.invalidated = false;
+        token.databaseUnavailable = false;
+      } else if (token.sub) {
+        const state = await getAuthSessionState(token.sub, typeof token.sessionVersion === "string" ? token.sessionVersion : "0");
+        applyAccountSessionState(token, state);
+      }
+      if (trigger === "update" && token.sub && !token.invalidated && !token.databaseUnavailable) {
+        const profile = await getAccountProfile(token.sub);
+        token.name = profile.name;
       }
       return token;
     },
     async session({ session, token }) {
       if (session.user) {
-        session.user.id = token.sub || "";
-        session.user.companyId = token.companyId as string;
-        session.user.role = token.role as string;
+        Object.assign(session.user, usableSessionClaims(token));
       }
       return session;
     },
