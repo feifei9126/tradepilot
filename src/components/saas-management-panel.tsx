@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { Building2, Copy, LoaderCircle, Plus, RefreshCw, ShieldCheck, Users } from "lucide-react";
 import Link from "next/link";
+import { UsageGuide } from "@/components/usage-guide";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -78,8 +79,8 @@ export function SaasManagementPanel() {
   }
   return (
     <div className="page-stack mx-auto max-w-7xl">
-      <div className="page-heading"><div><p className="page-kicker">PLATFORM / SAAS MANAGEMENT</p><h1>SaaS 工作区管理</h1><p className="page-description">为不同客户建立独立工作区，设置成员上限与使用状态。只允许平台管理员访问。</p></div><Button variant="outline" disabled={busy || loading} onClick={() => { setError(""); void load(); }}><RefreshCw className="size-4" />刷新</Button></div>
-      <Card className="border-blue-500/20 bg-blue-500/5"><CardContent className="space-y-2 pt-5 text-sm"><p className="flex items-center gap-2 font-medium"><ShieldCheck className="size-4" />初次使用：先建工作区，再由所有者添加同事</p><p className="text-muted-foreground">① 填写客户公司与所有者邮箱 → ② 安全交付一次性显示的临时密码 → ③ 所有者登录「个人中心」改密 → ④ 在「团队成员」添加同事。各工作区业务数据分开保存，平台身份不会自动切换进客户工作区。</p><p className="text-muted-foreground">自助注册保持关闭；这里管理的是工作区与账号，尚不包含支付、订阅账单或租户 AI 费用配额。实例级 AI、采集、语音与视频服务仍限制平台使用，不能作为完整收费 SaaS 上线承诺。<Link href="/app/database" className="ml-1 text-primary underline">查看数据库状态</Link></p></CardContent></Card>
+      <div className="page-heading"><div><p className="page-kicker">PLATFORM / SAAS MANAGEMENT</p><h1>SaaS 管理</h1><p className="page-description">为不同客户建立独立工作区，设置成员上限与使用状态。只允许平台管理员访问。</p></div><Button variant="outline" disabled={busy || loading} onClick={() => { setError(""); void load(); }}><RefreshCw className="size-4" />刷新</Button></div>
+      <UsageGuide title="开通客户工作区的操作指南" description="创建工作区与所有者，安全交付临时密码，再由所有者添加同事。"><p className="flex items-center gap-2 font-medium"><ShieldCheck className="size-4" />初次使用：先建工作区，再由所有者添加同事</p><p className="text-muted-foreground">① 填写客户公司与所有者邮箱 → ② 安全交付一次性显示的临时密码 → ③ 所有者登录「个人中心」改密 → ④ 在「团队成员」添加同事。各工作区业务数据分开保存，平台身份不会自动切换进客户工作区。</p><p className="text-muted-foreground">平台管理用于开通与停用客户工作区，不会自动切换为客户身份。注册开放状态由部署配置控制；支付与供应商服务需完成实际验收后再用于对外运营。<Link href="/app/database" className="ml-1 text-primary underline">查看数据库状态</Link></p></UsageGuide>
       {error && <p role="alert" className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">{error}</p>}
       {notice && <p role="status" className="rounded-md border border-emerald-500/30 p-3 text-sm">{notice}</p>}
       {credentials && <Card className="border-amber-500/40 bg-amber-500/5"><CardHeader><CardTitle className="text-base">临时登录信息 · 仅显示一次</CardTitle><CardDescription>关闭此提示或离开页面后不会再次显示，未保存时需要重置密码。</CardDescription></CardHeader><CardContent className="flex flex-wrap items-center gap-3"><div className="min-w-0 flex-1 break-all rounded-md border bg-background p-3 font-mono text-sm"><p>工作区：{credentials.workspace}</p><p>账号：{credentials.email}</p><p>临时密码：<strong>{credentials.password}</strong></p></div><Button variant="outline" onClick={() => void copy()}><Copy className="size-4" />复制</Button><Button variant="ghost" onClick={() => setCredentials(null)}>已保存，关闭</Button></CardContent></Card>}

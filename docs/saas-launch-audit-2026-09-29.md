@@ -501,3 +501,59 @@ npm exec --yes --package=node@22.22.1 -- sh -c \
 - 全量 `npm audit --json` 的本轮结果为 **12 High、4 Moderate、0 Critical**，退出 1；证据：`/tmp/tradepilot-github-npm-audit-20261009.json`。这是当前锁文件/registry 返回结果，不改写前文历史统计。现有 CI 仍执行 `npm audit --audit-level=high`，**本轮没有降低门槛或用强制依赖修复掩盖风险**。
 - 提交前核验真实环境值与常见 Key/Token/私钥特征；候选源码/文档未发现匹配的实际密钥。私有 `.env*`、`data/`、`backups/`、数据库 dump 与 `.next`/`node_modules` 不提交；公开示例配置和隔离测试值不是可用于线上服务的秘密。
 - 现有预览管理员密码没有改动，3461 未切换新镜像。本轮没有真实发信、付款或外部供应商调用。P1-09～P1-11 仍未关闭，公网 SaaS 继续保持 **NO-GO**。
+
+## 本地账号轮换与受控试用注册（2026-10-10）
+
+本节记录后续按用户明确要求完成的本地 Docker 账号轮换和受控注册；不改写以上历史状态。当前预览运行新版镜像，公网 SaaS 仍是 **NO-GO**，注册开关只在私有本机 `.env.preview` 启用。
+
+- 将活动部署管理员登录邮箱改为用户指定邮箱，显示名设为 `Xiaofei9126`。活动数据库中的旧 `preview@tradepilot.local` owner 行已删除；原 `tradepilot-admin` 工作区保留，由 Compose `db-init` 用新管理员邮箱重新初始化 owner。用户记录核验为旧邮箱 0、新邮箱 1、工作区 1。
+- 管理员新密码保存在 `.env.preview`（0600）供部署初始化；`/app/data/admin-account.json` 仅保存 PBKDF2-SHA256 加盐哈希，验证哈希与当前配置相符。会话版本已轮换，旧登录会话失效。登录页不再预填账号/密码；开发认证、初始化 seed 和启动脚本不再包含旧演示账号或密码回退，也不向终端打印管理员密码。
+- 自助注册通过 `TRADEPILOT_SELF_REGISTRATION` 显式控制：Compose/`.env.example` 默认 `false`，本机 `.env.preview` 为 `true`。注册 POST 需要同源 JSON，实际 body 有上限；每来源每小时 30 次、每邮箱每天 5 次。注册密码要求 12–128 位、至少两类字符和 8 个不同字符。每个新邮箱创建一个独立 workspace owner；这**不是**加入其他人的团队，团队成员仍由 workspace owner/admin 在「团队管理」中添加。
+- 回归测试：Node 22.22.1 下 lint、严格类型检查和普通测试通过，**131/131**；独立 tmpfs PostgreSQL 数据库集成 **42/42**。额外在隔离 Docker/PostgreSQL、无公开端口环境完成注册 API 烟测：开关开启、跨站 403、弱密码 400、注册 201、重复邮箱最终 429、健康 200；测试租户已清理。
+- Next.js 16.4.0 / Node 22 Docker 镜像构建成功。已部署的 `tradepilot-preview`：`/api/health/live` 与 `/api/health/ready` 返回 200；真实管理员 Credentials 登录取得 session，`isPlatformAdmin=true`；注册状态 `/api/auth/register` 为 `enabled=true`。
+- 账号轮换前制作了 0600 数据库 dump 与 Web 数据卷备份，旧镜像标签保留。之后对本地已知回滚快照做定向脱敏：只移除旧管理员邮箱/密码和旧用户行，保留其余工作区/审计/媒体/配置数据；扫描本地 `backups/` 的原始文件和 tar 内容，未再匹配旧邮箱或旧密码。历史 Git 提交和聊天记录不做重写；其中可能仍出现已退役的旧示例字符串，不能再用于登录。
+- 新密码曾在此聊天中传输；生产级密码卫生建议在首次使用后再轮换，并确保新值只通过私有 `.env`/受控 Secret 管理。当前示例配置仍保持自助注册关闭，**不要把本机试用开关直接用于公网**。
+- 本次修改尚未提交或推送到 GitHub；也没有部署到 PocketBay。P1-09～P1-11 与供应商、HTTPS/Secret、告警、压测、灾备等生产门禁继续保持未关闭。
+
+
+## 业务 UI 设计与本地预览更新（2026-10-13）
+
+按用户提供的创意工作室参考，将视觉重写为 TradePilot「远航增长工作台」：墨绿与暖米白官网/认证故事、清晰的业务路径，以及明亮可读的运营数据区。保留 Next.js 与现有业务实现。
+
+- 官网使用本地港口图片、大字品牌、三段业务说明与真实页面入口；未引用原提示词的创意视频、虚构转换率或示例订单金额。中英文官网可切换。
+- 后台统一绿色主操作、墨绿导航、字体/边线/圆角；平台管理独立分组，普通用户在整理侧栏中也不能看到平台入口。移除菜单固定假数量和固定虚构通知；顶部主操作接通现有询盘录入窗口，点击即可开始填写，没有变更写入 API。
+- AI 获客、AI 营销及 SaaS 操作指南以原生 details/summary 提供，鼠标/键盘都可展开；配置说明保留。Firecrawl Key/预算表单更紧凑，业务 handler 与 API 不变。
+- lint、严格类型检查和普通回归 **131/131** 通过；Docker 生产构建成功。隔离真实 PostgreSQL/浏览器角色检查通过：普通工作区 owner 访问管理 API 为 403，管理页为 307 跳转，运营者可进入。
+- 浏览器验证桌面、平板与手机（1440/768/390/375px）及移动导航、快捷搜索、指南和中英文切换；没有页面脚本异常、5xx、缺图或页面级横向溢出。这不是完整 WCAG 人工/读屏验收，也不是所有业务 E2E。
+- 已更新本机 `tradepilot-preview` Web；PostgreSQL 和视频服务未重建，私有 env 内容未变，没有更改账号/密码或数据库结构。较早镜像保留为 `ui-fallback-20261013`，更新前精确镜像因 Docker 内容缺失未能快照，本次未回滚。
+- PocketBay 上传仍暂停，没有推送 GitHub；既有公网 SaaS NO-GO 与 P1-09～P1-11 门禁不因视觉更新而改变。
+
+优化后的完整设计提示词与实现说明见 `docs/design/ui-direction-2026-10-13.md`。本机证据：`/tmp/tradepilot-ui-checks-20261013.log`、`/tmp/tradepilot-ui-docker-build-20261013.log`、`/tmp/tradepilot-ui-roles-20261013.log`。
+
+
+### 2026-10-13：微信服务号与 WhatsApp 官方消息渠道
+
+新增租户渠道配置、公众号安全模式 AES 回调与验证、WhatsApp Cloud API HMAC 回调与文字发送、统一消息收件箱及发送回执。旧设备绑定页面替换为「消息渠道」，失效的旧绑定生成/确认接口继续关闭。渠道消息自动建立来源客户，沿用客户 ACL；会话按渠道账号和外部用户区分。AI 草稿依然由用户确认发送。
+
+新增前向迁移 `0010_messaging_channels.sql`，更新发布 manifest 和数据库就绪检查，新增渠道账号、事件去重、发送幂等表。配置密钥以租户/账号 AAD 加密，敏感密钥不会通过列表返回；查看接入 Token/EncodingAESKey 仅限工作区管理员并写审计。HTTP 回调不依赖登录 Cookie，但必须验证官方签名和接收账号。配置、测试和发送 API 仍经过租户认证、CSRF 校验和共享限流。
+
+验证证据：
+
+- ESLint、严格 TypeScript、`npm test`：**146/146**，日志 `/tmp/tradepilot-channels-checks-20261013.log`。
+- 独立 loopback PostgreSQL `*_test` 数据库集成：**52/52**，含凭据加密/隔离、客户 ACL、并发去重、冲突回滚、微信官方 GET 验证与 AES POST、WhatsApp HMAC、发送幂等和提前到达/乱序回执。日志 `/tmp/tradepilot-channels-db-tests-20261013.log`。
+- 新增 XML 解密测试对照微信官方文档公开 AES 样例，避免只验证自行生成的密文。
+- Docker 生产构建成功，镜像 `tradepilot-preview-tradepilot:channels-20261013`，日志 `/tmp/tradepilot-channels-docker-build-20261013.log`。
+- 独立 Docker/浏览器环境通过匿名回调、未登录配置拒绝、两种渠道自动入库与客户创建、停用拦截及 1440/390/375 像素页面验证；合成账号和临时容器已清理。日志 `/tmp/tradepilot-channels-browser-20261013.log`，截图与结果位于本地 `tradepilot-channels-20261013` 可视化目录。
+- 本地 preview 应用新增迁移并替换 Web 容器，PostgreSQL/视频容器未重建。部署前数据库和 Web 数据备份目录为 `backups/preview-before-channels-20261013-160510`（0700，内部文件 0600），原 Web 镜像保留 `channels-before-20261013` 标签。私有 env 和管理员账号文件 SHA256 未变，工作区/用户/CRM 记录数未变。日志 `/tmp/tradepilot-channels-deploy-20261013.log`。
+- 新锁文件的生产依赖审计为 0 漏洞，日志 `/tmp/tradepilot-channels-production-audit-20261013.json`。这仅覆盖生产依赖，不代表开发依赖的既有 High 门禁已经解决。
+
+边界：真实微信/Meta 后台尚未由本轮操作完成配置，不存在真实平台消息验收证据。当前本地 `localhost` 不能作为官方公网回调，需要账号凭据、平台权限、服务器出口 IP/微信白名单及正式 HTTPS 域名。公众号接入仅接收发给服务号的消息；WhatsApp 使用官方 Business Cloud API。媒体只记录类型及说明，不下载二进制；模板群发、微信菜单编辑和个人微信聊天同步未实现。本轮没有恢复 PocketBay 上传或推送 GitHub。旧镜像与备份是恢复材料，迁移增加后的回退必须同时评估数据库版本；不可简单换旧镜像并认为健康检查仍会通过。
+
+
+### 2026-10-14：GitHub 更新前验证与 README 同步
+
+README 更新为当前品牌与界面，增加公开官网和空白手机登录页面截图、注册/角色说明、AI 获客与营销说明、微信/WhatsApp 配置和手机浏览器使用边界，并补充品牌与渠道文档入口。新的截图不包含账号密码或客户数据。
+
+本轮重新执行 ESLint、严格 TypeScript、146 项单元/业务测试、52 项独立 PostgreSQL 集成测试和 Next.js 生产构建，均通过。日志分别为 `/tmp/tradepilot-github-checks-20261014.log` 和 `/tmp/tradepilot-github-database-checks-20261014.log`。本地相对文档/图片引用检查通过；提交候选文件与当前部署私有值比对及常见 token/private-key 模式检查未发现命中，私有 env、备份和数据卷继续排除。
+
+2026-10-14 全量 npm 审计仍为 **12 High、4 Moderate、0 Critical**，日志 `/tmp/tradepilot-github-dependency-audit-20261014.json`，退出 1。当前 CI 的 High 门禁预计仍会失败；本轮不升级无关依赖、不降低门槛、不以本地构建结果宣称生产验收完成。真实服务号与 Meta 消息接入、付费服务联调及生产运维门禁保持未验收状态。

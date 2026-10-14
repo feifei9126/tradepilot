@@ -20,10 +20,9 @@ export class AccountError extends Error {
 }
 
 function deploymentCredentials() {
-  const development = process.env.NODE_ENV !== "production";
   return {
-    email: process.env.TRADEPILOT_ADMIN_EMAIL?.trim().toLowerCase() || (development ? "demo@tradepilot.dev" : ""),
-    password: process.env.TRADEPILOT_ADMIN_PASSWORD || (development ? "12345678" : ""),
+    email: process.env.TRADEPILOT_ADMIN_EMAIL?.trim().toLowerCase() || "",
+    password: process.env.TRADEPILOT_ADMIN_PASSWORD || "",
   };
 }
 

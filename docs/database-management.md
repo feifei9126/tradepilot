@@ -38,7 +38,7 @@
    openssl rand -hex 32        # 用另一份结果填写 POSTGRES_PASSWORD
    ```
 
-2. 在 `.env` 填写管理员邮箱、**生产强密码**、`AUTH_SECRET` 和 `POSTGRES_PASSWORD`。示例密码 `12345678` 仅用于本机预览，不能用于公网。不要把真实配置提交 Git。
+2. 在 `.env` 填写管理员邮箱、**生产强密码**、`AUTH_SECRET` 和 `POSTGRES_PASSWORD`。管理员密码至少 16 位并满足生产策略；不要把真实配置提交 Git。
 3. 启动：
 
    ```bash
@@ -48,7 +48,7 @@
    ```
 
 4. 顺序是：PostgreSQL 就绪 → `db-init` 执行迁移与首次账号初始化 → Web 启动。`db-init` 最终 `Exited (0)` 是正常的，它是一次性任务，不是常驻服务。
-5. 登录后进入 **数据库管理**，确认“本版本结构就绪”，然后在 **SaaS 工作区** 创建客户公司。
+5. 登录后进入 **数据库管理**，确认“本版本结构就绪”，然后在 **SaaS 管理** 创建客户公司。
 
 也可运行 `bash install.sh`，它会在缺少数据库密码时生成随机值；已有账号和密码默认不会被初始化脚本覆盖。
 
@@ -142,7 +142,7 @@ docker compose run --rm --no-deps db-init         # 重跑；不要加 --reset-p
 - 不修改历史迁移，不手动删除迁移记录。新增前向迁移并先在隔离环境测试。
 - 目前迁移以新增结构/约束为主，没有自动 DOWN。升级前备份；回滚在维护窗口恢复到**新空库**再切流，不覆盖原库。
 - 新约束可能因历史脏数据拒绝执行；应单独审计/修正数据。大表还需评估锁与索引策略，此处未证明生产规模零停机。
-- 初次 bootstrap 不启用共享 CRM 样例；`TRADEPILOT_SEED_DEMO=true` 只用于明确的演示，不可用于公开环境。
+- 初次 bootstrap 不创建共享演示账号或 CRM 样例。管理员账号必须显式配置。
 - `--reset-password` 或 `TRADEPILOT_RESET_ADMIN_PASSWORD=true` 只针对数据库初始化账号、会撤销旧会话，不会恢复禁用账号；不要长期保留该开关。不会重置 `/app/data/admin-account.json` 中的部署管理员。
 
 数据库断开：请求返回 503，不能回退到共享内存/文件。不要把连接失败当成“初始化空系统成功”。
@@ -230,3 +230,5 @@ TEST_DATABASE_URL='postgresql://测试用户:编码后的密码@127.0.0.1:测试
 - [PostgreSQL 16：libpq SSL](https://www.postgresql.org/docs/16/libpq-ssl.html)
 
 公网部署仍需 HTTPS、最小权限、监控、压力测试、租户 BYOK/配额的真实服务验证及灾备制度。
+
+消息渠道账号、加密凭据、事件去重和发送幂等状态从迁移 `0010_messaging_channels.sql` 起保存在 `messaging_accounts`、`messaging_events`、`messaging_outbound`；客户和沟通内容仍使用租户 CRM 记录。恢复需要数据库及原部署加密 Secret。接入步骤见 [消息渠道](messaging-channels.md)。

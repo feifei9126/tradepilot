@@ -7,10 +7,11 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import {
-  AlertCircle,
+  Info,
   ArrowLeft,
   Bot,
-  Save,
+  Send,
+  Settings2,
   MessageSquare,
   Loader2,
   CheckCheck,
@@ -18,11 +19,18 @@ import {
   Mail,
   Globe,
 } from "lucide-react";
+import Link from "next/link";
+import {
+  messageConversationKey,
+  DELIVERY_LABELS,
+} from "@/lib/message-conversation";
 import { useAIConfig } from "@/hooks/useAIConfig";
 import type { LucideIcon } from "lucide-react";
 import type { StoredMessage } from "@/lib/store";
 
 interface ContactSummary {
+  key: string;
+  channelAccountId?: string;
   name: string;
   channel: StoredMessage["channel"];
   unread: number;
@@ -58,34 +66,64 @@ export default function MessagesPage() {
   const [inputText, setInputText] = useState("");
   const [sending, setSending] = useState(false);
   const [replying, setReplying] = useState<string | null>(null);
+  const pendingSend = useRef<{
+    key: string;
+    content: string;
+    messageId: string;
+  } | null>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    fetch("/api/messages")
-      .then(async (response) => {
-        const data = await response.json();
-        if (!response.ok || !Array.isArray(data))
-          throw new Error(data.error || "消息加载失败");
-        setMessages(data);
-      })
-      .catch((error: unknown) =>
-        toast.error(error instanceof Error ? error.message : "消息加载失败"),
-      )
-      .finally(() => setLoading(false));
+    let active = true;
+    let timer: ReturnType<typeof setTimeout>;
+    const controller = new AbortController();
+    async function refresh(initial = false) {
+      try {
+        if (initial || document.visibilityState === "visible") {
+          const response = await fetch("/api/messages", {
+            cache: "no-store",
+            signal: controller.signal,
+          });
+          const data = await response.json();
+          if (!response.ok || !Array.isArray(data))
+            throw new Error(data.error || "消息加载失败");
+          if (active)
+            setMessages((current) =>
+              JSON.stringify(current) === JSON.stringify(data) ? current : data,
+            );
+        }
+      } catch (error) {
+        if (active && !controller.signal.aborted)
+          toast.error(error instanceof Error ? error.message : "消息加载失败");
+      } finally {
+        if (active) {
+          setLoading(false);
+          timer = setTimeout(() => void refresh(), 10_000);
+        }
+      }
+    }
+    void refresh(true);
+    return () => {
+      active = false;
+      clearTimeout(timer);
+      controller.abort();
+    };
   }, []);
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  }, [messages, selectedContact]);
 
   // Get unique contacts with unread counts
   const allContacts = messages.reduce<ContactSummary[]>((acc, m) => {
-    const existing = acc.find((c) => c.name === m.contactName);
+    const existing = acc.find((c) => c.key === messageConversationKey(m));
     if (existing) {
       if (!m.read) existing.unread++;
       existing.channel = m.channel;
       existing.lastMsg = m.content.slice(0, 40);
     } else
       acc.push({
+        key: messageConversationKey(m),
+        channelAccountId: m.channelAccountId,
         name: m.contactName,
         channel: m.channel,
         unread: m.read ? 0 : 1,
@@ -100,54 +138,108 @@ export default function MessagesPage() {
   // Messages for selected contact
   const contactMessages = selectedContact
     ? messages
-        .filter((m) => m.contactName === selectedContact)
+        .filter((m) => messageConversationKey(m) === selectedContact)
         .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
     : [];
 
+  const conversation = allContacts.find(
+    (contact) => contact.key === selectedContact,
+  );
+  const latestIncoming = [...contactMessages]
+    .reverse()
+    .find((message) => message.direction === "in" && message.channelAccountId);
   async function handleSend() {
-    if (!inputText.trim() || !selectedContact) return;
+    if (sending || !inputText.trim() || !conversation) return;
     setSending(true);
     try {
-      const channel =
-        allContacts.find((contact) => contact.name === selectedContact)
-          ?.channel || "other";
-      const response = await fetch("/api/messages", {
+      const content = inputText.trim();
+      let url = "/api/messages";
+      let body: Record<string, unknown> = {
+        contactName: conversation.name,
+        content,
+        direction: "out",
+        channel: conversation.channel,
+      };
+      if (conversation.channelAccountId) {
+        if (!latestIncoming) throw new Error("请先收到一条客户消息再回复");
+        if (
+          !pendingSend.current ||
+          pendingSend.current.content !== content ||
+          pendingSend.current.messageId !== latestIncoming.id
+        )
+          pendingSend.current = {
+            key: crypto.randomUUID(),
+            content,
+            messageId: latestIncoming.id,
+          };
+        url = "/api/channels/send";
+        body = {
+          replyToMessageId: latestIncoming.id,
+          content,
+          idempotencyKey: pendingSend.current.key,
+        };
+      }
+      const response = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contactName: selectedContact,
-          content: inputText,
-          direction: "out",
-          channel,
-        }),
+        body: JSON.stringify(body),
       });
       const data = await response.json();
-      if (!response.ok) throw new Error(data.error || "回复记录保存失败");
-      setMessages((current) => [...current, data]);
-      setInputText("");
-      toast.success("回复已保存到本地消息记录");
+      if (!response.ok) throw new Error(data.error || "回复失败");
+      const message: StoredMessage = data.message || data;
+      setMessages((current) =>
+        current.some((item) => item.id === message.id)
+          ? current.map((item) => (item.id === message.id ? message : item))
+          : [...current, message],
+      );
+      if (
+        message.deliveryStatus &&
+        !["sent", "delivered", "read"].includes(message.deliveryStatus)
+      ) {
+        toast.error(
+          message.deliveryError ||
+            (message.deliveryStatus === "sending"
+              ? "平台仍在处理，请等待结果，勿重复发送"
+              : "发送结果待核实，请检查平台状态"),
+        );
+        if (message.deliveryStatus === "failed") pendingSend.current = null;
+      } else {
+        setInputText("");
+        pendingSend.current = null;
+        toast.success(
+          conversation.channelAccountId
+            ? "平台已接受回复；后续回执将在消息中更新"
+            : "已保存内部沟通记录",
+        );
+      }
     } catch (error: unknown) {
-      toast.error(error instanceof Error ? error.message : "回复记录保存失败");
+      toast.error(error instanceof Error ? error.message : "回复失败");
     } finally {
       setSending(false);
     }
   }
 
-  async function selectContact(contactName: string) {
-    setSelectedContact(contactName);
+  async function selectContact(key: string) {
+    setSelectedContact(key);
+    setInputText("");
+    pendingSend.current = null;
+    const ids = messages
+      .filter(
+        (message) => messageConversationKey(message) === key && !message.read,
+      )
+      .map((message) => message.id);
+    if (!ids.length) return;
     try {
       const response = await fetch("/api/messages", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ contactName }),
+        body: JSON.stringify({ ids }),
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "消息状态更新失败");
       setMessages((current) =>
         current.map((message) =>
-          message.contactName === contactName
-            ? { ...message, read: true }
-            : message,
+          ids.includes(message.id) ? { ...message, read: true } : message,
         ),
       );
     } catch (error: unknown) {
@@ -186,7 +278,7 @@ export default function MessagesPage() {
       if (res.ok) {
         if (!data.content?.trim()) throw new Error("AI 未返回有效回复内容");
         setInputText(data.content);
-        toast.success("AI 回复草稿已填入输入框，请检查后保存");
+        toast.success("AI 回复草稿已填入输入框，请检查后发送");
       } else toast.error(data.error || "AI 回复失败");
     } catch (error: unknown) {
       toast.error(error instanceof Error ? error.message : "AI 回复失败");
@@ -202,10 +294,20 @@ export default function MessagesPage() {
 
   return (
     <div className="-m-4 space-y-3 sm:-m-6">
-      <div className="mx-3 mt-3 flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800 sm:mx-6 sm:mt-6">
-        <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
-        消息页当前保存内部沟通记录，尚未接入
-        WhatsApp、微信或邮件发送通道。保存不会把内容投递给客户。
+      <div className="mx-3 mt-3 flex items-start gap-2 rounded-md border border-border bg-background p-3 text-xs text-muted-foreground sm:mx-6 sm:mt-6">
+        <Info className="mt-0.5 h-4 w-4 shrink-0" />
+        <span>
+          微信服务号与 WhatsApp
+          渠道消息支持真实文字回复；旧沟通记录仍保存为内部记录。AI
+          生成草稿后由你确认发送。
+        </span>
+        <Link
+          href="/app/bind"
+          className="ml-auto inline-flex shrink-0 items-center gap-1 font-medium underline"
+        >
+          <Settings2 className="size-3.5" />
+          配置渠道
+        </Link>
       </div>
       <div className="flex h-[calc(100dvh-10rem)] sm:h-[calc(100vh-11rem)]">
         {/* Left Panel - Contact List */}
@@ -241,15 +343,15 @@ export default function MessagesPage() {
               const Icon = CHANNEL_ICONS[c.channel] || MessageSquare;
               return (
                 <button
-                  key={c.name}
+                  key={c.key}
                   type="button"
                   onClick={() => {
-                    void selectContact(c.name);
+                    void selectContact(c.key);
                   }}
-                  aria-pressed={selectedContact === c.name}
+                  aria-pressed={selectedContact === c.key}
                   className={
                     "block w-full p-3 text-left hover:bg-muted/50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring " +
-                    (selectedContact === c.name ? "bg-muted" : "")
+                    (selectedContact === c.key ? "bg-muted" : "")
                   }
                 >
                   <div className="flex items-center gap-2">
@@ -307,12 +409,11 @@ export default function MessagesPage() {
                   >
                     <ArrowLeft className="h-4 w-4" />
                   </Button>
-                  <span className="text-sm font-medium">{selectedContact}</span>
+                  <span className="text-sm font-medium">
+                    {conversation?.name}
+                  </span>
                   <Badge variant="outline" className="h-5 text-[10px]">
-                    {CHANNEL_LABELS[
-                      allContacts.find((c) => c.name === selectedContact)
-                        ?.channel || "other"
-                    ] || "其他"}
+                    {CHANNEL_LABELS[conversation?.channel || "other"] || "其他"}
                   </Badge>
                 </div>
               </div>
@@ -335,14 +436,33 @@ export default function MessagesPage() {
                           : "bg-white border rounded-bl-md")
                       }
                     >
-                      <p>{m.content}</p>
+                      <p className="whitespace-pre-wrap break-words">
+                        {m.content}
+                      </p>
+                      {m.deliveryError && (
+                        <p className="mt-1 text-xs">{m.deliveryError}</p>
+                      )}
                       <div className="flex items-center justify-end gap-1 mt-1">
                         <span className="text-[10px] opacity-60">
-                          {m.createdAt}
+                          {new Date(m.createdAt).toLocaleString("zh-CN", {
+                            month: "2-digit",
+                            day: "2-digit",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
                         </span>
                         {m.direction === "out" && (
-                          <CheckCheck className="h-3 w-3 opacity-60" />
+                          <span className="text-[10px] opacity-80">
+                            {m.deliveryStatus
+                              ? DELIVERY_LABELS[m.deliveryStatus]
+                              : "内部记录"}
+                          </span>
                         )}
+                        {m.direction === "out" &&
+                          (m.deliveryStatus === "delivered" ||
+                            m.deliveryStatus === "read") && (
+                            <CheckCheck className="h-3 w-3 opacity-60" />
+                          )}
                       </div>
                     </div>
                   </div>
@@ -356,24 +476,42 @@ export default function MessagesPage() {
                   <Input
                     value={inputText}
                     onChange={(e) => setInputText(e.target.value)}
-                    placeholder="输入要保存的回复记录..."
-                    className="flex-1 h-9 text-sm"
+                    aria-label="回复内容"
+                    placeholder={
+                      conversation?.channelAccountId
+                        ? "输入要发送给客户的回复…"
+                        : "输入内部沟通记录…"
+                    }
+                    className="min-w-0 flex-1 h-11 text-sm sm:h-9"
                     onKeyDown={(e) => {
-                      if (e.key === "Enter" && !e.shiftKey) handleSend();
+                      if (
+                        e.key === "Enter" &&
+                        !e.shiftKey &&
+                        !e.nativeEvent.isComposing
+                      )
+                        void handleSend();
                     }}
                   />
                   <Button
                     size="sm"
-                    className="h-9"
+                    className="h-11 w-11 sm:h-9 sm:w-9"
                     onClick={handleSend}
                     disabled={sending || !inputText.trim()}
-                    aria-label="保存回复记录"
-                    title="保存回复记录"
+                    aria-label={
+                      conversation?.channelAccountId
+                        ? "发送回复"
+                        : "保存内部记录"
+                    }
+                    title={
+                      conversation?.channelAccountId
+                        ? "发送回复"
+                        : "保存内部记录"
+                    }
                   >
                     {sending ? (
                       <Loader2 className="h-3.5 w-3.5 animate-spin" />
                     ) : (
-                      <Save className="h-3.5 w-3.5" />
+                      <Send className="h-3.5 w-3.5" />
                     )}
                   </Button>
                 </div>

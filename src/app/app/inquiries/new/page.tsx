@@ -5,6 +5,6 @@ import { useRouter } from "next/navigation";
 
 export default function NewInquiryRedirect() {
   const router = useRouter();
-  useEffect(() => { router.replace("/app/inquiries"); }, [router]);
+  useEffect(() => { router.replace("/app/inquiries?create=1"); }, [router]);
   return <div className="p-8 text-center text-muted-foreground">跳转中...</div>;
 }

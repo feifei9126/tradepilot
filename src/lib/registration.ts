@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import { companies as companiesTable, users as usersTable } from "@/db/schema";
 import { DUMMY_PASSWORD_HASH, hashPassword, verifyPassword } from "@/lib/crypto";
+import { isRegistrationPasswordAllowed } from "@/lib/registration-policy";
 
 interface CreateUserResult {
   ok: boolean;
@@ -65,8 +66,7 @@ export async function createUser(
     !normalizedName ||
     normalizedName.length > 80 ||
     !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail) ||
-    password.length < 8 ||
-    password.length > 128
+    !isRegistrationPasswordAllowed(password)
   ) {
     return { ok: false, error: "注册信息格式不正确" };
   }

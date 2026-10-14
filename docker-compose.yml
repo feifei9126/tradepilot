@@ -89,6 +89,7 @@ services:
       AUTH_URL: "${AUTH_URL:-http://localhost:3461}"
       TRADEPILOT_ADMIN_EMAIL: "${TRADEPILOT_ADMIN_EMAIL:?TRADEPILOT_ADMIN_EMAIL is required; run bash install.sh or set it in .env}"
       TRADEPILOT_ADMIN_PASSWORD: "${TRADEPILOT_ADMIN_PASSWORD:?TRADEPILOT_ADMIN_PASSWORD is required; run bash install.sh or set it in .env}"
+      TRADEPILOT_SELF_REGISTRATION: "${TRADEPILOT_SELF_REGISTRATION:-false}"
       OPENMONTAGE_WORKER_URL: http://video-worker:8787
       MONEYPRINTERTURBO_URL: http://moneyprinterturbo:8080
       FIRECRAWL_API_URL: "${FIRECRAWL_API_URL:-}"

@@ -47,7 +47,8 @@
     "firecrawl:deploy": "node scripts/deploy-firecrawl.mjs",
     "video-worker": "node workers/openmontage-adapter/server.mjs",
     "test:livekit": "tsx --test tests/livekit/*.test.ts",
-    "test:db": "tsx --test --test-concurrency=1 tests/database/*.integration.ts"
+    "test:db": "tsx --test --test-concurrency=1 tests/database/*.integration.ts",
+    "brand:generate": "node scripts/generate-brand-assets.mjs"
   },
   "dependencies": {
     "@auth/drizzle-adapter": "^1.11.3",
@@ -64,6 +65,7 @@
     "clsx": "^2.1.1",
     "date-fns": "^4.4.0",
     "drizzle-orm": "^0.45.2",
+    "fast-xml-parser": "5.11.2",
     "imapflow": "^2.2.6",
     "livekit-client": "^2.22.3",
     "livekit-server-sdk": "^2.19.0",

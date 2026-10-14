@@ -1,5 +1,7 @@
 "use client";
 
+import { UsageGuide } from "@/components/usage-guide";
+
 import { DiscoverySettingsPanel } from "@/components/discovery-settings-panel";
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
@@ -74,23 +76,17 @@ export default function ProspectingPage() {
     }
   };
 
-  return <div className="space-y-6 p-4 md:p-8">
-    <header className="flex flex-wrap items-start justify-between gap-4">
-      <div><p className="text-sm text-primary">增长 / AI 获客</p><h1 className="mt-1 text-2xl font-semibold">AI 获客</h1>
+  return <div className="growth-page">
+    <header className="growth-heading">
+      <div><p className="growth-path">增长与内容 / AI 获客</p><h1>发现下一位潜在客户</h1>
         <p className="mt-2 text-sm text-muted-foreground">按任务搜索公开网页，自动登记、去重并初筛线索；话术发送仍需人工确认。</p></div>
       <Button variant="outline" render={<Link href="/app/leads" />}>AI 营销方案 <ArrowUpRight className="ml-2 size-4" /></Button>
     </header>
-    <p className="rounded-lg border border-amber-300/50 bg-amber-50 p-3 text-sm text-amber-900 dark:bg-amber-950/20 dark:text-amber-200">
+    <p className="service-notice">
       自动搜索需先配置本工作区自己的 Firecrawl Cloud Key。仅处理公开/授权网页的标题和摘要，按关键词自动初筛；不会登录社媒或自动发送消息。结果可能误判，可人工修正。
     </p>
-    <section aria-labelledby="prospecting-guide-title" className="rounded-xl border bg-card p-4 md:p-5">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h2 id="prospecting-guide-title" className="text-lg font-semibold">第一次使用？按这 4 步开始</h2>
-          <p className="mt-1 text-sm text-muted-foreground">把 AI 获客理解为“找公开网页线索并帮你初筛”，不是自动联系客户。</p>
-        </div>
-        <Button variant="outline" size="sm" render={<Link href="#discovery-settings" />}>配置本工作区搜索 Key <ArrowUpRight className="ml-2 size-4" /></Button>
-      </div>
+    <UsageGuide title="第一次使用？先看 4 步获客指南" description="接通搜索 → 描述买家 → 创建任务 → 核实并跟进。点击展开使用与配置说明。">
+      <Button variant="outline" size="sm" render={<Link href="#discovery-settings" />}>配置本工作区搜索 Key <ArrowUpRight className="ml-2 size-4" /></Button>
       <ol className="mt-4 grid gap-3 text-sm md:grid-cols-2 xl:grid-cols-4">
         <li className="rounded-lg bg-muted/40 p-3"><strong>1. 接通搜索</strong><p className="mt-1 text-muted-foreground">在下面“第 0 步”填写本工作区的 Firecrawl Cloud API Key 并启用。服务器地址固定，无需填写。平台自托管配置不会作为租户备用 Key。没有 Key 时仍可手动登记线索。</p></li>
         <li className="rounded-lg bg-muted/40 p-3"><strong>2. 描述你的客户</strong><p className="mt-1 text-muted-foreground">创建“业务人设”：写清卖什么、希望找哪类买家，以及沟通风格。越具体，筛选越有参考价值。</p></li>
@@ -98,7 +94,7 @@ export default function ProspectingPage() {
         <li className="rounded-lg bg-muted/40 p-3"><strong>4. 人工核实再跟进</strong><p className="mt-1 text-muted-foreground">打开来源核对公司与需求，修正意向状态。确认后才能转入客户库；生成的话术只是草稿，需要你自行审核和发送。</p></li>
       </ol>
       <p className="mt-3 text-xs leading-5 text-muted-foreground">想生成 AI 联系话术：普通租户还需在「AI 用量」中配置自己的文本模型和 AI Key；只有平台管理员的实例操作使用 API 配置中心。Firecrawl 搜索与文本模型是两项独立服务。</p>
-    </section>
+    </UsageGuide>
     <DiscoverySettingsPanel />
     <div className="grid gap-3 sm:grid-cols-3">
       {[{ label: "业务人设", count: data.personas.length, Icon: Users }, { label: "筛选任务", count: data.tasks.length, Icon: Target }, { label: "高意向线索", count: data.leads.filter(l => l.status === "qualified").length, Icon: Sparkles }].map(({ label, count, Icon }) => <Card key={label}><CardContent className="flex items-center justify-between"><div><p className="text-sm text-muted-foreground">{label}</p><p className="text-2xl font-semibold">{count}</p></div><Icon className="size-5 text-primary" /></CardContent></Card>)}

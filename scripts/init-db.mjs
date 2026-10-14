@@ -11,16 +11,13 @@ try { databaseConfig = postgresPoolConfig(); } catch (error) {
 }
 const adminEmail = process.env.TRADEPILOT_ADMIN_EMAIL?.trim().toLowerCase();
 const adminPassword = process.env.TRADEPILOT_ADMIN_PASSWORD;
-const seedDemo = process.env.TRADEPILOT_SEED_DEMO === "true";
 const workspaceSlug = process.env.TRADEPILOT_WORKSPACE_SLUG?.trim() || "tradepilot-admin";
 const resetPassword =
   process.argv.includes("--reset-password") ||
   process.env.TRADEPILOT_RESET_ADMIN_PASSWORD === "true";
 
-if ((!adminEmail || !adminPassword) && !seedDemo) {
-  console.error(
-    "Set TRADEPILOT_ADMIN_EMAIL and TRADEPILOT_ADMIN_PASSWORD, or explicitly enable TRADEPILOT_SEED_DEMO=true",
-  );
+if (!adminEmail || !adminPassword) {
+  console.error("Set TRADEPILOT_ADMIN_EMAIL and TRADEPILOT_ADMIN_PASSWORD");
   process.exit(1);
 }
 
@@ -43,21 +40,6 @@ async function main() {
         });
         console.log(
           `${result.created ? "Created" : "Preserved"} admin workspace for ${adminEmail}` +
-            (result.passwordReset ? " (password initialized/reset)" : " (existing password preserved)"),
-        );
-      }
-
-      if (seedDemo) {
-        const result = await bootstrapOwner(client, {
-          companyName: "TradePilot Demo",
-          companySlug: "tradepilot-demo",
-          email: "demo@tradepilot.dev",
-          name: "Demo User",
-          password: "12345678",
-          resetPassword,
-        });
-        console.log(
-          `${result.created ? "Created" : "Preserved"} demo account demo@tradepilot.dev` +
             (result.passwordReset ? " (password initialized/reset)" : " (existing password preserved)"),
         );
       }

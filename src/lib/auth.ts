@@ -45,8 +45,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             mustChangePassword: configured.mustChangePassword,
           };
         }
-        const deploymentEmail = process.env.TRADEPILOT_ADMIN_EMAIL?.trim().toLowerCase() ||
-          (process.env.NODE_ENV !== "production" ? "demo@tradepilot.dev" : "");
+        const deploymentEmail = process.env.TRADEPILOT_ADMIN_EMAIL?.trim().toLowerCase() || "";
         if (email === deploymentEmail) { await finishLoginAttempt(attempt, false).catch(() => {}); return null; } // Never let a seeded DB password bypass an overridden admin password.
 
         const user = await findUserByCredentials(email, password);

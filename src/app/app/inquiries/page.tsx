@@ -64,6 +64,17 @@ export default function InquiriesPage() {
   const { getTaskProvider, unavailableReason } = useAIConfig();
 
   useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("create") !== "1") return;
+    const timer = window.setTimeout(() => {
+      setNewInquiryOpen(true);
+      const url = new URL(window.location.href);
+      url.searchParams.delete("create");
+      window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}`);
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, []);
+
+  useEffect(() => {
     fetch("/api/inquiries")
       .then(async (response) => {
         const data = await response.json();

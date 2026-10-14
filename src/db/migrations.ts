@@ -39,5 +39,9 @@ export const DATABASE_MIGRATIONS = [
   {
     "version": "0009_audit_code_security.sql",
     "checksum": "02c9aedc789b4ef152d489519401e8e8a26b1d060e473773d6442f9f0cb38154"
-  }
+  },
+  {
+    "version": "0010_messaging_channels.sql",
+    "checksum": "6f5bd64a3be7dbd04b86ff1947518743ae5ef50db08751bdea7a665c6c172566"
+}
 ] as const;

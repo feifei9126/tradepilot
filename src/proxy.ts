@@ -20,6 +20,7 @@ const PUBLIC_API_PATHS = new Set([
 export default auth((request) => {
   const { pathname } = request.nextUrl;
   if (
+    /^\/api\/channels\/(wechat|whatsapp)\/[a-f\d-]{36}$/i.test(pathname) ||
     PUBLIC_API_PATHS.has(pathname) ||
     PUBLIC_API_PREFIXES.some((prefix) => pathname.startsWith(prefix))
   ) {

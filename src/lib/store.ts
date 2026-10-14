@@ -85,6 +85,12 @@ export interface StoredProductVideoJob {
   updatedAt: string;
 }
 export interface StoredMessage {
+  channelAccountId?: string;
+  peerId?: string;
+  providerMessageId?: string;
+  messageType?: string;
+  deliveryStatus?: "sending" | "sent" | "delivered" | "read" | "failed" | "unknown";
+  deliveryError?: string;
   id: string;
   contactId?: string;
   contactName: string;

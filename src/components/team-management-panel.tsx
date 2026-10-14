@@ -145,7 +145,7 @@ export function TeamManagementPanel({ currentUserId, role }: { currentUserId: st
         </div>
       </div>
 
-      <Card className="border-blue-500/20 bg-blue-500/5"><CardContent className="space-y-2 pt-5 text-sm"><p className="font-medium">活跃成员：{loading ? "—" : `${activeCount} / ${memberLimit}`}（包含所有者，停用成员不占额度）</p><p className="text-muted-foreground">所有者可添加管理员或成员；管理员仅能管理普通成员；成员使用同一工作区业务功能，不能管理团队。所有者不可在此降权、停用或重置，请在个人中心改密。角色变更、停用、密码重置会撤销旧会话。</p><p className="text-muted-foreground">这是为同一家公司添加同事。如果需要为另一家客户建立独立数据空间，请由平台管理员使用「SaaS 工作区」。</p></CardContent></Card>
+      <Card className="border-blue-500/20 bg-blue-500/5"><CardContent className="space-y-2 pt-5 text-sm"><p className="font-medium">活跃成员：{loading ? "—" : `${activeCount} / ${memberLimit}`}（包含所有者，停用成员不占额度）</p><p className="text-muted-foreground">所有者可添加管理员或成员；管理员仅能管理普通成员；成员使用同一工作区业务功能，不能管理团队。所有者不可在此降权、停用或重置，请在个人中心改密。角色变更、停用、密码重置会撤销旧会话。</p><p className="text-muted-foreground">这是为同一家公司添加同事。如果需要为另一家客户建立独立数据空间，请联系平台管理员使用「SaaS 管理」。</p></CardContent></Card>
       {error && <p role="alert" className="rounded-md border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">{error}</p>}
       {notice && <p role="status" className="rounded-md border border-emerald-500/30 bg-emerald-500/5 px-4 py-3 text-sm text-emerald-700 dark:text-emerald-300">{notice}</p>}
       {created && (

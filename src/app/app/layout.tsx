@@ -15,10 +15,16 @@ export default async function AppLayout({
 
   return (
     <div data-tradepilot-app>
+      <a href="#workspace-main" className="skip-link">
+        跳到工作区内容
+      </a>
       <AccountPreferencesSync />
       <Sidebar />
       <Header />
-      <main className="min-h-screen pt-[60px] md:pl-[248px]">
+      <main
+        id="workspace-main"
+        className="min-h-screen pt-[64px] md:pl-[248px]"
+      >
         <div className="app-content">{children}</div>
       </main>
       <Toaster />

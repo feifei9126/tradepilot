@@ -14,6 +14,9 @@ export function compareMigrations(applied: AppliedMigration[]) {
 }
 // Check the current release's storage contract, not just users/companies.
 const requiredColumns: Record<string, string[]> = {
+  messaging_accounts: ["id", "company_id", "channel", "config", "secrets_ciphertext", "enabled"],
+  messaging_events: ["company_id", "account_id", "event_id", "payload_sha256", "details"],
+  messaging_outbound: ["id", "company_id", "account_id", "idempotency_key", "status", "provider_message_id"],
   companies: ["id", "slug", "name", "is_active", "member_limit"],
   users: ["id", "company_id", "email", "role", "is_active", "settings"],
   crm_records: ["company_id", "kind", "id", "data", "schema_version", "created_at", "updated_at"],
