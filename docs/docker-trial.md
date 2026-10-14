@@ -2,6 +2,30 @@
 
 默认启动 PostgreSQL 16、一次性数据库初始化、CRM Web 和视频适配器。以下手动命令不启动需要外部服务密钥的语音服务，也不拉取 MoneyPrinterTurbo / Redis。`bash install.sh` 另会在后台启动 MoneyPrinterTurbo；不要把两种启动方式混淆。
 
+## Apple Silicon（M1 / M2 / M3 / ARM64）
+
+Docker Desktop 在 Apple Silicon 上使用 Linux ARM64 容器，因此 `workerd-linux-arm64` 是 Linux 容器的正确包；`workerd-darwin-arm64` 只用于直接运行在 macOS 上的工具。Alpine 使用 musl，预编译的 glibc 二进制即使存在，也可能报 `ENOENT` / `not found`。
+
+TradePilot 的 Docker 服务运行在 Node.js，正常 `next build` / `next start` 不需要 Workerd。默认本地开发同样不初始化 Cloudflare 模拟器；只有显式设置 `TRADEPILOT_RUNTIME=cloudflare` 的 `next dev` 才加载它。Dockerfile 的构建和运行阶段固定使用 `TRADEPILOT_RUNTIME=node`，生产依赖与应用继续在目标架构的 Alpine 镜像中构建和运行，无需 AMD64 模拟或替换 macOS 二进制。
+
+已有安装先保留原 `.env` 和数据卷，再重建 Web 与数据库初始化镜像：
+
+```bash
+docker compose build --no-cache tradepilot db-init
+docker compose up -d tradepilot
+docker compose ps -a
+```
+
+这只更新镜像和容器，不删除数据库或媒体卷；不要使用 `docker compose down -v`。若使用自定义项目名或 env 文件，以上命令增加原有 `-p` / `--env-file` 参数。
+
+需要明确构建 ARM64 镜像时：
+
+```bash
+docker buildx build --platform linux/arm64 --target runner -t tradepilot:arm64 --load .
+```
+
+容器监听 `3456`，当前 Compose 默认映射到宿主机 `127.0.0.1:3461`；以 `.env` 中的 `PORT` 与 `docker compose ps` 显示为准。MoneyPrinterTurbo 的 8080 和 Redis 属于独立服务，运行正常不代表 CRM Web 已启动。
+
 ## 1. 首次配置
 
 在项目根目录创建 `.env`（不要提交到 Git），设置：
@@ -82,6 +106,6 @@ docker compose exec tradepilot npm run db:backup -- /app/data/backups/before-upg
 - 部署管理员档案、加密的实例 API 配置仍在 Web 数据卷；素材/视频在 Worker 卷或对象存储；浏览器部分草稿在 localStorage。**数据库 dump 不是整站备份**，当前也未完成多副本配置一致性。
 - 邮件页面保存草稿不发送；后端已有 SMTP 发送、IMAP 同步、double opt-in 和退订抑制，真实收发仍需接口集成与测试邮箱验收。Webhook 已有租户凭据、轮换/签名/重放校验及入站记录，但未完成真实业务分发验收；手机/设备绑定仍 fail-closed 暂停。视频 Worker 健康不等于所有付费/外部渲染链路均已验证。
 - LiveKit 实际语音会话需要 LiveKit / OpenAI 配置与独立 Agent。参见 [LiveKit 指南](./livekit-agents.md)，配置后启动 `voice` profile 中的 `livekit-agent`。
-- Docker 构建和运行不启动 Cloudflare 开发模拟器；`next.config.ts` 仅开发阶段初始化它。Cloudflare 另需运行时/存储适配。
+- Docker 和默认 Node.js 开发/生产均不初始化 Cloudflare 模拟器。只有 `TRADEPILOT_RUNTIME=cloudflare` 的开发阶段显式启用；Cloudflare 另需运行时/存储适配。
 
 **本文描述本机多用户验证路径，不是公网 SaaS 上线许可。** 支付与租户 AI 配额等基础代码已存在；真实支付生命周期、邮件/退订合规、外部供应商链路、依赖安全门禁，以及 HTTPS、Secret/最小权限、监控/压测与灾备仍未完成生产验收。以审计文档最新整改表为准。

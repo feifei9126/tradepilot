@@ -197,6 +197,8 @@ Logo 素材和使用规范见 [品牌资源](public/brand/README.md)，接入与
 
 前置条件：Docker Desktop，或已启用 Compose 插件的 Docker Engine。
 
+Apple Silicon（M1/M2/M3）使用原生 Linux ARM64 Docker 镜像。Web 以 Node.js 运行，构建与启动均不初始化 Cloudflare Workerd；无需 macOS 二进制或 AMD64 模拟。排错步骤见 [Docker 本地试用](docs/docker-trial.md#apple-siliconm1--m2--m3--arm64)。
+
 ```bash
 git clone https://github.com/feifei9126/tradepilot.git
 cd tradepilot

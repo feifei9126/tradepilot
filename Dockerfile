@@ -5,6 +5,7 @@ RUN npm ci --omit=dev --legacy-peer-deps --registry=https://registry.npmjs.org
 
 FROM public.ecr.aws/docker/library/node:22-alpine AS builder
 WORKDIR /app
+ENV TRADEPILOT_RUNTIME=node
 COPY package.json package-lock.json ./
 RUN npm ci --legacy-peer-deps --registry=https://registry.npmjs.org
 COPY . .
@@ -13,6 +14,7 @@ RUN mkdir -p /app/plugins && npm run build
 FROM public.ecr.aws/docker/library/node:22-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production
+ENV TRADEPILOT_RUNTIME=node
 RUN apk add --no-cache font-dejavu postgresql16-client \
   && mkdir -p /app/data /app/openmontage-workspace \
   && chown -R node:node /app

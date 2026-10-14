@@ -2,6 +2,8 @@
 
 ## 当前可用范围
 
+本地默认 `npm run dev` 使用 Node.js，不初始化 Cloudflare 模拟器。只有调试 Workers bindings 时才显式运行 `TRADEPILOT_RUNTIME=cloudflare npm run dev`（macOS/Linux），或在该开发环境的 `.env.local` 设置 `TRADEPILOT_RUNTIME=cloudflare`。不要把这个选项用于 Docker；生产 `next build` / `next start` 无论该设置如何都不会初始化开发模拟器。OpenNext 的 Cloudflare 构建仍通过 `npm run cfbuild` 执行。
+
 TradePilot 的 Web 使用 Next.js + OpenNext，生成 `.open-next/worker.js` 和静态资产；不是 Cloudflare Pages 静态导出，也不是 GitHub Pages 项目。
 
 **当前分支不能直接作为 Docker 完整功能的 Cloudflare 替代部署。** 2026-09-20 的本地检查结果：

@@ -557,3 +557,20 @@ README 更新为当前品牌与界面，增加公开官网和空白手机登录�
 本轮重新执行 ESLint、严格 TypeScript、146 项单元/业务测试、52 项独立 PostgreSQL 集成测试和 Next.js 生产构建，均通过。日志分别为 `/tmp/tradepilot-github-checks-20261014.log` 和 `/tmp/tradepilot-github-database-checks-20261014.log`。本地相对文档/图片引用检查通过；提交候选文件与当前部署私有值比对及常见 token/private-key 模式检查未发现命中，私有 env、备份和数据卷继续排除。
 
 2026-10-14 全量 npm 审计仍为 **12 High、4 Moderate、0 Critical**，日志 `/tmp/tradepilot-github-dependency-audit-20261014.json`，退出 1。当前 CI 的 High 门禁预计仍会失败；本轮不升级无关依赖、不降低门槛、不以本地构建结果宣称生产验收完成。真实服务号与 Meta 消息接入、付费服务联调及生产运维门禁保持未验收状态。
+
+
+### 2026-10-14：Apple Silicon Docker / Workerd 运行路径隔离
+
+报告中的 `spawn .../workerd-linux-arm64/bin/workerd ENOENT` 不等于应安装 macOS 二进制：Docker Desktop 的目标容器是 Linux ARM64。独立 Alpine ARM64 builder 中确认官方 Linux ARM64 Workerd 文件存在，但直接执行仍显示 `not found`；实验 glibc ARM64 builder 中该版本 Workerd 出现段错误。当前提交的生产 `next build` 本已按 phase 跳过 Cloudflare 开发模拟器，未复现报告中的生产构建失败；本轮进一步消除了默认 Node.js 开发阶段对 Workerd 的隐式依赖。
+
+最终改动：默认开发、Docker 构建与生产启动均使用 Node.js，不导入或初始化 Cloudflare 开发模拟器。只有 `TRADEPILOT_RUNTIME=cloudflare` 且 Next.js development phase 才显式启用模拟器。Docker builder/runner 设置 `TRADEPILOT_RUNTIME=node`，基础镜像继续使用原生 Alpine，未保留 AMD64 模拟或 Debian workaround，未改动 package-lock、数据库迁移及运行中的服务。
+
+验证：
+
+- 新配置测试先观察到默认与 Node 模式仍导入模拟器的失败，再修改实现通过；生产 phase 即使指定 Cloudflare 模式也不初始化，Cloudflare 开发模式则保留显式入口。
+- ESLint、严格 TypeScript、`npm test` **148/148** 通过；日志 `/tmp/tradepilot-arm64-node-checks-20261014.log`。
+- `docker build --pull --no-cache --platform linux/arm64 --target runner` 成功，镜像 `tradepilot-arm64-node:20261014` 确认为 `linux/arm64`；日志 `/tmp/tradepilot-arm64-node-build-20261014.log`。
+- 独立 ARM64 PostgreSQL + ARM64 Web 容器，合成管理员账号登录成功；`/api/health/live` 200、`/api/health/ready` ready；1440/390px 的工作台、AI 获客、消息渠道共 6 个页面场景均渲染正常，无脚本错误或页面溢出。日志 `/tmp/tradepilot-arm64-smoke-20261014.log`。
+- 测试容器、临时库、网络与合成 Secret 文件均已清理，原业务/视频容器未被替换。实验 Workerd builder 不是最终产品实现；真实 Cloudflare 生产部署、AMD64 镜像及所有 M 系列具体设备没有因此宣称已验收。
+
+README、Docker 试用指南与 Cloudflare 指南说明原生容器平台、重建方式、显式 Cloudflare 开发入口及默认宿主机端口 3461（容器端口 3456）。本次没有发布预构建镜像或把尚未合并的分支当作 GitHub main 版本。
