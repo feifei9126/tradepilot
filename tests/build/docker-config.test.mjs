@@ -5,18 +5,23 @@ import test from "node:test";
 function configure(runtime, phases) {
   // Intercept the real configuration's lazy import. No native Workerd process
   // can run during this regression test, including when the package is absent.
+  const stub =
+    "globalThis.cloudflareImports++; export async function initOpenNextCloudflareForDev() { globalThis.cloudflareInitializations++; }";
+  const loader = [
+    "export async function resolve(specifier, context, nextResolve) {",
+    '  if (specifier === "@opennextjs/cloudflare") {',
+    `    const source = ${JSON.stringify(stub)};`,
+    '    return { url: "data:text/javascript," + encodeURIComponent(source), shortCircuit: true };',
+    "  }",
+    "  return nextResolve(specifier, context);",
+    "}",
+  ].join("\n");
   const script = `
-    import { registerHooks } from 'node:module';
+    import { register } from 'node:module';
     globalThis.cloudflareImports = 0;
     globalThis.cloudflareInitializations = 0;
-    const stub = 'export async function initOpenNextCloudflareForDev() { globalThis.cloudflareInitializations++; }';
-    registerHooks({ resolve(specifier, context, nextResolve) {
-      if (specifier === '@opennextjs/cloudflare') {
-        globalThis.cloudflareImports++;
-        return { url: 'data:text/javascript,' + encodeURIComponent(stub), shortCircuit: true };
-      }
-      return nextResolve(specifier, context);
-    }});
+    const loader = ${JSON.stringify(loader)};
+    register('data:text/javascript,' + encodeURIComponent(loader), import.meta.url);
     const module = await import('./next.config.ts');
     const configure = module.default?.default ?? module.default;
     const configs = [];
