@@ -13,13 +13,26 @@ async function fixture(envText, overrides = {}) {
   if (envText !== undefined) await writeFile(join(root, ".env"), envText);
   // These stubs cannot contact Docker or a real service. Only configuration
   // arguments are logged; database passwords and auth secrets are not logged.
-  await writeFile(join(bin, "docker"), '#!/bin/sh\nprintf "%s|%s|%s\\n" "$PORT" "$AUTH_URL" "$*" >> "$STUB_LOG"\nexit 0\n', { mode: 0o700 });
+  await writeFile(join(bin, "docker"), [
+    "#!/bin/sh",
+    'if [ "$*" = "compose up -d moneyprinterturbo" ]; then',
+    "  sleep 0.1",
+    '  printf "background-complete\\n" >> "$STUB_LOG"',
+    "fi",
+    'printf "%s|%s|%s\\n" "$PORT" "$AUTH_URL" "$*" >> "$STUB_LOG"',
+    "exit 0",
+    "",
+  ].join("\n"), { mode: 0o700 });
   await writeFile(join(bin, "curl"), '#!/bin/sh\nexit 0\n', { mode: 0o700 });
   const env = { ...process.env, HOME: root, TRADEPILOT_HOME: join(root, "state"), PATH: `${bin}:${process.env.PATH}`, STUB_LOG: join(root, "docker.log") };
   delete env.PORT;
   delete env.AUTH_URL;
   Object.assign(env, overrides);
-  const result = spawnSync("bash", [join(root, "install.sh")], { env, cwd: root, encoding: "utf8" });
+  // Source the copied installer in a test-only shell so wait joins its background
+  // Docker stub before the fixture is inspected or its temporary files removed.
+  const result = spawnSync("bash", ["-c", 'source "$1"; wait', "installer-test", join(root, "install.sh")], {
+    env, cwd: root, encoding: "utf8", timeout: 15_000,
+  });
   return { root, result, cleanup: () => rm(root, { force: true, recursive: true }) };
 }
 
@@ -48,6 +61,14 @@ test("installer rerun keeps existing secrets, port and AUTH_URL", async () => {
     assert.equal(f.result.status, 0, f.result.stderr);
     assert.equal(await readFile(join(f.root, ".env"), "utf8"), existing);
     assert.match(await readFile(join(f.root, "docker.log"), "utf8"), /4242\|https:\/\/tradepilot.example\|compose up -d --build tradepilot video-worker/);
+  } finally { await f.cleanup(); }
+});
+
+test("installer fixture waits for the background video process before cleanup", async () => {
+  const f = await fixture(existing);
+  try {
+    assert.equal(f.result.status, 0, f.result.stderr);
+    assert.match(await readFile(join(f.root, "docker.log"), "utf8"), /background-complete/);
   } finally { await f.cleanup(); }
 });
 

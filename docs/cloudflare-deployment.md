@@ -19,6 +19,13 @@ TradePilot 的 Web 使用 Next.js + OpenNext，生成 `.open-next/worker.js` 和
 
 构建工具还报告了来自生成的 UI 依赖代码的重复对象键警告；构建未因此失败。不要把 dry-run 当成线上发布或完整功能验收。
 
+## 2026-10-15 构建修复
+
+- 项目 `.npmrc` 固定与既有锁文件一致的 peer 解析策略，自动 npm 安装无需手工补 `--legacy-peer-deps`；这不关闭漏洞审计或安装脚本。
+- `next.config.ts` 的 `outputFileTracingIncludes` 显式包含 `pg-cloudflare` 的 `dist` / `esm`，防止 Node 构建只追踪默认空入口、OpenNext Workerd 打包却缺少 socket 实现。
+- GitHub CI 同时执行 `npm run cfbuild` 和 `npx wrangler deploy --dry-run`，不会在校验步骤上传 Worker 或改动 dashboard Secrets。
+- 本轮本地构建与 dry-run 通过；这些结果**不是** Cloudflare 远端生产发布成功，也不改变下述持久化、外部服务和授权前提。细节见 [CI 修复记录](./ci-repair-2026-10-15.md)。
+
 ## 上线前必须解决
 
 ### 1. 配置与业务数据持久化

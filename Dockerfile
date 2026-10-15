@@ -1,12 +1,14 @@
 FROM public.ecr.aws/docker/library/node:22-alpine AS deps
 WORKDIR /app
 COPY package.json package-lock.json ./
+COPY vendor/braces ./vendor/braces
 RUN npm ci --omit=dev --legacy-peer-deps --registry=https://registry.npmjs.org
 
 FROM public.ecr.aws/docker/library/node:22-alpine AS builder
 WORKDIR /app
 ENV TRADEPILOT_RUNTIME=node
 COPY package.json package-lock.json ./
+COPY vendor/braces ./vendor/braces
 RUN npm ci --legacy-peer-deps --registry=https://registry.npmjs.org
 COPY . .
 RUN mkdir -p /app/plugins && npm run build

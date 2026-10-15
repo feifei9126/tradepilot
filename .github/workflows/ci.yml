@@ -51,5 +51,9 @@ jobs:
         run: npm test
       - name: PostgreSQL tenant-isolation integration tests
         run: npm run test:db
+      - name: Build Cloudflare worker
+        run: npm run cfbuild
+      - name: Package Cloudflare worker without uploading
+        run: npx wrangler deploy --dry-run --outdir /tmp/tradepilot-worker-dry-run
       - name: Audit locked npm dependencies (high/critical findings fail CI)
         run: npm audit --audit-level=high --registry=https://registry.npmjs.org

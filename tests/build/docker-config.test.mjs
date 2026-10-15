@@ -45,6 +45,15 @@ function configure(runtime, phases) {
   );
 }
 
+const expectedConfig = {
+  outputFileTracingIncludes: {
+    "/*": [
+      "./node_modules/pg-cloudflare/dist/**/*",
+      "./node_modules/pg-cloudflare/esm/**/*",
+    ],
+  },
+};
+
 const phases = [
   "phase-development-server",
   "phase-production-build",
@@ -53,7 +62,7 @@ const phases = [
 
 test("default Node.js development/build/start do not import Cloudflare or launch Workerd", () => {
   assert.deepEqual(configure(undefined, phases), {
-    configs: [{}, {}, {}],
+    configs: [expectedConfig, expectedConfig, expectedConfig],
     imports: 0,
     initialized: 0,
   });
@@ -61,7 +70,7 @@ test("default Node.js development/build/start do not import Cloudflare or launch
 
 test("Docker Node.js runtime never imports Cloudflare, including the development phase", () => {
   assert.deepEqual(configure("node", phases), {
-    configs: [{}, {}, {}],
+    configs: [expectedConfig, expectedConfig, expectedConfig],
     imports: 0,
     initialized: 0,
   });
@@ -69,13 +78,23 @@ test("Docker Node.js runtime never imports Cloudflare, including the development
 
 test("Cloudflare development is explicit and production phases never launch its emulator", () => {
   assert.deepEqual(configure("cloudflare", phases.slice(1)), {
-    configs: [{}, {}],
+    configs: [expectedConfig, expectedConfig],
     imports: 0,
     initialized: 0,
   });
   assert.deepEqual(configure("cloudflare", [phases[0]]), {
-    configs: [{}],
+    configs: [expectedConfig],
     imports: 1,
     initialized: 1,
   });
+});
+
+test("server traces include the PostgreSQL Workerd socket implementation", () => {
+  const { configs } = configure("node", phases);
+  for (const config of configs) {
+    assert.deepEqual(config.outputFileTracingIncludes?.["/*"], [
+      "./node_modules/pg-cloudflare/dist/**/*",
+      "./node_modules/pg-cloudflare/esm/**/*",
+    ]);
+  }
 });

@@ -574,3 +574,20 @@ README 更新为当前品牌与界面，增加公开官网和空白手机登录�
 - 测试容器、临时库、网络与合成 Secret 文件均已清理，原业务/视频容器未被替换。实验 Workerd builder 不是最终产品实现；真实 Cloudflare 生产部署、AMD64 镜像及所有 M 系列具体设备没有因此宣称已验收。
 
 README、Docker 试用指南与 Cloudflare 指南说明原生容器平台、重建方式、显式 Cloudflare 开发入口及默认宿主机端口 3461（容器端口 3456）。本次没有发布预构建镜像或把尚未合并的分支当作 GitHub main 版本。
+
+
+### 2026-10-15：CI 失败与 Cloudflare 打包修复
+
+本轮针对 GitHub Actions `38667281301`、`38667285250` 和本地复现的 Cloudflare 构建失败，不绕过原 High/Critical 审计门禁，不改管理员账号、业务数据库、部署 Secrets 或默认分支。
+
+1. **安装器用例的后台清理竞态**：原用例在 `nohup docker compose` 写日志前就删除临时目录，偶发 `ENOTEMPTY`。测试专用 shell 现在 source 复制的安装器并 `wait` 子进程；真实安装器仍保留后台下载行为。带延迟的回归先红后绿，完整安装器套件连续 10 轮（60 个用例执行）通过。
+2. **Cloudflare 漏打包 PostgreSQL socket 实现**：本地原构建明确失败于 `Could not resolve pg-cloudflare`，因为 Node 文件追踪只复制了默认空入口。按 Next.js 本地文档使用 `outputFileTracingIncludes`，精确包含该包 `dist` / `esm`，不 externalize 缺失模块。修复后 `npm run cfbuild` 与 `wrangler deploy --dry-run` 通过；CI 新增这两个独立步骤，仅打包不上传。
+3. **自动安装的 peer 策略不一致**：新增项目 `.npmrc`，固定与锁文件、Docker 和 CI 已使用的 `legacy-peer-deps=true` 一致。Auth.js 声明旧版可选 Nodemailer peer，本项目 SMTP 直接使用 Nodemailer 10，未使用 Auth.js Email provider；不为消除安装错误降级邮件库。`npm ci --ignore-scripts --dry-run` 验证不再需要调用者手加该参数。这不代表已经取得 Cloudflare 远端失败日志。
+4. **可升级依赖与冗余清理**：Wrangler 更新至 4.151.0，连带 Miniflare 使用修复版 sharp；删除未被应用引用的 shadcn CLI 及其传递依赖。未使用 `npm audit fix --force` 或退回旧 Next.js/邮件库。
+5. **无上游修复版的 braces**：官方 GHSA-vfj7-8cjw-p6xm 在本轮查询时 `first_patched_version=null`，registry 最新仍为 3.0.3。采用明确标为本地分支的 `vendor/braces`（MIT、`@tradepilot/braces@3.0.3-tradepilot.1`、private），原 tarball/integrity/源文件哈希在 `UPSTREAM.json`，不是伪称上游已发布补丁。最小代码差异只为解析/递归 AST walker 增加迭代式深度、节点数、子节点环校验。长度 9003、低于原上限 10000 的输入在原版触发栈溢出，补丁以稳定 SyntaxError 提前拒绝；还覆盖直接 AST、括号、未闭合模式和 options 不可解除上限。2800 次正常操作的输出摘要与原版一致，且源码还原哈希回归确保没有混入无关上游修改。
+
+本地补丁只沿 ESLint → fast-glob → micromatch 的开发链使用；`overrides` 与锁文件回归防止遗留未打补丁的嵌套副本，Docker 在安装前复制该固定源目录。Registry 来源测试仍拒绝其他非官方 URL/任意本地包，只允许这一固定链接。上游正式修复后应复用回归验证并移除本地分支、override 和 Docker COPY。npm 漏洞库不会独立覆盖这一本地分支，因此回归、来源记录和人工 review 必须保留。
+
+**审计结论**：原 `npm audit --audit-level=high --registry=https://registry.npmjs.org` 现在通过，High/Critical 为 0；保留的 4 个 Moderate 都来自 drizzle-kit 的旧 esbuild 开发工具链，未伪称全量零漏洞。原工作流命令和 High/Critical 阈值未降低，也未添加 advisory allowlist。生产依赖需独立以 `npm audit --omit=dev` 验证。
+
+本轮修复不等于已经合并 main、发布线上 Worker 或验收 Workers 的数据库/文件持久化。Cloudflare 本机没有登录授权，无法据本地构建结果声称远端 check 已转绿。完整验证记录见 [CI 修复记录](./ci-repair-2026-10-15.md)。
