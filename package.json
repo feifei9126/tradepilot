@@ -70,7 +70,7 @@
     "livekit-client": "^2.22.3",
     "livekit-server-sdk": "^2.19.0",
     "lucide-react": "^1.17.0",
-    "mailparser": "^3.9.36",
+    "mailparser": "^3.9.38",
     "motion": "^12.42.2",
     "next": "^16.0.0",
     "next-auth": "^5.0.0-beta.32",
