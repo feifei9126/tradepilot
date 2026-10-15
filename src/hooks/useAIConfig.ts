@@ -6,6 +6,8 @@ import { AI_TASKS } from "@/lib/api-config/schema";
 export function useAIConfig() {
   const [ready, setReady] = useState(false);
   const [loaded, setLoaded] = useState(false);
+  const [scope, setScope] = useState<"tenant" | "platform">("tenant");
+  const [unavailableReason, setUnavailableReason] = useState("请联系工作区管理员在「AI 用量」配置并启用 AI");
   useEffect(() => {
     let active = true;
     const refresh = () =>
@@ -14,12 +16,15 @@ export function useAIConfig() {
         .then((data) => {
           if (active) {
             setReady(Boolean(data?.textReady));
+            setScope(data?.scope === "platform" ? "platform" : "tenant");
+            setUnavailableReason(data?.unavailableReason || data?.error || "AI 配置状态不可用，请刷新后重试");
             setLoaded(true);
           }
         })
         .catch(() => {
           if (active) {
             setReady(false);
+            setUnavailableReason("AI 配置状态不可用，请刷新后重试");
             setLoaded(true);
           }
         });
@@ -37,7 +42,8 @@ export function useAIConfig() {
       ready && Object.hasOwn(AI_TASKS, task) ? { task } : null,
     [ready],
   );
-  return { loaded, ready, getTaskProvider };
+  return { loaded, ready, getTaskProvider, scope, unavailableReason,
+    configurationUrl: scope === "platform" ? "/app/api-config" : "/app/ai-usage" };
 }
 
 // Kept for explicit migration of browser-era task mappings.

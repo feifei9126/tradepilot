@@ -1,13 +1,16 @@
+import { getStore } from "@/lib/workspace-context";
+import { withTenant } from "@/lib/tenant-route";
 import { NextResponse } from "next/server";
 import { buildDashboard } from "@/lib/dashboard";
-import { store } from "@/lib/store";
-
-export async function GET() {
-  return NextResponse.json(buildDashboard({
-    contacts: store.contacts.list(),
-    products: store.products.list(),
-    inquiries: store.inquiries.list(),
-    quotations: store.quotations.list(),
-    orders: store.orders.list(),
-  }));
+async function handleGET() {
+    const store = getStore();
+    return NextResponse.json(buildDashboard({
+        contacts: (await store.contacts.list()),
+        products: (await store.products.list()),
+        inquiries: (await store.inquiries.list()),
+        quotations: (await store.quotations.list()),
+        orders: (await store.orders.list()),
+    }));
 }
+
+export const GET = withTenant(handleGET);

@@ -1,15 +1,14 @@
 import assert from "node:assert/strict";
-import test from "node:test";
+import { workspaceTest as test } from "../helpers/workspace";
 
 import { PATCH } from "../../src/app/api/orders/[id]/route";
 import { POST } from "../../src/app/api/orders/route";
 import {
-  store,
   type StoredContact,
   type StoredQuotation,
 } from "../../src/lib/store";
 
-test("an accepted quotation can create only one order", async () => {
+test("an accepted quotation can create only one order", async (_t, store) => {
   const contact: StoredContact = {
     id: "workflow-contact",
     name: "Workflow Customer",
@@ -36,8 +35,8 @@ test("an accepted quotation can create only one order", async () => {
     aiGenerated: false,
     createdAt: "2026-07-23",
   };
-  store.contacts.add(contact);
-  store.quotations.add(quotation);
+  await store.contacts.add(contact);
+  await store.quotations.add(quotation);
 
   const request = () =>
     new Request("http://localhost/api/orders", {
@@ -57,11 +56,11 @@ test("an accepted quotation can create only one order", async () => {
   assert.equal(createdOrder.currency, quotation.currency);
   assert.equal(duplicate.status, 409);
   assert.match((await duplicate.json()).error, /已经创建过订单/);
-  store.contacts.delete(contact.id);
+  await store.contacts.delete(contact.id);
 });
 
-test("order PATCH cannot overwrite identity or financial fields", async () => {
-  const original = store.orders.get("o2");
+test("order PATCH cannot overwrite identity or financial fields", async (_t, store) => {
+  const original = await store.orders.get("o2");
   assert.ok(original);
 
   const response = await PATCH(
@@ -79,15 +78,15 @@ test("order PATCH cannot overwrite identity or financial fields", async () => {
   );
 
   assert.equal(response.status, 400);
-  const current = store.orders.get("o2");
+  const current = await store.orders.get("o2");
   assert.equal(current?.no, original.no);
   assert.equal(current?.contactName, original.contactName);
   assert.equal(current?.totalAmount, original.totalAmount);
   assert.deepEqual(current?.items, original.items);
 });
 
-test("order status enforces its minimum workflow progress", async () => {
-  const original = store.orders.get("o2");
+test("order status enforces its minimum workflow progress", async (_t, store) => {
+  const original = await store.orders.get("o2");
   assert.ok(original);
 
   const response = await PATCH(
@@ -101,7 +100,7 @@ test("order status enforces its minimum workflow progress", async () => {
 
   assert.equal(response.status, 200);
   assert.equal((await response.json()).progressPercent, 70);
-  store.orders.update("o2", {
+  await store.orders.update("o2", {
     status: original.status,
     progressPercent: original.progressPercent,
   });

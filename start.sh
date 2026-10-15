@@ -2,8 +2,8 @@
 cd "$(dirname "$0")"
 echo "TradePilot → http://localhost:3458"
 ADMIN_EMAIL="$(awk -F= '/^TRADEPILOT_ADMIN_EMAIL=/{sub(/^[^=]*=/, ""); value=$0} END{print value}' .env 2>/dev/null)"
-ADMIN_PASSWORD="$(awk -F= '/^TRADEPILOT_ADMIN_PASSWORD=/{sub(/^[^=]*=/, ""); value=$0} END{print value}' .env 2>/dev/null)"
-echo "登录: ${ADMIN_EMAIL:-demo@tradepilot.dev} / ${ADMIN_PASSWORD:-password}"
+if [ -n "$ADMIN_EMAIL" ]; then echo "管理员邮箱: $ADMIN_EMAIL"; fi
+echo "管理员密码不会显示在终端中。"
 echo ""
 
 if command -v pm2 >/dev/null 2>&1; then

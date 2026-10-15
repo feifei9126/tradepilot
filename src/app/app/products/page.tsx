@@ -1,5 +1,7 @@
 "use client";
 
+import Image from "next/image";
+import { useSession } from "next-auth/react";
 import { useState, useEffect } from "react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,6 +27,7 @@ import { cn } from "@/lib/utils";
 type Product = FirecrawlImportedProduct;
 
 export default function ProductsPage() {
+  const { data: session } = useSession();
   const [search, setSearch] = useState("");
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
@@ -115,10 +118,10 @@ export default function ProductsPage() {
             )}
             导出CSV
           </Button>
-          <Button variant="outline" onClick={() => setImportOpen(true)}>
+          {session?.user?.isPlatformAdmin === true && <Button variant="outline" onClick={() => setImportOpen(true)}>
             <Globe className="h-4 w-4 mr-2" />
             Firecrawl 抓取
-          </Button>
+          </Button>}
           <FirecrawlImportDialog
             open={importOpen}
             onOpenChange={setImportOpen}
@@ -154,7 +157,10 @@ export default function ProductsPage() {
             <CardContent className="p-4">
               <div className="flex items-start gap-3">
                 {product.media?.find((item) => item.type === "image") ? (
-                  <img
+                  <Image
+                    unoptimized
+                    width={56}
+                    height={56}
                     src={
                       product.media.find((item) => item.type === "image")!.url
                     }

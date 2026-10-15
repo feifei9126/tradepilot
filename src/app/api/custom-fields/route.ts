@@ -1,3 +1,4 @@
+import { withTenant } from "@/lib/tenant-route";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import {
@@ -102,7 +103,7 @@ function hasDuplicates(values: string[]) {
   return new Set(values).size !== values.length;
 }
 
-export async function GET(req: NextRequest) {
+async function handleGET(req: NextRequest) {
   const url = new URL(req.url);
   const entity = url.searchParams.get("entity");
   if (
@@ -117,15 +118,15 @@ export async function GET(req: NextRequest) {
       "supplier",
     ].includes(entity)
   ) {
-    return NextResponse.json(getSchema(entity as EntityType));
+    return NextResponse.json(await getSchema(entity as EntityType));
   }
   if (entity === "workflow") {
-    return NextResponse.json(getWorkflow());
+    return NextResponse.json(await getWorkflow());
   }
-  return NextResponse.json(getAllSchemas());
+  return NextResponse.json(await getAllSchemas());
 }
 
-export async function POST(req: NextRequest) {
+async function handlePOST(req: NextRequest) {
   try {
     const body = await req.json();
     if (body?._type === "workflow") {
@@ -143,7 +144,7 @@ export async function POST(req: NextRequest) {
           { status: 400 },
         );
       }
-      return NextResponse.json(updateWorkflow(parsed.data.data));
+      return NextResponse.json(await updateWorkflow(parsed.data.data));
     }
     const parsed = schemaDraft.safeParse(body);
     if (!parsed.success) {
@@ -162,8 +163,12 @@ export async function POST(req: NextRequest) {
         { status: 400 },
       );
     }
-    return NextResponse.json(updateSchema(parsed.data.entityType, { fields }));
-  } catch {
-    return NextResponse.json({ error: "请求数据格式无效" }, { status: 400 });
+    return NextResponse.json(await updateSchema(parsed.data.entityType, { fields }));
+  } catch (error) {
+    if (error instanceof SyntaxError) return NextResponse.json({ error: "请求数据格式无效" }, { status: 400 });
+    throw error;
   }
 }
+
+export const GET = withTenant(handleGET);
+export const POST = withTenant(handlePOST);

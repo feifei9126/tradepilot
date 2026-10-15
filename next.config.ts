@@ -2,12 +2,26 @@ import type { NextConfig } from "next";
 import { PHASE_DEVELOPMENT_SERVER } from "next/constants";
 
 export default async function nextConfig(phase: string): Promise<NextConfig> {
-  // The Cloudflare emulator is only needed by next dev, not Docker builds/start.
-  // Its glibc executable cannot run in the Alpine (musl) production image.
-  if (phase === PHASE_DEVELOPMENT_SERVER) {
-    const { initOpenNextCloudflareForDev } = await import("@opennextjs/cloudflare");
+  // Docker and the default local server run on Node.js, without Workerd.
+  // Cloudflare binding emulation is opt-in and confined to next dev.
+  if (
+    phase === PHASE_DEVELOPMENT_SERVER &&
+    process.env.TRADEPILOT_RUNTIME === "cloudflare"
+  ) {
+    const { initOpenNextCloudflareForDev } = await import(
+      "@opennextjs/cloudflare"
+    );
     await initOpenNextCloudflareForDev();
   }
 
-  return {};
+  return {
+    // The Node build traces pg-cloudflare's empty default export. OpenNext's
+    // Workerd bundle also needs the conditionally exported socket implementation.
+    outputFileTracingIncludes: {
+      "/*": [
+        "./node_modules/pg-cloudflare/dist/**/*",
+        "./node_modules/pg-cloudflare/esm/**/*",
+      ],
+    },
+  };
 }

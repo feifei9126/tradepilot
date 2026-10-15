@@ -1,9 +1,8 @@
 import assert from "node:assert/strict";
-import test from "node:test";
+import { workspaceTest as test } from "../helpers/workspace";
 
 import { GET } from "../../src/app/api/documents/download/route";
 import { POST } from "../../src/app/api/documents/generate/route";
-import { store } from "../../src/lib/store";
 
 test("document generation follows the selected type and is idempotent", async () => {
   const request = (type: string) =>
@@ -21,8 +20,8 @@ test("document generation follows the selected type and is idempotent", async ()
   assert.equal(unsupported.status, 400);
 });
 
-test("draft document transitions to generated once and remains idempotent", async () => {
-  store.documents.update("d3", { status: "draft", createdAt: "2026-05-28" });
+test("draft document transitions to generated once and remains idempotent", async (_t, store) => {
+  await store.documents.update("d3", { status: "draft", createdAt: "2026-05-28" });
   const request = () =>
     new Request("http://localhost/api/documents/generate", {
       method: "POST",
@@ -40,18 +39,17 @@ test("draft document transitions to generated once and remains idempotent", asyn
   assert.equal(second.status, 200);
   assert.equal(secondBody.createdCount, 0);
   assert.equal(
-    store.documents
-      .byOrder("o2")
+    (await store.documents.byOrder("o2"))
       .filter((document) => document.type === "proforma_invoice").length,
     1,
   );
-  store.documents.update("d3", { status: "draft", createdAt: "2026-05-28" });
+  await store.documents.update("d3", { status: "draft", createdAt: "2026-05-28" });
 });
 
-test("document line items use the order currency", async () => {
-  const original = store.orders.get("o1");
+test("document line items use the order currency", async (_t, store) => {
+  const original = await store.orders.get("o1");
   assert.ok(original);
-  store.orders.update("o1", { currency: "EUR" });
+  await store.orders.update("o1", { currency: "EUR" });
 
   const response = await GET(
     new Request("http://localhost/api/documents/download?id=d1") as never,
@@ -61,5 +59,5 @@ test("document line items use the order currency", async () => {
   assert.equal(response.status, 200);
   assert.match(html, /EUR 12\.50/);
   assert.doesNotMatch(html, /\$12\.50/);
-  store.orders.update("o1", { currency: original.currency });
+  await store.orders.update("o1", { currency: original.currency });
 });

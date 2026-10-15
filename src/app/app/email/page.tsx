@@ -26,6 +26,7 @@ import {
   Eye,
   AlertCircle,
   Save,
+  Link2,
 } from "lucide-react";
 import { useAIConfig } from "@/hooks/useAIConfig";
 
@@ -45,7 +46,7 @@ interface Email {
 
 export default function EmailPage() {
   const router = useRouter();
-  const { getTaskProvider } = useAIConfig();
+  const { getTaskProvider, unavailableReason } = useAIConfig();
   const searchParams = useSearchParams();
   const requestedTo = searchParams.get("to") || "";
   const [emails, setEmails] = useState<Email[]>([]);
@@ -59,6 +60,16 @@ export default function EmailPage() {
   const [sending, setSending] = useState(false);
   const [aiComposing, setAiComposing] = useState(false);
   const [loading, setLoading] = useState(true);
+
+  async function copySubscriptionUrl() {
+    try {
+      const response = await fetch("/api/email/consent", { cache:"no-store" });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "读取订阅申请链接失败");
+      await navigator.clipboard.writeText(data.subscribeUrl);
+      toast.success("已复制公开申请链接。请由收件人自行填写邮箱，再通过确认邮件订阅；仅打开链接不会订阅。");
+    } catch (error) { toast.error(error instanceof Error ? error.message : "复制失败，请确认浏览器允许剪贴板访问"); }
+  }
 
   async function loadEmails() {
     setLoading(true);
@@ -133,7 +144,7 @@ export default function EmailPage() {
   async function handleAICompose(openAsReply = false) {
     const aiConfig = getTaskProvider("email_compose");
     if (!aiConfig) {
-      toast.error("请先在 API 配置中心为邮件草稿配置 AI 模型");
+      toast.error(unavailableReason);
       return;
     }
     if (openAsReply && selected) openCompose("reply");
@@ -262,7 +273,7 @@ export default function EmailPage() {
             邮件中心
           </h1>
           <p className="text-sm text-muted-foreground mt-0.5">
-            查看邮件示例并生成可人工审核的回复草稿
+            管理当前工作区的邮件草稿（保存在数据库中）
           </p>
         </div>
         <div className="flex gap-2">
@@ -292,9 +303,15 @@ export default function EmailPage() {
       <div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
         <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
         <p>
-          当前为本地草稿模式：收件箱是示例数据，IMAP/SMTP Worker
-          尚未接入。保存操作不会向外部邮箱投递。
+          草稿按工作区保存在 PostgreSQL，重启不会丢失。本页“保存草稿”不会投递邮件。
+          真实 SMTP 发送 / IMAP 同步须另行配置邮箱、TLS 和凭据，再调用发送 / 同步接口；
+          营销邮件须经收件人邮箱确认同意，退订后不再发送，不能由管理员直接重新订阅。
         </p>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-3 rounded-md border p-3 text-sm">
+        <Button variant="outline" size="sm" onClick={() => void copySubscriptionUrl()}><Link2 className="mr-2 size-4" />复制订阅申请链接</Button>
+        <p className="text-muted-foreground">先配置真实 SMTP 确认邮箱；链接让收件人申请并邮箱确认，不是可绕过同意的确认令牌。</p>
       </div>
 
       <div className="grid gap-4 md:grid-cols-4">

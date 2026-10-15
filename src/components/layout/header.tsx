@@ -1,17 +1,19 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
-import { useSession } from "next-auth/react";
-import { signOut } from "next-auth/react";
+import { useSession, signOut } from "next-auth/react";
 import {
   Bell,
+  ChevronRight,
   ClipboardList,
   LogOut,
   Package,
   Plus,
   Search,
   Settings,
+  UserRound,
   Users,
   Video,
 } from "lucide-react";
@@ -27,20 +29,67 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 
-const quickLinks = [
-  { href: "/app/contacts", label: "查找客户", icon: Users },
-  { href: "/app/orders", label: "打开订单", icon: ClipboardList },
-  { href: "/app/products", label: "管理产品", icon: Package },
-  { href: "/app/product-video", label: "创建产品视频", icon: Video },
-  { href: "/app/settings", label: "配置 AI 提供商", icon: Settings },
-];
+const pageNames: Record<string, string> = {
+  "/app": "工作台",
+  "/app/prospecting": "AI 获客",
+  "/app/leads": "AI 营销",
+  "/app/contacts": "客户",
+  "/app/products": "产品",
+  "/app/product-video": "产品视频",
+  "/app/inquiries": "询盘",
+  "/app/quotations": "报价",
+  "/app/orders": "订单",
+  "/app/shipments": "出货",
+  "/app/suppliers": "供应商",
+  "/app/logistics": "物流",
+  "/app/finance": "财务",
+  "/app/documents": "单证",
+  "/app/reports": "数据报表",
+  "/app/account": "个人中心",
+  "/app/team": "团队成员",
+  "/app/billing": "订阅与计费",
+  "/app/ai-usage": "AI 用量",
+  "/app/saas": "SaaS 管理",
+  "/app/database": "数据库管理",
+  "/app/api-config": "API 配置中心",
+  "/app/email": "邮件中心",
+  "/app/messages": "消息",
+  "/app/settings": "设置",
+  "/app/voice-agent": "AI 语音客服",
+  "/app/bind": "消息渠道",
+  "/app/plugins": "插件源码",
+};
 
 export function Header() {
   const { data: session } = useSession();
+  const pathname = usePathname();
   const [commandOpen, setCommandOpen] = useState(false);
   const [query, setQuery] = useState("");
+  const isPlatform = session?.user?.isPlatformAdmin === true;
+  const pageName =
+    pageNames[pathname] ||
+    pageNames[
+      Object.keys(pageNames)
+        .filter((path) => path !== "/app" && pathname.startsWith(`${path}/`))
+        .sort((a, b) => b.length - a.length)[0]
+    ] ||
+    "工作台";
+  const quickLinks = [
+    { href: "/app/contacts", label: "查找客户", icon: Users },
+    { href: "/app/orders", label: "打开订单", icon: ClipboardList },
+    { href: "/app/products", label: "管理产品", icon: Package },
+    ...(isPlatform
+      ? [{ href: "/app/product-video", label: "创建产品视频", icon: Video }]
+      : []),
+    {
+      href: isPlatform ? "/app/api-config" : "/app/ai-usage",
+      label: "配置 AI 提供商",
+      icon: Settings,
+    },
+    { href: "/app/account", label: "个人中心", icon: UserRound },
+  ];
   const filteredQuickLinks = quickLinks.filter((item) =>
-    item.label.toLowerCase().includes(query.trim().toLowerCase()),
+    item.label.includes(query.trim()),
   );
 
   useEffect(() => {
@@ -50,129 +99,109 @@ export function Header() {
         setCommandOpen(true);
       }
     }
-
     window.addEventListener("keydown", handleShortcut);
     return () => window.removeEventListener("keydown", handleShortcut);
   }, []);
 
   return (
-    <header className="fixed left-0 right-0 top-0 z-30 flex h-[60px] items-center gap-3 border-b border-border bg-background/95 px-3 pl-14 shadow-[0_1px_0_rgb(18_32_44/2%)] backdrop-blur-md sm:px-6 sm:pl-16 md:left-[248px] md:pl-6">
-      <Dialog open={commandOpen} onOpenChange={setCommandOpen}>
-        <DialogTrigger className="flex h-9 w-9 items-center justify-center rounded-md border border-input bg-muted/35 text-muted-foreground transition-[border-color,background-color,box-shadow] hover:border-primary/35 hover:bg-background hover:text-foreground hover:shadow-sm sm:w-[min(420px,42vw)] sm:justify-start sm:gap-2 sm:px-3">
-          <Search className="size-4 shrink-0" />
-          <span className="hidden min-w-0 flex-1 truncate text-left text-xs sm:block">
-            搜索客户、订单、产品或执行操作
-          </span>
-          <kbd className="hidden rounded-sm border bg-background px-1.5 py-0.5 text-[10px] text-muted-foreground lg:inline">
-            ⌘ K
-          </kbd>
-        </DialogTrigger>
-        <DialogContent className="top-[18%] max-w-xl translate-y-0 p-0">
-          <DialogHeader className="border-b p-4 pb-3">
-            <DialogTitle>全局命令</DialogTitle>
-            <DialogDescription>
-              快速打开业务模块；后续可继续接入订单、客户和产品全文搜索。
-            </DialogDescription>
-          </DialogHeader>
-          <div className="px-3 pt-3">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+    <header className="workspace-header fixed left-0 right-0 top-0 z-30 flex h-[64px] items-center gap-4 border-b border-border px-3 pl-14 sm:px-6 sm:pl-16 md:left-[248px] md:pl-7">
+      <div className="workspace-breadcrumb">
+        <span>
+          {isPlatform &&
+          ["/app/saas", "/app/database", "/app/api-config"].includes(pathname)
+            ? "平台管理"
+            : "我的工作区"}
+        </span>
+        <ChevronRight className="hidden size-3 sm:block" aria-hidden="true" />
+        <span>{pageName}</span>
+      </div>
+      <div className="ml-auto flex items-center gap-2 sm:gap-3">
+        <Dialog open={commandOpen} onOpenChange={setCommandOpen}>
+          <DialogTrigger
+            className="workspace-search"
+            aria-label="搜索功能，快捷键 Command 或 Control K"
+          >
+            <Search className="size-3.5" aria-hidden="true" />
+            <span className="hidden lg:block">搜索功能与操作</span>
+            <kbd className="hidden lg:block">⌘ K</kbd>
+          </DialogTrigger>
+          <DialogContent className="top-[18%] max-w-xl translate-y-0 p-0">
+            <DialogHeader className="border-b p-5">
+              <DialogTitle>快速打开</DialogTitle>
+              <DialogDescription>
+                输入功能名称，快速前往对应的业务模块。
+              </DialogDescription>
+            </DialogHeader>
+            <div className="px-4 pt-2">
+              <label htmlFor="workspace-command" className="sr-only">
+                搜索功能名称
+              </label>
               <Input
-                className="pl-9"
-                placeholder="输入客户、订单号或操作名称"
+                id="workspace-command"
+                placeholder="例如：客户、订单、AI 配置"
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
                 autoFocus
               />
             </div>
-          </div>
-          <div className="grid gap-1 p-3 pt-2">
-            {filteredQuickLinks.map((item) => {
-              const Icon = item.icon;
-              return (
+            <div className="grid gap-1 p-4 pt-2">
+              {filteredQuickLinks.map((item) => (
                 <Link
                   key={item.href}
                   href={item.href}
                   onClick={() => setCommandOpen(false)}
-                  className="flex min-h-11 items-center gap-3 rounded-md px-3 text-sm font-medium text-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+                  className="flex min-h-11 items-center gap-3 rounded-md px-3 text-sm hover:bg-accent"
                 >
-                  <span className="flex size-8 items-center justify-center rounded-md bg-muted text-muted-foreground">
-                    <Icon className="size-4" />
-                  </span>
+                  <item.icon
+                    className="size-4 text-primary"
+                    aria-hidden="true"
+                  />
                   {item.label}
                 </Link>
-              );
-            })}
-            {filteredQuickLinks.length === 0 && (
-              <div className="px-3 py-8 text-center text-sm text-muted-foreground">
-                没有匹配的快捷操作
-              </div>
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      <div className="ml-auto flex items-center gap-1.5 sm:gap-2">
+              ))}
+              {!filteredQuickLinks.length && (
+                <p className="px-3 py-6 text-center text-sm text-muted-foreground">
+                  没有匹配的功能
+                </p>
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
         <Button
-          render={<Link href="/app/orders/new" />}
+          render={<Link href="/app/inquiries/new" />}
           nativeButton={false}
           size="sm"
           className="hidden sm:inline-flex"
         >
           <Plus />
-          新建订单
+          新建询盘
         </Button>
-
-        <Dialog>
-          <DialogTrigger
-            className="relative flex size-9 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-            aria-label="查看通知"
-            title="查看通知"
-          >
-            <Bell className="size-[18px]" />
-            <span className="absolute right-2 top-2 size-1.5 rounded-full bg-destructive ring-2 ring-background" />
-          </DialogTrigger>
-          <DialogContent className="max-w-md">
-            <DialogHeader>
-              <DialogTitle>需要处理</DialogTitle>
-              <DialogDescription>按业务风险排序的最新提醒。</DialogDescription>
-            </DialogHeader>
-            <div className="divide-y rounded-md border">
-              <Link
-                href="/app/orders"
-                className="block px-3 py-3 hover:bg-muted/60"
-              >
-                <p className="text-sm font-semibold text-destructive">
-                  订单 ORD-2026-089 已逾期
-                </p>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  确认货代提柜时间并同步客户。
-                </p>
-              </Link>
-              <Link
-                href="/app/quotations"
-                className="block px-3 py-3 hover:bg-muted/60"
-              >
-                <p className="text-sm font-semibold">3 份报价将在今天失效</p>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  优先跟进高意向客户。
-                </p>
-              </Link>
-            </div>
-          </DialogContent>
-        </Dialog>
-
-        <span className="hidden max-w-44 truncate text-xs text-muted-foreground lg:block">
-          {session?.user?.email}
-        </span>
-        <Avatar className="size-8 border border-border">
-          <AvatarFallback className="bg-primary/10 text-xs font-bold text-primary">
-            {session?.user?.name?.charAt(0)?.toUpperCase() || "T"}
-          </AvatarFallback>
-        </Avatar>
+        <Link
+          href="/app"
+          className="flex size-8 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
+          aria-label="返回工作台查看待办"
+          title="查看工作台待办"
+        >
+          <Bell className="size-4" />
+        </Link>
+        <span className="hidden h-5 w-px bg-border sm:block" />
+        <Link
+          href="/app/account"
+          aria-label="进入个人中心"
+          className="flex items-center gap-2.5 rounded-md focus-visible:outline-2 focus-visible:outline-primary"
+        >
+          <Avatar className="size-8 border border-border">
+            <AvatarFallback className="bg-secondary text-xs font-semibold text-primary">
+              {session?.user?.name?.charAt(0)?.toUpperCase() || "T"}
+            </AvatarFallback>
+          </Avatar>
+          <span className="hidden max-w-32 truncate text-xs lg:block">
+            {session?.user?.name || "我的账号"}
+          </span>
+        </Link>
         <Button
           variant="ghost"
-          size="icon"
+          size="icon-sm"
           onClick={() => signOut()}
           aria-label="退出登录"
           title="退出登录"

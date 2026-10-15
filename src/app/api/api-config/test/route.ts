@@ -2,6 +2,7 @@ import { RoomServiceClient } from "livekit-server-sdk";
 import { z } from "zod";
 import {
   boundedJson,
+  RequestBodyError,
   configAccess,
   mutationOrigin,
 } from "@/lib/api-config/access";
@@ -132,6 +133,6 @@ export async function POST(request: Request) {
             )
           ? error.message
           : "连接测试失败，请检查地址、密钥、模型权限及服务是否启动";
-    return Response.json({ ok: false, error: safe }, { status: 400 });
+    return Response.json({ ok: false, error: error instanceof RequestBodyError ? error.message : safe }, { status: error instanceof RequestBodyError ? error.status : 400 });
   }
 }

@@ -1,630 +1,447 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
-import { AnimatePresence, motion } from "motion/react";
+import Image from "next/image";
+import { motion, useReducedMotion } from "motion/react";
 import {
+  ArrowDown,
   ArrowRight,
-  Bot,
-  Boxes,
+  ArrowUpRight,
   Check,
-  CircleDollarSign,
-  ClipboardList,
+  CheckCheck,
+  Compass,
   FileText,
-  Film,
-  Globe,
+  Globe2,
   Menu,
-  PackageCheck,
+  Radar,
   ShieldCheck,
-  Ship,
-  Smartphone,
-  Users,
+  Sparkles,
   X,
 } from "lucide-react";
-
-import { LocalQrCode } from "@/components/local-qr-code";
-import { Button } from "@/components/ui/button";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { TradePilotBrand } from "@/components/tradepilot-brand";
 import { useTranslation } from "@/lib/i18n";
 import { motionTokens } from "@/lib/motion";
+import "./landing.css";
 
-const capabilities = [
+const workflow = [
   {
-    icon: Users,
-    titleKey: "landing.feature.customer",
-    descKey: "landing.feature.customer.desc",
-    tone: "bg-blue-50 text-blue-700",
+    icon: Radar,
+    title: "发现潜在客户",
+    en: "Find your next customer",
+    detail: "公开网页搜索 · 自动登记与初筛",
+    enDetail: "Public search, capture and qualification",
+  },
+  {
+    icon: Sparkles,
+    title: "写出有针对性的沟通",
+    en: "Make every conversation count",
+    detail: "业务画像 · 营销与回复草稿",
+    enDetail: "Business context and tailored drafts",
   },
   {
     icon: FileText,
-    titleKey: "landing.feature.quote",
-    descKey: "landing.feature.quote.desc",
-    tone: "bg-violet-50 text-violet-700",
-  },
-  {
-    icon: ClipboardList,
-    titleKey: "landing.feature.order",
-    descKey: "landing.feature.order.desc",
-    tone: "bg-emerald-50 text-emerald-700",
-  },
-  {
-    icon: PackageCheck,
-    titleKey: "landing.feature.ship",
-    descKey: "landing.feature.ship.desc",
-    tone: "bg-amber-50 text-amber-700",
-  },
-  {
-    icon: Bot,
-    titleKey: "landing.feature.ai",
-    descKey: "landing.feature.ai.desc",
-    tone: "bg-cyan-50 text-cyan-700",
-  },
-  {
-    icon: Film,
-    title: "产品视频生产",
-    titleEn: "Product video production",
-    desc: "从产品素材采集到短视频生成，任务与成片集中管理。",
-    descEn: "Manage collection, rendering tasks, and deliverables in one flow.",
-    tone: "bg-orange-50 text-orange-700",
+    title: "把机会推进到交付",
+    en: "Take opportunities to delivery",
+    detail: "客户跟进 · 报价 · 订单履约",
+    enDetail: "CRM, quotations and fulfillment",
   },
 ];
 
-const providers = ["DeepSeek", "通义千问", "OpenAI", "Ollama 本地"];
-const providersEn = ["DeepSeek", "Tongyi Qwen", "OpenAI", "Ollama Local"];
+const capabilities = [
+  {
+    number: "01",
+    icon: Radar,
+    title: "AI 获客",
+    en: "AI prospecting",
+    description: "先找到值得沟通的人。",
+    enDescription: "Start with people worth talking to.",
+    points: [
+      "公开网页搜索与来源核实",
+      "去重、评分与意向筛选",
+      "确认后转入客户库",
+    ],
+    enPoints: [
+      "Public search and source verification",
+      "Deduplication and qualification",
+      "Move verified leads into your CRM",
+    ],
+    href: "/app/prospecting",
+    className: "capability-prospecting",
+  },
+  {
+    number: "02",
+    icon: Sparkles,
+    title: "AI 营销",
+    en: "AI marketing",
+    description: "让表达更贴合每一位买家。",
+    enDescription: "Find the right words for each buyer.",
+    points: ["结合业务人设生成文案", "邮件与联系话术草稿", "人工确认后再触达"],
+    enPoints: [
+      "Copy grounded in your business",
+      "Email and outreach drafts",
+      "Review before reaching out",
+    ],
+    href: "/app/leads",
+    className: "capability-marketing",
+  },
+  {
+    number: "03",
+    icon: FileText,
+    title: "客户与订单",
+    en: "CRM & fulfillment",
+    description: "让商机有记录，跟进有下一步。",
+    enDescription: "Give every opportunity a next step.",
+    points: ["客户、询盘与跟进记录", "报价转订单，追踪交期", "出货与单证草稿"],
+    enPoints: [
+      "Customers, inquiries and follow-ups",
+      "Quote-to-order and deadlines",
+      "Shipments and document drafts",
+    ],
+    href: "/app/contacts",
+    className: "capability-crm",
+  },
+];
 
 export default function LandingPage() {
-  const { t, locale, setLocale } = useTranslation();
+  const { locale, setLocale } = useTranslation();
+  const zh = locale === "zh";
   const [menuOpen, setMenuOpen] = useState(false);
-  const [downloadUrl, setDownloadUrl] = useState("");
-
-  useEffect(() => {
-    const host = window.location.host;
-    if (!host.startsWith("localhost") && !host.startsWith("127.")) {
-      const timer = window.setTimeout(
-        () => setDownloadUrl(`${window.location.origin}/download`),
-        0,
-      );
-      return () => window.clearTimeout(timer);
-    }
-
-    fetch("/api/network")
-      .then((response) => response.json())
-      .then((data) =>
-        setDownloadUrl(`${data.urls?.lan || window.location.origin}/download`),
-      )
-      .catch(() => setDownloadUrl(`${window.location.origin}/download`));
-  }, []);
-
-  const providerList = locale === "zh" ? providers : providersEn;
-  const isChinese = locale === "zh";
-
-  function scrollToSection(id: string) {
-    document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
-    setMenuOpen(false);
-  }
+  const reduceMotion = useReducedMotion();
+  const text = (chinese: string, english: string) => (zh ? chinese : english);
+  const navigation = [
+    { href: "#workflow", label: text("业务路径", "Your workflow") },
+    { href: "#capabilities", label: text("核心能力", "Capabilities") },
+    { href: "/download", label: text("桌面入口", "Desktop access") },
+  ];
 
   return (
-    <div className="min-h-screen bg-[#f4f7fa] text-[#12202c]">
-      <header className="fixed inset-x-0 top-0 z-50 border-b border-white/15 bg-[#17212b]/95 text-white backdrop-blur-md">
-        <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6">
-          <Link
-            href="/"
-            className="flex items-center gap-3"
-            aria-label="TradePilot 首页"
-          >
-            <span className="flex size-9 items-center justify-center rounded-md bg-[#2f77e5] shadow-[inset_0_0_0_1px_rgb(255_255_255/20%)]">
-              <Ship className="size-[18px]" />
+    <div className="trade-landing" lang={zh ? "zh-CN" : "en"}>
+      <a className="skip-link" href="#landing-main">
+        {text("跳到主要内容", "Skip to main content")}
+      </a>
+      <main id="landing-main">
+        <section className="voyage-hero" aria-labelledby="hero-title">
+          <Image
+            src="/images/trade-harbor.jpg"
+            alt=""
+            fill
+            priority
+            sizes="100vw"
+            className="voyage-photo"
+            aria-hidden="true"
+          />
+          <div className="voyage-shade" aria-hidden="true" />
+          <div className="voyage-grain" aria-hidden="true" />
+          <header className="voyage-navigation">
+            <Link
+              href="/"
+              aria-label="TradePilot 首页"
+              className="landing-brand-link"
+            >
+              <TradePilotBrand />
+            </Link>
+            <nav
+              className="voyage-nav-links"
+              aria-label={text("官网导航", "Main navigation")}
+            >
+              {navigation.map((item) => (
+                <a key={item.href} href={item.href}>
+                  {item.label}
+                </a>
+              ))}
+            </nav>
+            <div className="voyage-nav-actions">
+              <button
+                className="language-switch"
+                type="button"
+                onClick={() => setLocale(zh ? "en" : "zh")}
+                aria-label={text("切换为英文", "Switch to Chinese")}
+              >
+                <Globe2 className="size-3.5" aria-hidden="true" />
+                {zh ? "EN" : "中文"}
+              </button>
+              <Link href="/auth/login" className="nav-login">
+                {text("进入工作台", "Sign in")}
+                <ArrowUpRight className="size-4" aria-hidden="true" />
+              </Link>
+              <button
+                className="voyage-menu-toggle"
+                type="button"
+                aria-expanded={menuOpen}
+                aria-controls="voyage-mobile-nav"
+                aria-label={
+                  menuOpen
+                    ? text("关闭菜单", "Close menu")
+                    : text("打开菜单", "Open menu")
+                }
+                onClick={() => setMenuOpen(!menuOpen)}
+              >
+                {menuOpen ? <X /> : <Menu />}
+              </button>
+            </div>
+          </header>
+          {menuOpen && (
+            <nav
+              id="voyage-mobile-nav"
+              className="voyage-mobile-nav"
+              aria-label={text("移动端官网导航", "Mobile navigation")}
+            >
+              {navigation.map((item) => (
+                <a
+                  href={item.href}
+                  key={item.href}
+                  onClick={() => setMenuOpen(false)}
+                >
+                  {item.label}
+                  <ArrowUpRight className="size-4" aria-hidden="true" />
+                </a>
+              ))}
+            </nav>
+          )}
+
+          <div className="voyage-content">
+            <div className="voyage-caption">
+              <span className="voyage-status-dot" />
+              {text(
+                "为小型外贸团队而设计",
+                "Built for small international trade teams",
+              )}
+              <span className="voyage-caption-divider" />
+              AI · CRM · TRADE
+            </div>
+            <div className="voyage-intro">
+              <h1 id="hero-title" className="voyage-enter">
+                {text("让每一次发现，", "Discover the right people.")}
+                <br />
+                {text("走向下一笔生意。", "Move business forward.")}
+              </h1>
+              <div className="voyage-pitch voyage-enter">
+                <p>
+                  {text(
+                    "从发现潜在客户，到写好第一封邮件，再到报价与交付。把 AI 获客、营销和外贸业务，放进同一个工作台。",
+                    "From finding prospects to writing your first email, quoting and delivery. Connect AI prospecting, marketing and trade in one workspace.",
+                  )}
+                </p>
+                <Link href="/auth/register" className="voyage-cta">
+                  {text("创建我的工作区", "Create your workspace")}
+                  <span>
+                    <ArrowRight className="size-5" aria-hidden="true" />
+                  </span>
+                </Link>
+                <span className="voyage-cta-note">
+                  {text("已有账号？", "Already have an account?")}{" "}
+                  <Link href="/auth/login">{text("直接登录", "Sign in")}</Link>
+                </span>
+              </div>
+            </div>
+            <div className="voyage-wordmark" aria-hidden="true">
+              TradePilot<span>✦</span>
+            </div>
+            <div className="voyage-bottom">
+              <span>
+                {text(
+                  "更少切换，更专注于生意。",
+                  "Less switching. More meaningful work.",
+                )}
+              </span>
+              <a href="#workflow">
+                {text("探索工作流", "Explore the workflow")}
+                <ArrowDown className="size-3.5" aria-hidden="true" />
+              </a>
+            </div>
+          </div>
+        </section>
+
+        <section
+          className="voyage-about"
+          id="workflow"
+          aria-labelledby="workflow-title"
+        >
+          <div className="about-heading">
+            <Compass
+              className="about-compass"
+              strokeWidth={1}
+              aria-hidden="true"
+            />
+            <h2 id="workflow-title">
+              {text("好生意，从一次", "Good business starts with")}
+              <br />
+              <em>{text("有方向的发现", "a sense of direction")}</em>
+              {text("开始。", ".")}
+            </h2>
+            <p>
+              {text(
+                "发现、表达、跟进，每一步都彼此连接。AI 帮你整理线索和准备沟通，你决定下一步怎么走。",
+                "Connect discovery, communication and follow-up. AI helps organize leads and prepare conversations. You decide what comes next.",
+              )}
+            </p>
+          </div>
+          <ol className="voyage-workflow">
+            {workflow.map((step, index) => (
+              <li key={step.title}>
+                <span className="workflow-sequence">0{index + 1}</span>
+                <step.icon className="workflow-icon" aria-hidden="true" />
+                <h3>{text(step.title, step.en)}</h3>
+                <p>{text(step.detail, step.enDetail)}</p>
+                {index < workflow.length - 1 && (
+                  <ArrowRight className="workflow-arrow" aria-hidden="true" />
+                )}
+              </li>
+            ))}
+          </ol>
+          <div className="voyage-principles">
+            <span>
+              <ShieldCheck aria-hidden="true" />
+              {text("工作区数据隔离", "Workspace isolation")}
             </span>
             <span>
-              <strong className="block text-sm">TradePilot</strong>
-              <span className="block text-[9px] font-semibold text-[#91a5b8]">
-                GLOBAL TRADE OS
-              </span>
+              <CheckCheck aria-hidden="true" />
+              {text("沟通草稿由你确认", "You review the drafts")}
             </span>
-          </Link>
-
-          <nav
-            className="hidden items-center gap-1 md:flex"
-            aria-label="官网导航"
-          >
-            <Button
-              variant="ghost"
-              size="sm"
-              className="!border-transparent text-[#c7d1db] hover:bg-white/10 hover:text-white"
-              onClick={() => scrollToSection("operations")}
-            >
-              业务能力
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="!border-transparent text-[#c7d1db] hover:bg-white/10 hover:text-white"
-              onClick={() => scrollToSection("studio")}
-            >
-              视频生产
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="!border-transparent text-[#c7d1db] hover:bg-white/10 hover:text-white"
-              onClick={() => scrollToSection("deployment")}
-            >
-              自托管
-            </Button>
-          </nav>
-
-          <div className="hidden items-center gap-2 md:flex">
-            <Select
-              value={locale}
-              items={{ zh: "中文", en: "English" }}
-              onValueChange={(value) =>
-                value && setLocale(value as "zh" | "en")
-              }
-            >
-              <SelectTrigger className="h-9 w-28 !border-white/20 !bg-white/5 !text-white hover:!bg-white/10">
-                <Globe className="size-4" />
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="zh">中文</SelectItem>
-                <SelectItem value="en">English</SelectItem>
-              </SelectContent>
-            </Select>
-            <Button
-              render={<Link href="/auth/login" />}
-              nativeButton={false}
-              variant="ghost"
-              className="!border-transparent text-white hover:bg-white/10 hover:text-white"
-            >
-              {t("landing.nav.login")}
-            </Button>
-            <Button render={<Link href="/auth/login" />} nativeButton={false}>
-              {t("landing.nav.start")}
-              <ArrowRight />
-            </Button>
-          </div>
-
-          <div className="flex items-center gap-2 md:hidden">
-            <Select
-              value={locale}
-              items={{ zh: "中", en: "EN" }}
-              onValueChange={(value) =>
-                value && setLocale(value as "zh" | "en")
-              }
-            >
-              <SelectTrigger className="h-9 w-20 !border-white/20 !bg-white/5 !text-white">
-                <Globe className="size-4" />
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="zh">中文</SelectItem>
-                <SelectItem value="en">EN</SelectItem>
-              </SelectContent>
-            </Select>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="!border-transparent text-white hover:bg-white/10 hover:text-white"
-              onClick={() => setMenuOpen((open) => !open)}
-              aria-label={menuOpen ? "关闭导航" : "打开导航"}
-              aria-expanded={menuOpen}
-            >
-              {menuOpen ? <X /> : <Menu />}
-            </Button>
-          </div>
-        </div>
-
-        <AnimatePresence initial={false}>
-          {menuOpen && (
-            <motion.nav
-              initial={{ opacity: 0, y: -8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
-              transition={{ duration: motionTokens.duration.fast }}
-              className="border-t border-white/15 bg-[#17212b] px-4 py-4 md:hidden"
-              aria-label="移动端官网导航"
-            >
-              <div className="grid gap-2">
-                <Button
-                  variant="ghost"
-                  className="justify-start text-white"
-                  onClick={() => scrollToSection("operations")}
-                >
-                  业务能力
-                </Button>
-                <Button
-                  variant="ghost"
-                  className="justify-start text-white"
-                  onClick={() => scrollToSection("studio")}
-                >
-                  视频生产
-                </Button>
-                <Button
-                  variant="ghost"
-                  className="justify-start text-white"
-                  onClick={() => scrollToSection("deployment")}
-                >
-                  自托管
-                </Button>
-                <Button
-                  render={<Link href="/auth/login" />}
-                  nativeButton={false}
-                  className="mt-2"
-                >
-                  {t("landing.nav.start")}
-                  <ArrowRight />
-                </Button>
-              </div>
-            </motion.nav>
-          )}
-        </AnimatePresence>
-      </header>
-
-      <main>
-        <section className="relative flex min-h-[calc(100svh-48px)] items-center overflow-hidden px-4 pb-12 pt-28 text-white sm:px-6">
-          <div
-            className="absolute inset-0 bg-cover bg-center bg-no-repeat"
-            style={{ backgroundImage: "url('/tradepilot-console.png')" }}
-            aria-hidden="true"
-          />
-          <div
-            className="absolute inset-0 bg-[#101b26]/85"
-            aria-hidden="true"
-          />
-
-          <div className="relative mx-auto w-full max-w-7xl">
-            <div className="max-w-3xl">
-              <p className="mb-4 flex items-center gap-2 text-xs font-semibold text-[#83cbd5]">
-                <span className="studio-live-dot" />
-                GLOBAL OPERATIONS · SELF HOSTED
-              </p>
-              <h1 className="text-5xl font-bold leading-none sm:text-6xl">
-                TradePilot
-              </h1>
-              <h2 className="mt-5 max-w-2xl text-2xl font-semibold leading-tight sm:text-4xl">
-                {isChinese
-                  ? "外贸业务、履约与产品内容的统一控制台"
-                  : "One control system for trade, fulfillment, and product content"}
-              </h2>
-              <p className="mt-5 max-w-2xl text-sm leading-7 text-[#c5d0da] sm:text-base">
-                {isChinese
-                  ? "把客户、询盘、报价、订单、出货和产品视频放回同一条业务线上，让小团队先看到异常，再处理日常工作。"
-                  : "Keep customers, quotations, orders, shipments, and product video on one operational line, with exceptions visible first."}
-              </p>
-
-              <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-                <Button
-                  render={<Link href="/auth/login" />}
-                  nativeButton={false}
-                  size="lg"
-                  className="h-11 px-5"
-                >
-                  {t("landing.hero.cta")}
-                  <ArrowRight />
-                </Button>
-                <Button
-                  render={<Link href="/app" />}
-                  nativeButton={false}
-                  size="lg"
-                  variant="outline"
-                  className="h-11 border-white/35 bg-white/5 px-5 text-white hover:bg-white/10 hover:text-white"
-                >
-                  {t("landing.hero.demo")}
-                </Button>
-              </div>
-
-              <div className="mt-10 hidden max-w-2xl grid-cols-3 border-y border-white/20 py-4 sm:grid">
-                {[
-                  ["31.6K", isChinese ? "演示订单金额" : "Demo order value"],
-                  ["60%", isChinese ? "询盘转化率" : "Inquiry conversion"],
-                  ["BYOK", isChinese ? "模型自主配置" : "Model ownership"],
-                ].map(([value, label]) => (
-                  <div
-                    key={label}
-                    className="border-r border-white/20 px-4 first:pl-0 last:border-r-0"
-                  >
-                    <strong className="block text-xl tabular-nums">
-                      {value}
-                    </strong>
-                    <span className="mt-1 block text-[11px] text-[#9eafbe]">
-                      {label}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
+            <span>
+              <Globe2 aria-hidden="true" />
+              {text("使用自己的 AI Key", "Bring your own AI key")}
+            </span>
           </div>
         </section>
 
         <section
-          id="operations"
-          className="scroll-mt-16 border-b border-[#dce3ea] bg-white px-4 py-20 sm:px-6"
+          className="voyage-capabilities"
+          id="capabilities"
+          aria-labelledby="capabilities-title"
         >
-          <div className="mx-auto max-w-7xl">
-            <div className="mb-10 max-w-2xl">
-              <p className="mb-2 text-xs font-semibold text-[#1769e0]">
-                OPERATIONS / ONE FLOW
-              </p>
-              <h2 className="text-3xl font-bold">
-                {isChinese
-                  ? "日常业务保持明亮、紧凑、可扫描"
-                  : "Bright, compact, and scannable daily operations"}
-              </h2>
-              <p className="mt-3 text-sm leading-6 text-[#637181]">
-                {t("landing.features.desc")}
-              </p>
-            </div>
-
-            <div className="grid overflow-hidden rounded-lg border border-[#dce3ea] md:grid-cols-2 lg:grid-cols-3">
-              {capabilities.map((capability) => {
-                const Icon = capability.icon;
-                return (
-                  <article
-                    key={capability.titleKey || capability.title}
-                    className="border-b border-[#dce3ea] p-6 md:border-r lg:min-h-48"
-                  >
-                    <span
-                      className={`flex size-10 items-center justify-center rounded-md ${capability.tone}`}
-                    >
-                      <Icon className="size-5" />
-                    </span>
-                    <h3 className="mt-5 text-base font-semibold">
-                      {capability.titleKey
-                        ? t(capability.titleKey)
-                        : isChinese
-                          ? capability.title
-                          : capability.titleEn}
-                    </h3>
-                    <p className="mt-2 text-sm leading-6 text-[#637181]">
-                      {capability.descKey
-                        ? t(capability.descKey)
-                        : isChinese
-                          ? capability.desc
-                          : capability.descEn}
-                    </p>
-                  </article>
-                );
-              })}
-            </div>
-          </div>
-        </section>
-
-        <section
-          id="studio"
-          className="scroll-mt-16 bg-[#17212b] px-4 py-20 text-white sm:px-6"
-        >
-          <div className="mx-auto grid max-w-7xl gap-12 lg:grid-cols-[0.8fr_1.2fr] lg:items-center">
+          <div className="capabilities-heading">
             <div>
-              <p className="mb-2 flex items-center gap-2 text-xs font-semibold text-[#83cbd5]">
-                <span className="size-2 rounded-full bg-[#e85b32]" />
-                GROWTH STUDIO
-              </p>
-              <h2 className="max-w-xl text-3xl font-bold leading-tight">
-                {isChinese
-                  ? "产品素材进入，销售视频交付"
-                  : "Product material in, sales video delivered"}
-              </h2>
-              <p className="mt-4 max-w-xl text-sm leading-7 text-[#aebbc6]">
-                {isChinese
-                  ? "Firecrawl 采集产品素材，MoneyPrinterTurbo 与 OpenMontage 承接自动成片和高级制作，任务状态与交付集中可见。"
-                  : "Collect product material with Firecrawl and route rendering through MoneyPrinterTurbo or OpenMontage with visible delivery states."}
-              </p>
-              <Button
-                render={<Link href="/app/product-video" />}
-                nativeButton={false}
-                className="mt-7 bg-[#e85b32] text-white hover:bg-[#d94f29]"
-              >
-                {isChinese ? "进入产品视频" : "Open product video"}
-                <ArrowRight />
-              </Button>
-            </div>
-
-            <div className="rounded-lg border border-[#43505d] bg-[#1d2935] p-5 sm:p-7">
-              <div className="flex items-center justify-between border-b border-[#43505d] pb-4">
-                <div>
-                  <span className="text-[10px] text-[#8194a7]">
-                    CURRENT PIPELINE
-                  </span>
-                  <strong className="mt-1 block text-sm">
-                    {isChinese
-                      ? "产品内容生产链路"
-                      : "Product content pipeline"}
-                  </strong>
-                </div>
-                <span className="flex items-center gap-2 text-xs font-semibold text-[#78cfb1]">
-                  <span className="studio-live-dot !bg-[#38b986]" />
-                  {isChinese ? "引擎在线" : "Engine online"}
-                </span>
-              </div>
-
-              <div className="relative mt-7 grid grid-cols-4 gap-2">
-                <div className="absolute left-[12.5%] right-[12.5%] top-4 h-px bg-[#43505d]" />
-                <motion.div
-                  className="absolute left-[12.5%] top-4 h-px origin-left bg-[#e85b32]"
-                  initial={{ scaleX: 0 }}
-                  whileInView={{ scaleX: 0.68 }}
-                  viewport={{ once: true, amount: 0.8 }}
-                  transition={{
-                    duration: motionTokens.duration.slow,
-                    ease: motionTokens.easing.smooth,
-                  }}
-                  style={{ width: "75%" }}
-                />
-                {[
-                  [Boxes, isChinese ? "素材采集" : "Collect", "complete"],
-                  [FileText, isChinese ? "内容配置" : "Configure", "complete"],
-                  [Bot, isChinese ? "引擎生成" : "Generate", "active"],
-                  [Film, isChinese ? "成片交付" : "Deliver", "pending"],
-                ].map(([Icon, label, status]) => {
-                  const PipelineIcon = Icon as typeof Boxes;
-                  return (
-                    <div
-                      key={label as string}
-                      className="relative z-10 text-center"
-                    >
-                      <span
-                        className={`mx-auto flex size-8 items-center justify-center rounded-full border ${status === "complete" ? "border-[#38b986] bg-[#203d38] text-[#78cfb1]" : status === "active" ? "border-[#f28a67] bg-[#e85b32] text-white" : "border-[#5b6875] bg-[#263440] text-[#8194a7]"}`}
-                      >
-                        {status === "complete" ? (
-                          <Check className="size-4" />
-                        ) : (
-                          <PipelineIcon className="size-4" />
-                        )}
-                      </span>
-                      <span className="mt-3 block text-[11px] font-semibold text-[#d5dde5]">
-                        {label as string}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <section
-          id="deployment"
-          className="scroll-mt-16 border-b border-[#dce3ea] bg-white px-4 py-20 sm:px-6"
-        >
-          <div className="mx-auto grid max-w-7xl gap-12 lg:grid-cols-[1.1fr_0.9fr] lg:items-center">
-            <div>
-              <p className="mb-2 text-xs font-semibold text-[#12805c]">
-                BYOK / SELF HOSTED
-              </p>
-              <h2 className="max-w-2xl text-3xl font-bold">
-                {t("landing.byok.title")}
-              </h2>
-              <p className="mt-4 max-w-2xl text-sm leading-7 text-[#637181]">
-                {t("landing.byok.desc")}
-              </p>
-
-              <div className="mt-8 grid max-w-2xl grid-cols-2 overflow-hidden rounded-lg border border-[#dce3ea] sm:grid-cols-4">
-                {providerList.map((provider) => (
-                  <div
-                    key={provider}
-                    className="flex min-h-20 items-center justify-center border-b border-r border-[#dce3ea] px-3 text-center text-sm font-semibold last:border-r-0"
-                  >
-                    {provider}
-                  </div>
-                ))}
-              </div>
-
-              <div className="mt-7 flex flex-wrap gap-x-6 gap-y-3 text-xs font-medium text-[#4e5d6b]">
-                <span className="flex items-center gap-2">
-                  <ShieldCheck className="size-4 text-[#12805c]" />
-                  {isChinese ? "密钥由使用者配置" : "User-configured keys"}
-                </span>
-                <span className="flex items-center gap-2">
-                  <CircleDollarSign className="size-4 text-[#1769e0]" />
-                  {isChinese ? "模型费用独立结算" : "Independent model billing"}
-                </span>
-                <span className="flex items-center gap-2">
-                  <Globe className="size-4 text-[#b75c13]" />
-                  {isChinese ? "支持本地服务地址" : "Local endpoints supported"}
-                </span>
-              </div>
-            </div>
-
-            <div className="rounded-lg border border-[#dce3ea] bg-[#f4f7fa] p-7">
-              <div className="flex items-start gap-4">
-                <span className="flex size-11 shrink-0 items-center justify-center rounded-md bg-[#17212b] text-white">
-                  <Smartphone className="size-5" />
-                </span>
-                <div>
-                  <h3 className="font-semibold">
-                    {isChinese
-                      ? "同一部署，桌面与手机访问"
-                      : "One deployment for desktop and mobile"}
-                  </h3>
-                  <p className="mt-2 text-sm leading-6 text-[#637181]">
-                    {isChinese
-                      ? "响应式后台通过同一个地址访问，也可以添加到手机主屏幕。"
-                      : "Use the same responsive workspace URL on desktop or mobile."}
-                  </p>
-                </div>
-              </div>
-              <div className="mt-7 border-t border-[#dce3ea] pt-7 text-center">
-                {downloadUrl ? (
-                  <LocalQrCode
-                    value={downloadUrl}
-                    alt="打开 TradePilot 移动入口"
-                    className="mx-auto size-36 bg-white"
-                  />
-                ) : (
-                  <div className="mx-auto flex size-36 items-center justify-center border border-[#dce3ea] bg-white text-xs text-[#637181]">
-                    生成二维码...
-                  </div>
+              <span className="section-note">
+                {text(
+                  "一个工作台，连接整个业务过程",
+                  "One workspace. A connected business.",
                 )}
-                <p className="mt-4 text-xs font-semibold text-[#4e5d6b]">
-                  {isChinese ? "扫描当前部署地址" : "Scan this deployment URL"}
-                </p>
-              </div>
+              </span>
+              <h2 id="capabilities-title">
+                {text("从第一条线索，", "From the first lead,")}
+                <br />
+                <span>{text("到每一次可靠交付。", "to every delivery.")}</span>
+              </h2>
             </div>
+            <p>
+              {text(
+                "按照你的工作方式组织工具。先找到机会，再把机会变成可追踪的客户、报价和订单。",
+                "Tools organized around the way you work. Find opportunities, then turn them into customers, quotations and orders you can track.",
+              )}
+            </p>
           </div>
-        </section>
-
-        <section className="bg-[#eaf2fd] px-4 py-16 sm:px-6">
-          <div className="mx-auto flex max-w-7xl flex-col gap-6 md:flex-row md:items-center md:justify-between">
+          <div className="capability-grid">
+            {capabilities.map((capability) => (
+              <motion.article
+                key={capability.number}
+                className={`capability-card ${capability.className}`}
+                initial={false}
+                whileHover={
+                  reduceMotion ? undefined : { y: -motionTokens.distance.xs }
+                }
+                transition={{
+                  duration: motionTokens.duration.fast,
+                  ease: motionTokens.easing.smooth,
+                }}
+              >
+                <div className="capability-top">
+                  <capability.icon strokeWidth={1.5} aria-hidden="true" />
+                  <span>{capability.number}</span>
+                </div>
+                <h3>{text(capability.title, capability.en)}</h3>
+                <p className="capability-description">
+                  {text(capability.description, capability.enDescription)}
+                </p>
+                <ul>
+                  {(zh ? capability.points : capability.enPoints).map(
+                    (point) => (
+                      <li key={point}>
+                        <Check className="size-3.5" aria-hidden="true" />
+                        {point}
+                      </li>
+                    ),
+                  )}
+                </ul>
+                <Link href={capability.href}>
+                  {text("打开", "Open")} {text(capability.title, capability.en)}
+                  <ArrowUpRight className="size-4" aria-hidden="true" />
+                </Link>
+              </motion.article>
+            ))}
+            <article className="capability-media">
+              <Image
+                src="/images/trade-harbor.jpg"
+                alt=""
+                fill
+                sizes="(min-width: 1100px) 22vw, (min-width: 700px) 45vw, 90vw"
+                aria-hidden="true"
+              />
+              <div className="capability-media-content">
+                <span>{text("让产品被看见", "Bring products to life")}</span>
+                <h3>
+                  {text("产品内容，", "Product stories,")}
+                  <br />
+                  <em>{text("准备出发。", "ready to travel.")}</em>
+                </h3>
+                <p>
+                  {text(
+                    "产品资料、素材与视频任务集中管理。",
+                    "Keep product information, assets and video tasks together.",
+                  )}
+                </p>
+                <Link href="/app/product-video">
+                  {text("进入产品视频", "Open product video")}
+                  <ArrowUpRight className="size-4" aria-hidden="true" />
+                </Link>
+              </div>
+            </article>
+          </div>
+          <div className="voyage-join">
             <div>
-              <h2 className="text-2xl font-bold">{t("landing.cta.title")}</h2>
-              <p className="mt-2 text-sm text-[#637181]">
-                {t("landing.cta.desc")}
+              <h3>
+                {text(
+                  "下一段增长，从这里起航。",
+                  "Your next chapter starts here.",
+                )}
+              </h3>
+              <p>
+                {text(
+                  "创建独立工作区，用你的业务定义 AI。",
+                  "Create a workspace. Give AI your business context.",
+                )}
               </p>
             </div>
-            <Button
-              render={<Link href="/auth/login" />}
-              nativeButton={false}
-              size="lg"
-              className="md:shrink-0"
-            >
-              {t("landing.hero.cta")}
-              <ArrowRight />
-            </Button>
+            <Link href="/auth/register" className="voyage-cta">
+              {text("开始使用 TradePilot", "Start with TradePilot")}
+              <span>
+                <ArrowRight className="size-5" aria-hidden="true" />
+              </span>
+            </Link>
           </div>
-        </section>
-      </main>
-
-      <footer className="border-t border-[#2f3c49] bg-[#17212b] px-4 py-8 text-[#9eafbe] sm:px-6">
-        <div className="mx-auto flex max-w-7xl flex-col gap-5 text-xs sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-2 text-white">
-            <Ship className="size-4" />
-            <strong>TradePilot</strong>
-          </div>
-          <p>{t("landing.footer")}</p>
-          <div className="flex items-center gap-4">
+          <footer className="voyage-footer">
+            <Link href="/" className="landing-brand-link">
+              <TradePilotBrand compact />
+            </Link>
+            <p>
+              {text(
+                "AI 辅助发现与表达，决策由你掌握。",
+                "AI supports discovery and communication. You stay in control.",
+              )}
+            </p>
             <a
               href="https://github.com/feifei9126/tradepilot"
               target="_blank"
-              rel="noreferrer"
-              className="hover:text-white"
+              rel="noopener noreferrer"
             >
               GitHub
+              <ArrowUpRight className="size-3.5" aria-hidden="true" />
             </a>
-            <a
-              href="https://github.com/feifei9126/tradepilot#readme"
-              target="_blank"
-              rel="noreferrer"
-              className="hover:text-white"
-            >
-              {isChinese ? "使用文档" : "Docs"}
-            </a>
-            <a
-              href="https://github.com/feifei9126/tradepilot/blob/main/LICENSE"
-              target="_blank"
-              rel="noreferrer"
-              className="hover:text-white"
-            >
-              License
-            </a>
-          </div>
-        </div>
-      </footer>
+            <span>© {new Date().getFullYear()} TradePilot</span>
+          </footer>
+        </section>
+      </main>
     </div>
   );
 }

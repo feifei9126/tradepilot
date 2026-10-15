@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { getWorkerAssetUrl } from "@/lib/product-video/engine";
-import { productVideoJobs } from "@/lib/product-video/job-repository";
+import { getStore } from "@/lib/workspace-context";
+import { withTenant } from "@/lib/tenant-route";
 
 const FORWARDED_HEADERS = [
   "accept-ranges",
@@ -18,7 +19,7 @@ async function proxyAsset(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
-  const job = await productVideoJobs.get(id);
+  const job = await getStore().productVideoJobs.get(id);
   if (!job) return NextResponse.json({ error: "任务不存在" }, { status: 404 });
 
   try {
@@ -57,5 +58,5 @@ async function proxyAsset(
   }
 }
 
-export const GET = proxyAsset;
-export const HEAD = proxyAsset;
+export const GET = withTenant(proxyAsset);
+export const HEAD = withTenant(proxyAsset);

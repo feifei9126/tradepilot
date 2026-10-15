@@ -1,8 +1,7 @@
 import assert from "node:assert/strict";
-import test from "node:test";
+import { workspaceTest as test } from "../helpers/workspace";
 
 import { PATCH, POST } from "../../src/app/api/shipments/route";
-import { store } from "../../src/lib/store";
 
 test("duplicate shipment creation is rejected", async () => {
   const response = await POST(
@@ -22,12 +21,12 @@ test("duplicate shipment creation is rejected", async () => {
   assert.match((await response.json()).error, /已有出货记录/);
 });
 
-test("shipment progress updates the related order status", async () => {
-  const originalShipment = store.shipments.get("sh2");
-  const originalOrder = store.orders.get("o1");
+test("shipment progress updates the related order status", async (_t, store) => {
+  const originalShipment = await store.shipments.get("sh2");
+  const originalOrder = await store.orders.get("o1");
   assert.ok(originalShipment);
   assert.ok(originalOrder);
-  store.shipments.update("sh2", { status: "booked" });
+  await store.shipments.update("sh2", { status: "booked" });
 
   const response = await PATCH(
     new Request("http://localhost/api/shipments", {
@@ -38,11 +37,11 @@ test("shipment progress updates the related order status", async () => {
   );
 
   assert.equal(response.status, 200);
-  assert.equal(store.shipments.get("sh2")?.status, "in_transit");
-  assert.equal(store.orders.get("o1")?.status, "shipped");
-  assert.equal(store.orders.get("o1")?.progressPercent, 100);
-  store.shipments.update("sh2", { status: originalShipment.status });
-  store.orders.update("o1", {
+  assert.equal((await store.shipments.get("sh2"))?.status, "in_transit");
+  assert.equal((await store.orders.get("o1"))?.status, "shipped");
+  assert.equal((await store.orders.get("o1"))?.progressPercent, 100);
+  await store.shipments.update("sh2", { status: originalShipment.status });
+  await store.orders.update("o1", {
     status: originalOrder.status,
     progressPercent: originalOrder.progressPercent,
   });

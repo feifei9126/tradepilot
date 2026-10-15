@@ -1,16 +1,16 @@
 ---
-name: TradePilot A+C
+name: TradePilot Voyage
 description: A bright global-trade control system with a focused media-production studio.
 colors:
-  control-cobalt: "#1769E0"
-  operational-emerald: "#12805C"
+  control-green: "#28624B"
+  operational-emerald: "#357855"
   studio-orange: "#E85B32"
-  graphite-navigation: "#17212B"
-  primary-text: "#12202C"
-  secondary-text: "#637181"
-  control-canvas: "#F4F7FA"
+  graphite-navigation: "#16251B"
+  primary-text: "#1E2E24"
+  secondary-text: "#647264"
+  control-canvas: "#F5F5EF"
   surface: "#FFFFFF"
-  structural-line: "#DCE3EA"
+  structural-line: "#DFE4D9"
   warning: "#B75C13"
   danger: "#C9383E"
 typography:
@@ -39,9 +39,9 @@ typography:
     lineHeight: 1.35
     letterSpacing: "normal"
 rounded:
-  sm: "4px"
-  md: "6px"
-  lg: "8px"
+  sm: "6px"
+  md: "8px"
+  lg: "12px"
 spacing:
   xs: "4px"
   sm: "8px"
@@ -50,7 +50,7 @@ spacing:
   xl: "32px"
 components:
   button-primary:
-    backgroundColor: "{colors.control-cobalt}"
+    backgroundColor: "{colors.control-green}"
     textColor: "{colors.surface}"
     rounded: "{rounded.md}"
     height: "38px"
@@ -68,13 +68,13 @@ components:
     padding: "0 12px"
 ---
 
-# Design System: TradePilot A+C
+# Design System: TradePilot Voyage
 
 ## Overview
 
 **Creative North Star: "The Global Trade Bridge"**
 
-The default product surface is a bright, precise control room: compact navigation, explicit hierarchy, tabular business data, and restrained cobalt and emerald signals. The product-video and media-production surfaces become a focused graphite studio, but operational content always returns to a high-contrast light canvas.
+The default product surface is a bright, precise control room: compact navigation, explicit hierarchy, tabular business data, and restrained deep green and emerald signals. The product-video and media-production surfaces become a focused graphite studio, but operational content always returns to a high-contrast light canvas.
 
 Premium quality comes from proportion, typography, stable layout, and meaningful feedback. The system explicitly rejects low-contrast dark administration screens, interchangeable component-library cards, purple gradients, decorative glass, and landing-page composition.
 
@@ -82,7 +82,7 @@ Premium quality comes from proportion, typography, stable layout, and meaningful
 
 - Bright operational canvas with a compact graphite navigation layer.
 - Dense, border-led information architecture rather than floating card mosaics.
-- Cobalt actions, emerald healthy states, orange media-production progress.
+- Deep-green actions, emerald healthy states, brass identity accents, and orange media-production progress.
 - Motion that explains navigation, progress, selection, and completion.
 
 ## Colors
@@ -91,7 +91,7 @@ The palette combines cool operational neutrals with three narrowly assigned acce
 
 ### Primary
 
-- **Control Cobalt** (#1769E0): Primary actions, current navigation, focus, links, and selected controls.
+- **Control Deep green** (#1769E0): Primary actions, current navigation, focus, links, and selected controls.
 
 ### Secondary
 
@@ -114,7 +114,7 @@ The palette combines cool operational neutrals with three narrowly assigned acce
 
 **The Bright Operations Rule.** Daily CRM, settings, lists, and forms stay light. Graphite is reserved for navigation and media-production context.
 
-**The Three Signals Rule.** Cobalt means action or selection, emerald means healthy or complete, and orange means active media production. Do not use them as decoration.
+**The Three Signals Rule.** Deep green means action or selection, emerald means healthy or complete, and orange means active media production. Do not use them as decoration.
 
 ## Typography
 
@@ -153,14 +153,14 @@ The system is flat by default. Borders and tonal layering establish structure; s
 ### Buttons
 
 - **Shape:** Compact 6px corners, at least 32px high; primary commands use 38px.
-- **Primary:** Control cobalt with white text; studio primary uses orange only inside media-production context.
+- **Primary:** Control deep green with white text; studio primary uses orange only inside media-production context.
 - **Hover / Focus:** Color shift and small shadow; active state uses a subtle scale or translate transform. Focus ring is always visible.
 - **Secondary / Ghost:** White or transparent surfaces with structural borders and high-contrast labels.
 
 ### Chips
 
 - **Style:** 4-6px corners, tinted semantic background, text label plus optional status dot.
-- **State:** Selection uses cobalt; health uses emerald; warning and danger always include text or icons.
+- **State:** Selection uses deep green; health uses emerald; warning and danger always include text or icons.
 
 ### Cards / Containers
 
@@ -173,12 +173,12 @@ The system is flat by default. Borders and tonal layering establish structure; s
 ### Inputs / Fields
 
 - **Style:** White, 1px structural border, 6px corners, stable 38px height.
-- **Focus:** Cobalt border and a low-opacity 3px focus halo.
+- **Focus:** Deep green border and a low-opacity 3px focus halo.
 - **Error / Disabled:** Error includes text and icon; disabled remains readable and does not rely on opacity alone.
 
 ### Navigation
 
-Desktop navigation groups features into overview, business, growth, and system. Active state uses a graphite tonal surface plus a cobalt indicator. Mobile uses a stable bottom navigation for primary destinations and a drawer for the full hierarchy.
+Desktop navigation groups features into overview, business, growth, and system. Active state uses a warm cream background with deep green text. Mobile uses a compact header and an accessible drawer for the full hierarchy.
 
 ### Production Pipeline
 
@@ -202,3 +202,17 @@ The studio pipeline uses a graphite field with high-contrast text. Orange identi
 - **Don't** turn operational pages into marketing landing pages or oversized hero compositions.
 - **Don't** add decorative page-load choreography that delays access to work.
 - **Don't** put cards inside cards or exceed an 8px surface radius.
+
+
+## Voyage website and operational workspace (2026-10-13)
+
+The cinematic treatment is scoped to the website and authentication story: local harbor photography, deep forest/black surfaces, warm cream #E4E1D2, brass #C3AA77, oversized TradePilot typography, and a small grain layer on the hero only. The three website sections communicate the promise, discovery-to-delivery workflow, and real capabilities. Desktop has four differently toned workflow panels; mobile stacks them.
+
+Operational views stay light and readable. The primary action is #28624B, canvas #F5F5EF, and navigation #16251B. Forms and data cards use 8–12px radii, clear borders and quiet surfaces. No fake badge counts, fabricated notifications, or illustrative revenue figures. The sidebar separates growth, CRM, fulfillment, workspace settings and platform management; both navigation and customization respect existing platform permissions.
+
+Native details/summary guides provide reversible, keyboard-accessible help on prospecting, marketing and SaaS administration. Existing form handlers, authenticated API calls, credentials and registration controls remain unchanged. Animation uses motion/react plus existing tokens, and every surface respects reduced motion. Fonts use the existing locally served Inter through next/font and explicit Chinese system fallbacks; serif italic is reserved for English editorial emphasis.
+
+
+## Logo：领航帆
+
+2026-10-14 品牌标志使用双帆与向前的船首，替换通用指南针和旧蓝色图标。官网、认证页、后台侧栏和手机导航复用 `TradePilotBrand`；独立 SVG/透明 PNG、反白组合、单色标志及浏览器/主屏幕图标见 `public/brand/README.md`。图形颜色为深绿 `#28624B`、米白 `#F4F1E6`、黄铜 `#C3AA77`。以 `tradepilot-mark.svg` 和已转为路径的 `tradepilot-wordmark.svg` 为源，执行 `npm run brand:generate` 同步导出。

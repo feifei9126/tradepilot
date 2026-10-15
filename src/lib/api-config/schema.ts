@@ -10,7 +10,7 @@ export const AI_TASKS = {
   product_enrichment: "产品资料补全",
   quotation: "智能报价",
   order_suggestion: "跟单建议",
-  lead_generation: "AI 获客文案",
+  lead_generation: "AI 营销文案",
   video_script: "产品视频脚本",
 } as const;
 export type AITask = keyof typeof AI_TASKS;

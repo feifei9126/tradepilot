@@ -70,7 +70,7 @@ export default function ContactsPage() {
   const [adding, setAdding] = useState(false);
   const [stageFilter, setStageFilter] = useState("all");
   const [exporting, setExporting] = useState(false);
-  const { getTaskProvider } = useAIConfig();
+  const { getTaskProvider, unavailableReason } = useAIConfig();
 
   useEffect(() => {
     void refreshContacts().finally(() => setLoading(false));
@@ -117,7 +117,7 @@ export default function ContactsPage() {
     }
     const aiConfig = getTaskProvider("contact_import");
     if (!aiConfig) {
-      toast.error("请先在 API 配置中心为客户分析配置 AI 模型");
+      toast.error(unavailableReason);
       return;
     }
 

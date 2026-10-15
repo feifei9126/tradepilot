@@ -21,6 +21,10 @@ export interface StoredContact {
   lastContactedAt?: string;
   nextFollowUpAt?: string;
   createdAt: string;
+  /** Customer-level access control. Legacy records without these fields remain workspace-visible. */
+  ownerUserId?: string;
+  visibility?: "private" | "team" | "workspace";
+  teamId?: string;
 }
 export interface StoredProduct {
   stockQuantity?: number;
@@ -81,6 +85,12 @@ export interface StoredProductVideoJob {
   updatedAt: string;
 }
 export interface StoredMessage {
+  channelAccountId?: string;
+  peerId?: string;
+  providerMessageId?: string;
+  messageType?: string;
+  deliveryStatus?: "sending" | "sent" | "delivered" | "read" | "failed" | "unknown";
+  deliveryError?: string;
   id: string;
   contactId?: string;
   contactName: string;

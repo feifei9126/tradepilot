@@ -1,70 +1,37 @@
+import { TenantWebhookError, recordIncomingTenantWebhook } from "@/lib/tenant-webhook";
 import { NextRequest, NextResponse } from "next/server";
-import { randomUUID } from "node:crypto";
-import { store } from "@/lib/store";
-import { hasValidWebhookSecret } from "@/lib/webhook-auth";
 
-export async function POST(req: NextRequest) {
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+export async function POST(request: NextRequest) {
+  const reader = request.body?.getReader();
+  if (!reader) return NextResponse.json({ error: "Webhook 请求体为空" }, { status: 400, headers: { "Cache-Control": "no-store" } });
+  const chunks: Uint8Array[] = [];
+  let size = 0;
   try {
-    if (!process.env.TRADEPILOT_WEBHOOK_SECRET) {
-      return NextResponse.json({ error: "Webhook 尚未配置" }, { status: 503 });
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      size += value.byteLength;
+      if (size > 64_000) {
+        await reader.cancel().catch(() => {});
+        return NextResponse.json({ error: "Webhook 请求体超过 64 KB" }, { status: 413, headers: { "Cache-Control": "no-store" } });
+      }
+      chunks.push(value);
     }
-    if (
-      !hasValidWebhookSecret(
-        req.headers.get("authorization"),
-        process.env.TRADEPILOT_WEBHOOK_SECRET,
-      )
-    ) {
-      return NextResponse.json({ error: "Webhook 鉴权失败" }, { status: 401 });
-    }
-
-    const body = await req.json();
-    const contactName =
-      typeof body.contactName === "string" ? body.contactName.trim() : "";
-    const contactId =
-      typeof body.contactId === "string" ? body.contactId.trim() : "";
-    const content = typeof body.content === "string" ? body.content.trim() : "";
-    const channel = ["whatsapp", "wechat", "email", "other"].includes(
-      body.channel,
-    )
-      ? body.channel
-      : "other";
-    if (!contactName || !content)
-      return NextResponse.json(
-        { error: "contactName and content required" },
-        { status: 400 },
-      );
-    if (
-      contactName.length > 200 ||
-      contactId.length > 200 ||
-      content.length > 20_000
-    ) {
-      return NextResponse.json({ error: "消息内容超出限制" }, { status: 413 });
-    }
-    if (contactId && !store.contacts.get(contactId)) {
-      return NextResponse.json({ error: "关联客户不存在" }, { status: 400 });
-    }
-
-    const msg = {
-      id: `wh_${randomUUID()}`,
-      contactId: contactId || "",
-      contactName,
-      content,
-      channel: channel || "other",
-      direction: "in" as const,
-      read: false,
-      aiReply: "",
-      createdAt: new Date().toISOString().slice(0, 10),
-    };
-    store.messages.add(msg);
-    return NextResponse.json({
-      received: true,
-      message: msg,
-      autoReplied: false,
+  } finally { reader.releaseLock(); }
+  try {
+    const result = await recordIncomingTenantWebhook({
+      slug: request.headers.get("x-tradepilot-workspace") || "",
+      eventId: request.headers.get("x-tradepilot-event-id") || "",
+      timestamp: request.headers.get("x-tradepilot-timestamp") || "",
+      signature: request.headers.get("x-tradepilot-signature") || "",
+      body: Buffer.concat(chunks),
     });
-  } catch (error: unknown) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "消息接收失败" },
-      { status: 500 },
-    );
+    return NextResponse.json(result, { status: result.duplicate ? 200 : 202, headers: { "Cache-Control": "no-store, private" } });
+  } catch (error) {
+    if (error instanceof TenantWebhookError) return NextResponse.json({ error: error.message }, { status: error.status, headers: { "Cache-Control": "no-store, private" } });
+    console.error("Tenant webhook failed (details omitted)");
+    return NextResponse.json({ error: "Webhook 暂时不可用" }, { status: 503, headers: { "Cache-Control": "no-store, private" } });
   }
 }

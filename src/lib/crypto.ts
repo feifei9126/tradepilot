@@ -1,3 +1,6 @@
+// Valid PBKDF2-shaped dummy record; never grants access to an absent account.
+export const DUMMY_PASSWORD_HASH = "00000000000000000000000000000000:0000000000000000000000000000000000000000000000000000000000000000";
+
 async function getKeyMaterial(password: string): Promise<CryptoKey> {
   const encoder = new TextEncoder();
   return crypto.subtle.importKey(

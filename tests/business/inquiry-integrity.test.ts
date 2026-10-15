@@ -1,11 +1,10 @@
 import assert from "node:assert/strict";
-import test from "node:test";
+import { workspaceTest as test } from "../helpers/workspace";
 
 import { PATCH } from "../../src/app/api/inquiries/[id]/route";
-import { store } from "../../src/lib/store";
 
-test("inquiry PATCH cannot overwrite customer or inquiry content", async () => {
-  const original = store.inquiries.get("i1");
+test("inquiry PATCH cannot overwrite customer or inquiry content", async (_t, store) => {
+  const original = await store.inquiries.get("i1");
   assert.ok(original);
 
   const response = await PATCH(
@@ -22,7 +21,7 @@ test("inquiry PATCH cannot overwrite customer or inquiry content", async () => {
   );
 
   assert.equal(response.status, 400);
-  const current = store.inquiries.get("i1");
+  const current = await store.inquiries.get("i1");
   assert.equal(current?.customer, original.customer);
   assert.equal(current?.subject, original.subject);
   assert.equal(current?.content, original.content);

@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -35,7 +36,7 @@ const CATEGORIES = [
 
 export default function NewProductPage() {
   const router = useRouter();
-  const { getTaskProvider } = useAIConfig();
+  const { getTaskProvider, unavailableReason } = useAIConfig();
 
   const [name, setName] = useState("");
   const [modelNo, setModelNo] = useState("");
@@ -58,7 +59,7 @@ export default function NewProductPage() {
     }
     const aiConfig = getTaskProvider("product_enrichment");
     if (!aiConfig) {
-      toast.error("请先在 API 配置中心为产品资料补全配置 AI 模型");
+      toast.error(unavailableReason);
       return;
     }
 
@@ -196,7 +197,10 @@ export default function NewProductPage() {
               <Label className="mb-2 block">产品图片</Label>
               {imageFile ? (
                 <div className="relative">
-                  <img
+                  <Image
+                    unoptimized
+                    width={512}
+                    height={512}
                     src={imageFile}
                     alt="产品图"
                     className="w-full aspect-square object-contain rounded-lg border bg-muted"

@@ -1,7 +1,15 @@
+import { readFile } from "node:fs/promises";
+import { assertAdminCredentialPolicy } from "./security/admin-policy.mjs";
 import { spawn } from "node:child_process";
 import { resolve } from "node:path";
 
 const projectDir = resolve(import.meta.dirname, "..");
+let adminRecord = {};
+if (process.env.NODE_ENV === "production") {
+  try { adminRecord = JSON.parse(await readFile(resolve(process.env.TRADEPILOT_DATA_DIR || "data", "admin-account.json"), "utf8")); }
+  catch (error) { if (error.code !== "ENOENT") throw new Error("管理员记录不可读取，拒绝启动"); }
+  assertAdminCredentialPolicy(adminRecord);
+}
 const production = process.env.NODE_ENV === "production";
 const webPort = process.env.TRADEPILOT_PORT || process.env.PORT || (production ? "3456" : "3458");
 const workerPort = process.env.OPENMONTAGE_ADAPTER_PORT || "8787";

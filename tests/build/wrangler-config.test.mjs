@@ -8,3 +8,10 @@ test("Wrangler deployments preserve dashboard runtime variables", async () => {
 
   assert.match(config, /"keep_vars"\s*:\s*true/);
 });
+
+test("CI compiles and packages the Cloudflare worker without publishing it", async () => {
+  const workflow = await readFile(new URL("../../.github/workflows/ci.yml", import.meta.url), "utf8");
+  assert.match(workflow, /run: npm run cfbuild/);
+  assert.match(workflow, /run: npx wrangler deploy --dry-run/);
+  assert.match(workflow, /npm audit --audit-level=high/);
+});

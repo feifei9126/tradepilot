@@ -1,8 +1,9 @@
+import { withTenant } from "@/lib/tenant-route";
 import { callConfiguredAI } from "@/lib/ai/configured";
+import { aiErrorResponse } from "@/lib/ai/public-error";
 import { NextRequest, NextResponse } from "next/server";
-import { AIRequestConfigError, AIUpstreamError } from "@/lib/ai/chat-completions";
 
-export async function POST(req: NextRequest) {
+async function handlePOST(req: NextRequest) {
   try {
     const body = await req.json();
     const { productInfo, customerName, country, tradeTerm } = body;
@@ -54,7 +55,7 @@ Return JSON: { items: [{productName, quantity, unit, unitPrice, amount}], subtot
           && Number(candidate.amount) >= 0;
       });
       if (!validItems || !Number.isFinite(Number(quotation.total)) || Number(quotation.total) <= 0) {
-        return NextResponse.json({ error: "AI 返回的报价结构无效，请重试", raw: content }, { status: 502 });
+        return NextResponse.json({ error: "AI 返回的报价结构无效，请重试" }, { status: 502 });
       }
       const items = quotation.items.map((item: Record<string, unknown>) => {
         const quantity = Number(item.quantity);
@@ -68,18 +69,13 @@ Return JSON: { items: [{productName, quantity, unit, unitPrice, amount}], subtot
         };
       });
       const total = Math.round(items.reduce((sum: number, item: { amount: number }) => sum + item.amount, 0) * 100) / 100;
-      return NextResponse.json({ quotation: { ...quotation, items, total }, raw: content });
+      return NextResponse.json({ quotation: { ...quotation, items, total } });
     } catch {
-      return NextResponse.json({ error: "AI 返回内容不是有效报价 JSON，请重试", raw: content }, { status: 502 });
+      return NextResponse.json({ error: "AI 返回内容不是有效报价 JSON，请重试" }, { status: 502 });
     }
   } catch (error: unknown) {
-    if (error instanceof AIRequestConfigError) {
-      return NextResponse.json({ error: error.message }, { status: error.status });
-    }
-    console.error("AI quote error:", error);
-    if (error instanceof AIUpstreamError) {
-      return NextResponse.json({ error: error.message, detail: error.detail }, { status: error.status });
-    }
-    return NextResponse.json({ error: error instanceof Error ? error.message : "服务器内部错误" }, { status: 500 });
+    return aiErrorResponse(error);
   }
 }
+
+export const POST = withTenant(handlePOST);

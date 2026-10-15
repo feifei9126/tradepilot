@@ -61,7 +61,18 @@ export default function InquiriesPage() {
   const [newCustomer, setNewCustomer] = useState("");
   const [newSource, setNewSource] = useState("邮件");
   const [creating, setCreating] = useState(false);
-  const { getTaskProvider } = useAIConfig();
+  const { getTaskProvider, unavailableReason } = useAIConfig();
+
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("create") !== "1") return;
+    const timer = window.setTimeout(() => {
+      setNewInquiryOpen(true);
+      const url = new URL(window.location.href);
+      url.searchParams.delete("create");
+      window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}`);
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, []);
 
   useEffect(() => {
     fetch("/api/inquiries")
@@ -82,7 +93,7 @@ export default function InquiriesPage() {
   async function handleAIReply(inquiry: StoredInquiry) {
     const aiConfig = getTaskProvider("inquiry_reply");
     if (!aiConfig) {
-      toast.error("请先在 API 配置中心为询盘回复配置 AI 模型");
+      toast.error(unavailableReason);
       return;
     }
 

@@ -4,24 +4,34 @@
   "description": "客户、询盘、报价、履约、AI 模型与产品视频的一体化自托管外贸工作台",
   "start_url": "/app",
   "display": "standalone",
-  "background_color": "#f4f7fa",
-  "theme_color": "#17212b",
+  "background_color": "#F5F5EF",
+  "theme_color": "#28624B",
   "orientation": "any",
   "icons": [
     {
       "src": "/icon-192x192.png",
       "sizes": "192x192",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
     },
     {
       "src": "/icon-512x512.png",
       "sizes": "512x512",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-maskable-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
     }
   ],
-  "categories": ["business", "productivity", "finance"],
+  "categories": [
+    "business",
+    "productivity",
+    "finance"
+  ],
   "lang": "zh-CN",
   "prefer_related_applications": false,
   "scope": "/"

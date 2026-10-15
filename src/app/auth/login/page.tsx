@@ -7,20 +7,19 @@ import { signIn } from "next-auth/react";
 import {
   AlertCircle,
   ArrowRight,
-  CheckCircle2,
-  CircleDollarSign,
+  ArrowUpRight,
   Loader2,
   LockKeyhole,
-  Ship,
 } from "lucide-react";
+import { AuthScaffold } from "@/components/auth-story";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
 export default function LoginPage() {
   const router = useRouter();
-  const [email, setEmail] = useState("demo@tradepilot.dev");
-  const [password, setPassword] = useState("12345678");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -47,159 +46,75 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="grid min-h-screen bg-[#f4f7fa] lg:grid-cols-[minmax(360px,42%)_1fr]">
-      <section className="relative hidden overflow-hidden bg-[#17212b] p-10 text-white lg:flex lg:flex-col xl:p-14">
-        <div className="flex items-center gap-3">
-          <span className="flex size-10 items-center justify-center rounded-md bg-[#2f77e5] shadow-[inset_0_0_0_1px_rgb(255_255_255/20%)]">
-            <Ship className="size-5" />
-          </span>
-          <div>
-            <strong className="block text-base">TradePilot</strong>
-            <span className="mt-0.5 block text-[10px] font-semibold text-[#8194a7]">
-              GLOBAL TRADE OS
-            </span>
-          </div>
+    <AuthScaffold>
+      <div className="auth-form-heading">
+        <span>欢迎回来</span>
+        <h1>登录你的工作区</h1>
+        <p>继续跟进客户，把握下一次机会。</p>
+      </div>
+      <form onSubmit={handleSubmit} className="space-y-5">
+        <div className="space-y-2">
+          <Label htmlFor="email">登录邮箱</Label>
+          <Input
+            id="email"
+            type="email"
+            autoComplete="username"
+            placeholder="输入你的邮箱"
+            value={email}
+            onChange={(event) => setEmail(event.target.value)}
+            required
+            aria-describedby={error ? "login-error" : undefined}
+            aria-invalid={!!error}
+          />
         </div>
-
-        <div className="my-auto max-w-xl py-16">
-          <p className="mb-3 text-xs font-semibold text-[#7fc8d4]">
-            CONTROL EVERY TRADE FLOW
-          </p>
-          <h1 className="max-w-lg text-[32px] font-bold leading-[1.25]">
-            让询盘、报价、履约和产品内容保持在同一条业务线上。
-          </h1>
-          <p className="mt-4 max-w-lg text-sm leading-6 text-[#aebbc6]">
-            一个为小型外贸团队设计的自托管业务控制台。登录后直接进入需要处理的订单、客户机会和内容生产任务。
-          </p>
-
-          <div className="mt-10 rounded-md border border-[#344250] bg-[#202d39] p-5">
-            <div className="flex items-center justify-between border-b border-[#344250] pb-4">
-              <div>
-                <span className="block text-[10px] text-[#8194a7]">
-                  业务状态
-                </span>
-                <strong className="mt-1.5 block text-sm">
-                  演示工作区已就绪
-                </strong>
-              </div>
-              <span className="flex items-center gap-2 text-xs font-semibold text-[#78cfb1]">
-                <span className="studio-live-dot !bg-[#38b986]" />
-                在线
-              </span>
-            </div>
-            <div className="grid grid-cols-3 gap-3 pt-4">
-              <div>
-                <CircleDollarSign className="size-4 text-[#7db0f4]" />
-                <strong className="mt-2 block text-lg tabular-nums">
-                  $31.6K
-                </strong>
-                <span className="mt-1 block text-[10px] text-[#8194a7]">
-                  订单金额
-                </span>
-              </div>
-              <div>
-                <CheckCircle2 className="size-4 text-[#70c9ad]" />
-                <strong className="mt-2 block text-lg tabular-nums">60%</strong>
-                <span className="mt-1 block text-[10px] text-[#8194a7]">
-                  转化率
-                </span>
-              </div>
-              <div>
-                <LockKeyhole className="size-4 text-[#f0a082]" />
-                <strong className="mt-2 block text-lg">BYOK</strong>
-                <span className="mt-1 block text-[10px] text-[#8194a7]">
-                  模型自主
-                </span>
-              </div>
-            </div>
-          </div>
+        <div className="space-y-2">
+          <Label htmlFor="password">密码</Label>
+          <Input
+            id="password"
+            type="password"
+            autoComplete="current-password"
+            placeholder="输入你的密码"
+            value={password}
+            onChange={(event) => setPassword(event.target.value)}
+            required
+            aria-describedby={error ? "login-error" : undefined}
+            aria-invalid={!!error}
+          />
         </div>
-
-        <p className="text-[11px] text-[#718397]">
-          开源 · 自部署 · 数据与模型配置由你掌控
-        </p>
-      </section>
-
-      <section className="flex min-h-screen items-center justify-center px-5 py-12 sm:px-10">
-        <div className="w-full max-w-[390px]">
-          <div className="mb-9 flex items-center gap-2.5 lg:hidden">
-            <span className="flex size-9 items-center justify-center rounded-md bg-primary text-white">
-              <Ship className="size-[18px]" />
-            </span>
-            <strong>TradePilot</strong>
-          </div>
-
-          <div className="mb-7">
-            <p className="page-kicker">SECURE WORKSPACE</p>
-            <h2 className="text-2xl font-bold text-[#12202c]">
-              登录业务控制台
-            </h2>
-            <p className="mt-2 text-sm text-[#637181]">
-              使用部署时配置的管理员账号继续。
-            </p>
-          </div>
-
-          <form onSubmit={handleSubmit} className="space-y-5">
-            <div className="space-y-2">
-              <Label htmlFor="email">邮箱</Label>
-              <Input
-                id="email"
-                type="email"
-                autoComplete="email"
-                value={email}
-                onChange={(event) => setEmail(event.target.value)}
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="password">密码</Label>
-              <Input
-                id="password"
-                type="password"
-                autoComplete="current-password"
-                value={password}
-                onChange={(event) => setPassword(event.target.value)}
-                required
-              />
-            </div>
-
-            {error && (
-              <p
-                role="alert"
-                className="flex items-center gap-2 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2.5 text-sm text-destructive"
-              >
-                <AlertCircle className="size-4 shrink-0" />
-                {error}
-              </p>
-            )}
-
-            <Button
-              type="submit"
-              size="lg"
-              className="w-full"
-              disabled={loading}
-            >
-              {loading ? <Loader2 className="animate-spin" /> : <LockKeyhole />}
-              {loading ? "正在验证" : "安全登录"}
-              {!loading && <ArrowRight className="ml-auto" />}
-            </Button>
-          </form>
-
-          <p className="mt-5 text-center text-sm text-[#637181]">
-            需要团队账号？{" "}
-            <Link
-              href="/auth/register"
-              className="font-semibold text-[#1769e0] hover:underline"
-            >
-              创建工作区
-            </Link>
+        {error && (
+          <p
+            id="login-error"
+            role="alert"
+            className="flex items-start gap-2 rounded-md bg-destructive/10 p-3 text-xs leading-5 text-destructive"
+          >
+            <AlertCircle
+              className="mt-0.5 size-4 shrink-0"
+              aria-hidden="true"
+            />
+            {error}
           </p>
-
-          <div className="mt-6 border-t pt-5 text-xs leading-5 text-[#637181]">
-            演示环境已预填测试账号。正式部署请设置独立管理员密码或连接数据库注册团队账号。
-          </div>
-        </div>
-      </section>
-    </main>
+        )}
+        <Button
+          type="submit"
+          size="lg"
+          className="auth-submit w-full"
+          disabled={loading}
+        >
+          {loading ? <Loader2 className="animate-spin" /> : <LockKeyhole />}
+          {loading ? "正在验证…" : "进入工作台"}
+          <ArrowRight className="ml-auto" />
+        </Button>
+      </form>
+      <p className="auth-switch-link">
+        还没有账号？
+        <Link href="/auth/register">
+          注册独立工作区{" "}
+          <ArrowUpRight className="size-3.5" aria-hidden="true" />
+        </Link>
+      </p>
+      <div className="auth-form-note">
+        普通用户使用注册邮箱登录。平台管理能力仅对运营者开放。
+      </div>
+    </AuthScaffold>
   );
 }

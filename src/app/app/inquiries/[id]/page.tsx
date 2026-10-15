@@ -24,7 +24,7 @@ export default function InquiryDetailPage() {
   const [loading, setLoading] = useState(true);
   const [aiReply, setAiReply] = useState("");
   const [replying, setReplying] = useState(false);
-  const { getTaskProvider } = useAIConfig();
+  const { getTaskProvider, unavailableReason } = useAIConfig();
 
   useEffect(() => {
     if (params.id) {
@@ -48,7 +48,7 @@ export default function InquiryDetailPage() {
   async function handleAIReply() {
     const aiConfig = getTaskProvider("inquiry_reply");
     if (!aiConfig) {
-      toast.error("请先在 API 配置中心为询盘回复配置 AI 模型");
+      toast.error(unavailableReason);
       return;
     }
 

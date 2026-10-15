@@ -1,10 +1,11 @@
+import { withTenant } from "@/lib/tenant-route";
 import { callConfiguredAI } from "@/lib/ai/configured";
+import { aiErrorResponse } from "@/lib/ai/public-error";
 import { NextRequest, NextResponse } from "next/server";
 
-import { AIRequestConfigError, AIUpstreamError } from "@/lib/ai/chat-completions";
 import { buildEmailMessages, buildEmailPrompt } from "@/lib/ai/email-prompts";
 
-export async function POST(req: NextRequest) {
+async function handlePOST(req: NextRequest) {
   try {
     const body = await req.json();
     const context = body.context || {};
@@ -27,13 +28,7 @@ export async function POST(req: NextRequest) {
       usage: data.usage || null,
     });
   } catch (error: unknown) {
-    if (error instanceof AIRequestConfigError) {
-      return NextResponse.json({ error: error.message }, { status: error.status });
-    }
-    if (error instanceof AIUpstreamError) {
-      return NextResponse.json({ error: error.message, detail: error.detail }, { status: error.status });
-    }
-    return NextResponse.json({ error: error instanceof Error ? error.message : "邮件生成失败" }, { status: 500 });
+    return aiErrorResponse(error);
   }
 }
 
@@ -47,3 +42,5 @@ function getTypeLabel(type: string): string {
   };
   return labels[type] || "外贸邮件";
 }
+
+export const POST = withTenant(handlePOST);

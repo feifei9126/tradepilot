@@ -1,13 +1,12 @@
 import assert from "node:assert/strict";
-import test from "node:test";
+import { workspaceTest as test } from "../helpers/workspace";
 
 import { importContacts } from "../../src/lib/ai/import-contacts";
 import { defaultConfig } from "../../src/lib/api-config/schema";
 import { resolveTextRequest } from "../../src/lib/api-config/resolve";
 import { callChatCompletion } from "../../src/lib/ai/chat-completions";
-import { store } from "../../src/lib/store";
 
-test("contact import honors the complete configured AI endpoint", async () => {
+test("contact import honors the complete configured AI endpoint", async (_t, store) => {
   const originalFetch = globalThis.fetch;
   let requestedUrl = "";
   let requestedInit: RequestInit | undefined;
@@ -43,7 +42,7 @@ test("contact import honors the complete configured AI endpoint", async () => {
     assert.equal((requestedInit?.headers as Record<string, string>)["X-Audit"], "enabled");
     assert.equal(JSON.parse(String(requestedInit?.body)).model, "phi4-mini:3.8b");
     assert.equal(payload.contacts[0].name, "Audit Customer");
-    store.contacts.delete(payload.contacts[0].id);
+    await store.contacts.delete(payload.contacts[0].id);
   } finally {
     globalThis.fetch = originalFetch;
   }

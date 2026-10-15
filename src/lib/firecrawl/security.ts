@@ -9,7 +9,16 @@ function parseIpv4(address: string) {
 }
 
 export function isPrivateAddress(address: string) {
-  const normalized = address.toLowerCase().split("%")[0];
+  let normalized = address.toLowerCase().split("%")[0];
+  if (isIP(normalized) === 6) {
+    // URL serializes expanded IPv6 and embedded dotted IPv4 consistently.
+    normalized = new URL(`http://[${normalized}]/`).hostname.slice(1, -1);
+    const mapped = normalized.match(/^::ffff:([0-9a-f]{1,4}):([0-9a-f]{1,4})$/);
+    if (mapped) {
+      const high = parseInt(mapped[1], 16), low = parseInt(mapped[2], 16);
+      return isPrivateAddress(`${high >> 8}.${high & 255}.${low >> 8}.${low & 255}`);
+    }
+  }
   const mappedIpv4 = normalized.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/)?.[1];
   const version = isIP(mappedIpv4 || normalized);
 
@@ -38,7 +47,11 @@ export function isPrivateAddress(address: string) {
       || normalized.startsWith("fd")
       || /^fe[89ab]/.test(normalized)
       || normalized.startsWith("ff")
-      || normalized.startsWith("2001:db8:");
+      || !/^[23][0-9a-f]{3}:/.test(normalized) // global-unicast only
+      || normalized.startsWith("2001:db8:")
+      || normalized.startsWith("2001:0:") || normalized.startsWith("2001::")
+      || /^2001:(10|20):/.test(normalized)
+      || normalized.startsWith("2002:");
   }
 
   return true;

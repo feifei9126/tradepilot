@@ -56,11 +56,11 @@ LIVEKIT_AGENT_NAME=tradepilot-customer-service
 ```
 
 ```bash
-npm ci
+npm ci --legacy-peer-deps
 npm run dev
 ```
 
-本地开发默认演示登录为 `demo@tradepilot.dev` / `12345678`；生产必须配置自己的管理员账号。
+本地登录必须使用部署配置的管理员邮箱和密码；仓库不再内置可复用的演示账号。需要团队试用账号时，由平台管理员创建工作区，或仅在受控本地环境显式开启自助注册。
 
 ### 3. 配置并启动 Worker
 

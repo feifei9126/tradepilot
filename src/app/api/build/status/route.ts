@@ -1,10 +1,11 @@
+import { withPlatform } from "@/lib/platform-route";
 import { NextResponse } from "next/server";
 import { existsSync, statSync } from "fs";
 import path from "path";
 
 const APK_OUTPUT = path.join(process.cwd(), "public", "apk", "tradepilot.apk");
 
-export async function GET() {
+async function handleGET() {
   // Check if APK file exists
   if (existsSync(APK_OUTPUT)) {
     const stats = statSync(APK_OUTPUT);
@@ -18,3 +19,5 @@ export async function GET() {
 
   return NextResponse.json({ ready: false });
 }
+
+export const GET = withPlatform(handleGET);

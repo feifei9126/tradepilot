@@ -13,6 +13,9 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Preserve licensed upstream source; the local security delta is covered by
+    // provenance/hash, compatibility and adversarial tests instead of reformatting.
+    "vendor/**",
   ]),
 ]);
 

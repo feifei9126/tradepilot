@@ -2,6 +2,8 @@
 
 ## 当前可用范围
 
+本地默认 `npm run dev` 使用 Node.js，不初始化 Cloudflare 模拟器。只有调试 Workers bindings 时才显式运行 `TRADEPILOT_RUNTIME=cloudflare npm run dev`（macOS/Linux），或在该开发环境的 `.env.local` 设置 `TRADEPILOT_RUNTIME=cloudflare`。不要把这个选项用于 Docker；生产 `next build` / `next start` 无论该设置如何都不会初始化开发模拟器。OpenNext 的 Cloudflare 构建仍通过 `npm run cfbuild` 执行。
+
 TradePilot 的 Web 使用 Next.js + OpenNext，生成 `.open-next/worker.js` 和静态资产；不是 Cloudflare Pages 静态导出，也不是 GitHub Pages 项目。
 
 **当前分支不能直接作为 Docker 完整功能的 Cloudflare 替代部署。** 2026-09-20 的本地检查结果：
@@ -17,15 +19,23 @@ TradePilot 的 Web 使用 Next.js + OpenNext，生成 `.open-next/worker.js` 和
 
 构建工具还报告了来自生成的 UI 依赖代码的重复对象键警告；构建未因此失败。不要把 dry-run 当成线上发布或完整功能验收。
 
+## 2026-10-15 构建修复
+
+- 项目 `.npmrc` 固定与既有锁文件一致的 peer 解析策略，自动 npm 安装无需手工补 `--legacy-peer-deps`；这不关闭漏洞审计或安装脚本。
+- `next.config.ts` 的 `outputFileTracingIncludes` 显式包含 `pg-cloudflare` 的 `dist` / `esm`，防止 Node 构建只追踪默认空入口、OpenNext Workerd 打包却缺少 socket 实现。
+- GitHub CI 同时执行 `npm run cfbuild` 和 `npx wrangler deploy --dry-run`，不会在校验步骤上传 Worker 或改动 dashboard Secrets。
+- 本轮本地构建与 dry-run 通过；这些结果**不是** Cloudflare 远端生产发布成功，也不改变下述持久化、外部服务和授权前提。细节见 [CI 修复记录](./ci-repair-2026-10-15.md)。
+
 ## 上线前必须解决
 
 ### 1. 配置与业务数据持久化
 
 - `src/lib/api-config/store.ts` 使用同步文件读取、AES-256-GCM 加密、临时文件与原子重命名，适用于单实例 Node + 持久磁盘。
-- `src/lib/product-video/job-repository.ts` 将任务写入 JSON 文件，也需要持久磁盘。
+- 当前核心 CRM、获客、邮件草稿/账号参数和视频任务**元数据**已经改为 PostgreSQL 按工作区持久化，Docker 使用版本化迁移及工作区事务锁；不是原来的全局内存 CRM。
+- 部署管理员档案与实例 API 配置仍使用本地持久文件，视频/素材仍依赖外部 Worker 卷或对象存储；尚未完成多副本一致性。
 - Workers 的文件系统是虚拟文件系统；`/tmp` 是请求级临时空间，不能跨请求保存 API Key 或视频任务。**不要通过把数据目录改成 `/tmp` 来“修复”保存。**
-- 需要为配置与任务接入 D1、Durable Objects、外部 PostgreSQL 或其他合适的持久化服务，同时实现并发版本校验、加密、权限隔离和备份；仅添加 binding 不会自动迁移现有文件存储代码。
-- 客户、询盘、订单等主体业务数据仍是进程内存状态，不同 Worker 实例不共享。当前 `DATABASE_URL` 主要用于注册账号，不意味着 CRM 全部持久化。
+- 需要验证 Workers → 外部 PostgreSQL 的驱动/连接池/TLS/网络适配，并用独立初始化环境运行迁移；当前 Docker 的 `postgres` 主机名与内部明文连接参数不能直接用于 Workers。仅配置 `DATABASE_URL` 或 binding 不代表 Workers 已验收。
+- 需要为剩余本地管理员/配置文件接入合适的持久化服务，同时保留加密、会话撤销、并发版本校验和平台/租户权限边界；不要把请求级 `/tmp` 当持久化。参见 [数据库管理](./database-management.md) 的数据边界。
 
 ### 2. 独立计算服务
 
@@ -59,7 +69,7 @@ npx wrangler whoami
 GitHub 用于推送源码，Cloudflare 用于运行 Web Worker；两种授权互不替代。如账号包含多个 Cloudflare Account，先确认目标账户，不要随机选择或覆盖未知 Worker。
 
 ```bash
-npm ci
+npm ci --legacy-peer-deps
 npm test
 npx tsc --noEmit
 npm run cfbuild
@@ -87,7 +97,7 @@ npx wrangler deploy --dry-run
    npx wrangler secret put DATABASE_URL
    ```
 
-3. 配置持久化服务的 binding / 连接并运行相应迁移。当前仓库没有完成这一层，不能省略或宣称已接入。
+3. 验证外部 PostgreSQL binding / 连接与 TLS，运行当前迁移；另完成本地管理员/实例配置的 Workers 存储适配。Docker 已完成核心数据库层，不代表 Workers 运行时与剩余文件存储层已接入。
 4. 确认 OpenNext 构建、dry-run、权限和存储测试后，用对应配置执行部署。当前默认命令为：
 
    ```bash

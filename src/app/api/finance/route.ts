@@ -1,9 +1,10 @@
+import { getStore } from "@/lib/workspace-context";
+import { withTenant } from "@/lib/tenant-route";
 import { NextResponse } from "next/server";
 import { buildFinanceData } from "@/lib/finance";
-import { store } from "@/lib/store";
-
-export async function GET() {
-  return NextResponse.json(
-    buildFinanceData(store.orders.list(), store.quotations.list()),
-  );
+async function handleGET() {
+    const store = getStore();
+    return NextResponse.json(buildFinanceData((await store.orders.list()), (await store.quotations.list())));
 }
+
+export const GET = withTenant(handleGET);

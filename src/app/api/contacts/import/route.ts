@@ -1,3 +1,4 @@
 import { importContacts } from "@/lib/ai/import-contacts";
+import { withTenant } from "@/lib/tenant-route";
 import type { NextRequest } from "next/server";
-export async function POST(request: NextRequest) { return importContacts(request); }
+export const POST = withTenant(async (request: NextRequest) => importContacts(request));

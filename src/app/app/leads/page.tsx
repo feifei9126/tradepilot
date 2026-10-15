@@ -1,5 +1,7 @@
 "use client";
 
+import { UsageGuide } from "@/components/usage-guide";
+
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useAIConfig } from "@/hooks/useAIConfig";
@@ -16,7 +18,7 @@ import {
   Globe,
   Mail,
   CheckCircle2,
-  Image,
+  Image as ImageIcon,
   Video,
   Package,
   X,
@@ -102,7 +104,7 @@ function savedMedia(value: unknown): CampaignDraft["mediaUrls"] {
 
 export default function LeadsPage() {
   const [step, setStep] = useState(1);
-  const { getTaskProvider } = useAIConfig();
+  const { getTaskProvider, configurationUrl, unavailableReason, scope } = useAIConfig();
 
   // Campaign state
   const [campaignName, setCampaignName] = useState("");
@@ -216,7 +218,7 @@ export default function LeadsPage() {
   async function handleGenerateDraft() {
     if (!campaignName.trim() || enabledChannels.length === 0) { toast.error("请填写活动名称并选择渠道"); return; }
     const task = getTaskProvider("lead_generation");
-    if (!task) { toast.error("请先在 API 配置中心配置文本模型"); return; }
+    if (!task) { toast.error(unavailableReason); return; }
     setGenerating(true); setSaved(false);
     try {
       const response = await fetch("/api/ai", {
@@ -260,21 +262,33 @@ export default function LeadsPage() {
   }
 
   return (
-    <div className="space-y-5">
+    <div className="growth-page">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="growth-heading">
         <div>
-          <h1 className="text-2xl font-semibold">营销策略</h1>
+          <p className="growth-path">增长与内容 / AI 营销</p>
+          <h1>让沟通更贴近你的客户</h1>
           <p className="text-sm text-muted-foreground mt-0.5">
             整理产品推广文案与跟进计划，保存为本地草稿
           </p>
         </div>
-        {saved && (
-          <Badge variant="default" className="bg-green-600">
-            草稿已保存
-          </Badge>
-        )}
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" render={<Link href="/app/prospecting" />}>AI 获客 →</Button>
+          {saved && <Badge variant="default" className="bg-green-600">草稿已保存</Badge>}
+        </div>
       </div>
+
+      <UsageGuide title="营销新手指南与配置说明" description="选择目标客户、准备活动信息，再由 AI 协助生成文案。点击展开完整步骤。">
+        <Button variant="outline" size="sm" render={<Link href={configurationUrl} />}>{scope === "platform" ? "配置文本模型" : "配置工作区 AI"}</Button>
+        <ol className="mt-4 grid gap-3 text-sm md:grid-cols-3">
+          <li className="rounded-lg bg-muted/40 p-3"><strong>1. 先配置 AI（首次使用）</strong><p className="mt-1 text-muted-foreground">{scope === "platform" ? "平台管理员：点“配置文本模型”，保存实例文本服务并测试；功能模型留空使用默认模型。" : "请工作区所有者或管理员打开“AI 用量”，选择服务商，填写自己的 API Key 和模型 ID，设置月预算并启用。普通成员使用工作区配置；不会借用平台密钥。"}</p></li>
+          <li className="rounded-lg bg-muted/40 p-3"><strong>2. 填活动与素材</strong><p className="mt-1 text-muted-foreground">按页面的“活动配置”“产品与素材”填写名称、渠道、目标市场，并选择产品或添加可公开访问的素材链接。信息越准确，文案越贴近实际。</p></li>
+          <li className="rounded-lg bg-muted/40 p-3"><strong>3. 生成、核实、保存</strong><p className="mt-1 text-muted-foreground">点击生成后检查产品参数、价格、认证和承诺，再编辑并保存草稿。保存位置是当前浏览器，不会同步到其他设备。</p></li>
+        </ol>
+        <p className="mt-3 rounded-md border border-amber-300/50 bg-amber-50 p-3 text-xs leading-5 text-amber-900 dark:bg-amber-950/20 dark:text-amber-200">
+          重要：计划日期和预算只是写入方案的参考信息，不会定时发送或向广告平台投放。不要提交 API 密钥、客户隐私或不应发送给模型服务商的资料；实际 AI 上限取套餐、平台和工作区预算的最低值；模型调用（包括失败/超时预留）可能产生费用。
+        </p>
+      </UsageGuide>
 
       {/* Step Indicator */}
       <div className="flex items-center gap-2 text-sm">
@@ -438,7 +452,7 @@ export default function LeadsPage() {
                       onClick={() => setNewMediaType("image")}
                       className={`px-2 py-1 rounded text-xs border ${newMediaType === "image" ? "bg-primary text-primary-foreground" : "bg-background"}`}
                     >
-                      <Image className="h-3 w-3 inline mr-0.5" />
+                      <ImageIcon aria-hidden="true" className="h-3 w-3 inline mr-0.5" />
                       图片
                     </button>
                     <button
@@ -475,7 +489,7 @@ export default function LeadsPage() {
                         className="flex items-center gap-2 text-xs bg-muted/50 rounded px-2 py-1"
                       >
                         {m.type === "image" ? (
-                          <Image className="h-3 w-3 text-blue-500" />
+                          <ImageIcon aria-hidden="true" className="h-3 w-3 text-blue-500" />
                         ) : (
                           <Video className="h-3 w-3 text-purple-500" />
                         )}

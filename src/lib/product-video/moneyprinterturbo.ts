@@ -40,10 +40,6 @@ type MoneyPrinterTurboResponse<T> = {
   data?: T;
 };
 
-function getBaseUrl() {
-  return readAPIConfig().moneyprinter.url?.replace(/\/$/, "") || "";
-}
-
 function requestHeaders(apiKey: string, contentType?: string) {
   const headers: Record<string, string> = {};
   if (contentType) headers["Content-Type"] = contentType;
@@ -469,7 +465,6 @@ export async function getMoneyPrinterTurboHealth(): Promise<VideoEngineHealth> {
 export function moneyPrinterTurboAssetUrl(path: string) {
   const connection = readAPIConfig().moneyprinter;
   const baseUrl = connection.url.replace(/\/$/, "");
-  const apiKey = connection.apiKey;
   const safePath = sanitizeWorkerAssetPath(path);
   if (!baseUrl || !safePath) throw new Error("MoneyPrinterTurbo 成片地址无效");
   return new URL(safePath, `${baseUrl}/`).toString();

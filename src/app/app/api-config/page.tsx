@@ -663,7 +663,7 @@ export default function APIConfigPage() {
                   value={config.firecrawl.url}
                   onChange={(v) => update("firecrawl", "url", v)}
                   placeholder="https://api.firecrawl.dev"
-                  hint="产品链接抓取、图片及视频素材提取。"
+                  hint="仅用于实例服务诊断。AI 获客搜索和产品链接抓取使用「AI 获客」中当前工作区的 Cloud Key 与预算，不会回退此地址或共享 Key。"
                 />
                 {secretField("firecrawl", "apiKey", "Firecrawl API Key")}
                 <Field
@@ -738,7 +738,7 @@ export default function APIConfigPage() {
               <CardContent className="flex flex-wrap gap-4 text-sm text-primary">
                 {[
                   ["询盘回复", "/app/inquiries"],
-                  ["AI 获客", "/app/leads"],
+                  ["AI 营销", "/app/leads"],
                   ["文字客服", "/app/messages"],
                   ["语音客服", "/app/voice-agent"],
                   ["产品视频", "/app/product-video"],
