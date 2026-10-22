@@ -55,5 +55,7 @@ jobs:
         run: npm run cfbuild
       - name: Package Cloudflare worker without uploading
         run: npx wrangler deploy --dry-run --outdir /tmp/tradepilot-worker-dry-run
+      - name: Smoke test the generated Worker in local Workerd
+        run: npm run test:cloudflare
       - name: Audit locked npm dependencies (high/critical findings fail CI)
         run: npm audit --audit-level=high --registry=https://registry.npmjs.org

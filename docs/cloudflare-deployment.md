@@ -19,6 +19,30 @@ TradePilot 的 Web 使用 Next.js + OpenNext，生成 `.open-next/worker.js` 和
 
 构建工具还报告了来自生成的 UI 依赖代码的重复对象键警告；构建未因此失败。不要把 dry-run 当成线上发布或完整功能验收。
 
+## 2026-10-22：1101 与登录代理异常修复
+
+针对 `2026-10-22 09:22:23 UTC` 报告的 1101，本地使用实际生成的 Worker 重现了两处运行时异常：
+
+- Next.js 16.4 新增 `server/preview-props.json`，旧 OpenNext Cloudflare 1.20.9 未内联该文件，动态页面抛出 `Unexpected loadManifest(...)`。锁定 Next.js / eslint-config-next 16.4.2 与 OpenNext Cloudflare 1.20.13，并提交锁文件。
+- 登录代理静态导入账号、注册和登录限流模块，数据库依赖令 Next.js 产物导出异步模块。Workerd 加载代理时报 `Method Promise.prototype.then called on incompatible receiver`。这些依赖现改为在认证回调内加载；已有会话仍查询权威账号状态，保留密码变更、账号停用与数据库故障时的访问限制。构建继续使用 Next.js 默认打包器。
+
+升级适配器带入的 `@node-minify/core` 间接依赖 `glob` 固定为同一主版本的修复版 10.5.0，避免引入已知的高危 CLI 命令注入漏洞。ESLint 忽略 Wrangler 生成目录，避免预览和 dry-run 后扫描生成的大型 Worker。
+
+GitHub CI 新增实际运行 Workerd 的检查；单纯构建与 dry-run 成功不能发现上述异常：
+
+```bash
+npm ci --legacy-peer-deps --registry=https://registry.npmjs.org
+npm run cfbuild
+npx wrangler deploy --dry-run --outdir /tmp/tradepilot-worker-dry-run
+npm run test:cloudflare
+```
+
+`test:cloudflare` 在随机本地端口启动 Worker，使用临时认证密钥和隔离状态，清空数据库与管理员测试配置。它验证首页、登录/注册页、存活接口、匿名会话、业务接口 401、后台登录跳转、已有加密会话在数据库未配置时返回 503、失效管理员会话被拒绝，以及凭据登录在数据库不可用时拒绝登录。结束后关闭测试进程并移除临时目录，不上传 Worker。
+
+**发布路径：提交并合并 GitHub 修复，由已连接的 Cloudflare Workers Builds 自动部署。** 在 Cloudflare 的 Git 集成中确认仓库为 `feifei9126/tradepilot`、生产分支为 `main`、根目录为仓库根、构建命令为 `npm run cfbuild`、部署命令为 `npx wrangler deploy`。保持 `wrangler.jsonc` 的 Worker 名称、静态资产及自引用绑定一致。不要同时手工上传另一份产物。
+
+部署后分别验证 `/`、`/auth/login`、`/api/health/live`、`/api/auth/session`、未登录的 `/api/contacts` 与 `/app`。`/api/health/ready` 在数据库未配置/不可用时应返回受控的 JSON 503；它不等于 1101。页面恢复与无数据库的本地运行测试不代表真实数据库登录、API 配置持久化或外部 AI/语音/视频服务已在生产验收；以下运行时与存储限制仍适用。
+
 ## 2026-10-15 构建修复
 
 - 项目 `.npmrc` 固定与既有锁文件一致的 peer 解析策略，自动 npm 安装无需手工补 `--legacy-peer-deps`；这不关闭漏洞审计或安装脚本。
