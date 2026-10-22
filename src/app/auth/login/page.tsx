@@ -11,6 +11,7 @@ import {
   Loader2,
   LockKeyhole,
 } from "lucide-react";
+import { isSuccessfulLogin, loginFailureMessage } from "@/lib/login-result";
 import { AuthScaffold } from "@/components/auth-story";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -33,10 +34,10 @@ export default function LoginPage() {
         password,
         redirect: false,
       });
-      if (result?.ok) {
+      if (isSuccessfulLogin(result)) {
         router.push("/app");
       } else {
-        setError("登录失败，请检查邮箱和密码");
+        setError(loginFailureMessage(result));
       }
     } catch {
       setError("登录服务暂时不可用，请稍后重试");

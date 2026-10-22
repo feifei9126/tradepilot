@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { signIn } from "next-auth/react";
+import { isSuccessfulLogin } from "@/lib/login-result";
 import {
   AlertCircle,
   ArrowRight,
@@ -48,7 +49,7 @@ export default function RegisterPage() {
         password,
         redirect: false,
       });
-      router.push(result?.ok ? "/app" : "/auth/login");
+      router.push(isSuccessfulLogin(result) ? "/app" : "/auth/login");
     } catch {
       setError("注册服务暂时不可用，请稍后重试");
     } finally {
