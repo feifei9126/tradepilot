@@ -49,7 +49,9 @@
     "test:livekit": "tsx --test tests/livekit/*.test.ts",
     "test:db": "tsx --test --test-concurrency=1 tests/database/*.integration.ts",
     "brand:generate": "node scripts/generate-brand-assets.mjs",
-    "test:cloudflare": "node scripts/smoke-cloudflare.mjs"
+    "test:cloudflare": "node scripts/smoke-cloudflare.mjs",
+    "postcfbuild": "node scripts/fix-cloudflare-pg.mjs",
+    "test:cloudflare:db": "node scripts/smoke-cloudflare-db.mjs"
   },
   "dependencies": {
     "@auth/drizzle-adapter": "^1.11.3",

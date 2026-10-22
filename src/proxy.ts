@@ -77,5 +77,7 @@ export default auth((request) => {
 });
 
 export const config = {
-  matcher: ["/app/:path*", "/api/:path*"],
+  // Auth.js routes manage their own CSRF/session cookies. Wrapping them in
+  // auth() again writes a second CSRF cookie, overwriting the callback token.
+  matcher: ["/app/:path*", "/api/((?!auth(?:/|$)).*)"],
 };

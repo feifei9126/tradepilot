@@ -2,6 +2,7 @@ import { Pool, type PoolClient, type QueryResultRow } from "pg";
 import { drizzle } from "drizzle-orm/node-postgres";
 import * as schema from "./schema";
 import { getPostgresConfig, isPostgresConfigured } from "./config";
+import { getCloudflareContext } from "@opennextjs/cloudflare";
 
 export type AppDatabase = ReturnType<typeof drizzle<typeof schema>>;
 export type DatabaseState = "unconfigured" | "ready" | "unavailable";
@@ -11,25 +12,48 @@ export class DatabaseUnavailableError extends Error {
 }
 let pool: Pool | undefined;
 let db: AppDatabase | undefined;
+const workerPools = new WeakMap<object, Pool>();
+const workerDatabases = new WeakMap<Pool, AppDatabase>();
 export const isDatabaseConfigured = () => isPostgresConfigured();
+
+function isWorker() {
+  return typeof navigator !== "undefined" && navigator.userAgent === "Cloudflare-Workers";
+}
+
+function createPool(worker = false): Pool {
+  const max = Number(process.env.TRADEPILOT_DB_POOL_MAX || "10");
+  const value = new Pool({
+    ...getPostgresConfig(),
+    max: Number.isInteger(max) && max >= 1 && max <= 100 ? max : 10,
+    idleTimeoutMillis: 30_000,
+    statement_timeout: 15_000,
+    // Workers sockets belong to the request that opened them. Close each
+    // checkout on release; an idle client must not survive that request.
+    ...(worker ? { maxUses: 1 } : {}),
+  });
+  // Never let an idle-client network error crash the web process or log a URL.
+  value.on("error", () => console.error("PostgreSQL idle connection unavailable"));
+  return value;
+}
 
 export function getPool(): Pool {
   if (!isDatabaseConfigured()) throw new DatabaseUnavailableError();
-  if (!pool) {
-    const max = Number(process.env.TRADEPILOT_DB_POOL_MAX || "10");
-    pool = new Pool({
-      ...getPostgresConfig(),
-      max: Number.isInteger(max) && max >= 1 && max <= 100 ? max : 10,
-      idleTimeoutMillis: 30_000,
-      statement_timeout: 15_000,
-    });
-    // Never let an idle-client network error crash the web process or log a URL.
-    pool.on("error", () => console.error("PostgreSQL idle connection unavailable"));
+  if (isWorker()) {
+    const { ctx } = getCloudflareContext();
+    let current = workerPools.get(ctx);
+    if (!current) { current = createPool(true); workerPools.set(ctx, current); }
+    return current;
   }
-  return pool;
+  return pool ??= createPool();
 }
 export async function getDb(): Promise<AppDatabase | null> {
   if (!isDatabaseConfigured()) return null;
+  if (isWorker()) {
+    const current = getPool();
+    let value = workerDatabases.get(current);
+    if (!value) { value = drizzle(current, { schema }); workerDatabases.set(current, value); }
+    return value;
+  }
   db ??= drizzle(getPool(), { schema });
   return db;
 }

@@ -28,6 +28,7 @@ await writeFile(envFile, [
   `AUTH_URL=${origin}`,
   "DATABASE_URL=", "PGHOST=", "PGDATABASE=", "PGUSER=", "PGPASSWORD=",
   "TRADEPILOT_ADMIN_EMAIL=", "TRADEPILOT_ADMIN_PASSWORD=",
+  "TRADEPILOT_ADMIN_STORE=file",
 ].join("\n") + "\n", { mode: 0o600 });
 
 const child = spawn(process.execPath, [
@@ -108,7 +109,13 @@ try {
   assert.equal(csrf.status, 200, await csrf.clone().text());
   const { csrfToken } = await csrf.json();
   assert.ok(csrfToken);
-  const cookies = csrf.headers.getSetCookie().map((value) => value.split(";")[0]).join("; ");
+  const csrfCookies = csrf.headers.getSetCookie().map((value) => value.split(";")[0]);
+  assert.equal(csrfCookies.filter(value => value.startsWith("authjs.csrf-token=")).length, 1,
+    "Auth route must set a single CSRF cookie; a proxy cookie would overwrite its token in browsers");
+  // Model the browser cookie jar: only the last value for a name survives.
+  const cookieJar = new Map(csrfCookies.map(value => [value.slice(0, value.indexOf("=")), value]));
+  const cookies = [...cookieJar.values()].join("; ");
+  console.log("PASS /api/auth/csrf: one CSRF cookie, compatible with a browser cookie jar");
   const login = await request("/api/auth/callback/credentials", {
     method: "POST",
     headers: { Cookie: cookies, Origin: origin, "Content-Type": "application/x-www-form-urlencoded" },
