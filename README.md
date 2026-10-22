@@ -52,12 +52,13 @@
 
 > 仓库中的在线演示链接不保证与当前代码同步。新部署使用自己配置的管理员账号，**不要将本地试用密码用于公网环境**。
 >
-> **部署状态说明：** Docker + PostgreSQL 是当前试用路径；Cloudflare Workers 有 OpenNext 构建入口，但本次数据库连接/迁移尚未在 Workers 运行时验收，部署管理员、API 配置和视频素材仍有本地存储依赖，不能作为等价部署。详见 [Cloudflare 部署与限制](docs/cloudflare-deployment.md)。
+> **部署状态说明：** Docker + PostgreSQL 是当前完整试用路径；Cloudflare Workers 支持 PostgreSQL 登录与数据库管理员存储（`TRADEPILOT_ADMIN_STORE=postgres`），API 配置和视频素材仍有本地存储依赖，不能作为等价部署。详见 [Cloudflare 部署与限制](docs/cloudflare-deployment.md)。
 
 TradePilot 面向小型外贸团队，把公开网页获客、营销草稿、客户沟通、报价、订单与交付放进同一个可自托管工作区。各家公司使用独立数据空间，团队成员按角色和客户权限协作；账号、AI 服务、邮件和消息渠道都有配置入口与使用说明。
 
 ## 本轮更新
 
+- **2026-10-22 登录与数据库：** 修复 Auth.js 认证路由重复 CSRF Cookie，增加 PostgreSQL 部署管理员模式，持久化首次改密、个人资料与会话撤销；保留现有数据库账号与密码，连接凭据只保存为 Cloudflare Secret。
 - **2026-10-22 Cloudflare 修复：** 对齐 Next.js 与 OpenNext 版本，修复动态页面清单加载和登录代理异步模块异常；CI 增加实际 Workerd 请求测试。发布沿用 GitHub → Cloudflare 自动同步，配置与验收步骤见 [Cloudflare 部署说明](docs/cloudflare-deployment.md#2026-10-221101-与登录代理异常修复)。
 
 - **统一界面与 Logo**：深绿／米白／黄铜配色，官网、认证页、后台与手机导航保持一致；提供 SVG、透明 PNG、单色和深色版本、浏览器及手机主屏幕图标。

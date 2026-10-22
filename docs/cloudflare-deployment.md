@@ -43,6 +43,22 @@ npm run test:cloudflare
 
 部署后分别验证 `/`、`/auth/login`、`/api/health/live`、`/api/auth/session`、未登录的 `/api/contacts` 与 `/app`。`/api/health/ready` 在数据库未配置/不可用时应返回受控的 JSON 503；它不等于 1101。页面恢复与无数据库的本地运行测试不代表真实数据库登录、API 配置持久化或外部 AI/语音/视频服务已在生产验收；以下运行时与存储限制仍适用。
 
+## PostgreSQL 部署管理员持久化
+
+认证接口 `/api/auth/*` 从登录代理 matcher 排除，由 Auth.js 路由自行处理。重复执行 `auth()` 会给同一响应添加两份 CSRF Cookie，浏览器后写覆盖后与 JSON 中的令牌不符，造成首次登录 `MissingCSRF`。Worker 冒烟测试现在检查单份 CSRF Cookie，并以浏览器的同名覆盖规则发起登录请求。
+
+OpenNext 1.20.13 的 Node 代理打包器没有启用 `workerd` 导出条件，会将 `pg-cloudflare` 解析成空模块；`postcfbuild` 使用已追踪到服务端产物的真实 socket 导出修复代理。补丁只接受已知产物形状；适配器升级改变产物时构建停止，需重新审查。CI 同时运行 `npm run test:cloudflare:db`，使用隔离的本地 PostgreSQL 验证首次登录、强制改密、旧会话撤销、新密码登录、后台页面和并发业务请求。测试拒绝远程数据库地址。
+
+Workers 的 PostgreSQL Pool 按 OpenNext 请求上下文隔离，每次归还连接即关闭，避免下一请求复用旧请求的 TCP socket 而挂起；Node/Docker 仍使用进程级连接池。
+
+Cloudflare 上设置运行时 `DATABASE_URL` Secret，并设置 `TRADEPILOT_ADMIN_STORE=postgres`。管理员的密码哈希、个人资料、首次改密状态和会话版本保存在 PostgreSQL 的部署工作区 owner 记录中；修改密码与资料通过数据库事务合并，不再写 `data/admin-account.json`。Docker 现有文件管理员保持默认行为；切换已有实例前先确认数据库 owner 身份与密码，不能期待文件中已修改的密码自动迁移。
+
+先备份数据库，运行 `npm run db:migrate`。可以使用 `npm run db:init` 初始化 owner，也可在第一次使用正确的 `TRADEPILOT_ADMIN_EMAIL` / `TRADEPILOT_ADMIN_PASSWORD` 登录时初始化缺失的 owner。初始化保留既有密码、角色、停用状态和工作区归属；缺失数据库、身份冲突或账号停用均拒绝访问，不能回退文件或旧环境密码。首次登录必须修改临时密码，改密后重新登录；旧 JWT 会失效。
+
+Neon 控制台连接串可能含 `channel_binding=require`。当前 `pg-cloudflare` TCP/TLS 实现不提供 SCRAM-PLUS 所需证书接口，项目会拒绝该强制参数；为此部署显式使用 `sslmode=require&channel_binding=disable`，并验证真实 Worker 能连接。`sslmode=require` 在 Node.js 驱动配置中仅要求加密，不开启 CA 校验；Workers `startTls` 使用平台证书验证。不要把此连接配置描述为支持强制通道绑定，不要把真实连接串写入 Git、README 或构建日志。
+
+发布仍使用 GitHub main → Cloudflare Workers Builds 自动部署，配置 Secret 不需要手工上传 Worker。数据库迁移成功与存活检查成功不代表登录完成：还需检查 `/api/health/ready`、真实登录、首次改密、重新登录以及后台页面。其余 API 配置和媒体文件的持久化限制仍适用。
+
 ## 页面可打开但登录失败
 
 页面返回 200 只说明 Worker 能处理请求。登录限流记录与业务账号依赖 PostgreSQL；`/api/health/ready` 返回 503 时，可能是连接配置缺失、连接失败或迁移不完整，需要在授权后的平台诊断中确认。不要跳过数据库限流、使用内存替代共享状态或把管理员文件放在 `/tmp` 来强行放行。

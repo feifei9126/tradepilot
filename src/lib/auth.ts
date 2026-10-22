@@ -35,7 +35,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         try { attempt = await reserveLoginAttempt(email, request); } catch { throw new LoginServiceUnavailable(); }
         if (!attempt.allowed) return null;
         let configured;
-        try { configured = await verifyDeploymentAdmin(email, password); } catch { await finishLoginAttempt(attempt, false).catch(() => {}); return null; }
+        try { configured = await verifyDeploymentAdmin(email, password); } catch { await finishLoginAttempt(attempt, false).catch(() => {}); throw new LoginServiceUnavailable(); }
         if (configured) {
           try { await finishLoginAttempt(attempt, true); } catch { throw new LoginServiceUnavailable(); }
           return {
