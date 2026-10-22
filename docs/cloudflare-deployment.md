@@ -43,6 +43,19 @@ npm run test:cloudflare
 
 部署后分别验证 `/`、`/auth/login`、`/api/health/live`、`/api/auth/session`、未登录的 `/api/contacts` 与 `/app`。`/api/health/ready` 在数据库未配置/不可用时应返回受控的 JSON 503；它不等于 1101。页面恢复与无数据库的本地运行测试不代表真实数据库登录、API 配置持久化或外部 AI/语音/视频服务已在生产验收；以下运行时与存储限制仍适用。
 
+## 页面可打开但登录失败
+
+页面返回 200 只说明 Worker 能处理请求。登录限流记录与业务账号依赖 PostgreSQL；`/api/health/ready` 返回 503 时，可能是连接配置缺失、连接失败或迁移不完整，需要在授权后的平台诊断中确认。不要跳过数据库限流、使用内存替代共享状态或把管理员文件放在 `/tmp` 来强行放行。
+
+认证服务无法读写限流记录时返回 `CredentialsSignin` 与公开错误码 `service_unavailable`，页面提示“登录服务暂时不可用”，不会显示连接地址或内部异常。Auth.js 的 `redirect: false` 结果可能同时包含 `ok: true` 和 `error`；登录/注册页必须确认没有 `error` 才跳转后台。
+
+恢复登录需要按顺序完成：
+
+1. 在 Cloudflare **运行时** Secrets 配置 Worker 可访问的 PostgreSQL 连接（`DATABASE_URL` 或完整的 `PG*`）。构建环境变量不等同于运行时 Secrets，本地 Docker 主机名不能用于云上连接。
+2. 在可访问同一数据库的受信 Node.js 环境备份并执行 `npm run db:migrate`；新实例需按 `npm run db:init` 的说明初始化工作区和管理员。已有账号密码不得在升级时自动重置。
+3. 检查管理员邮箱与初始密码 Secrets、`AUTH_SECRET`、实际 HTTPS `AUTH_URL`。生产管理员初始密码至少 16 位；公开演示密码 `12345678` 不可用于生产。
+4. 确认就绪检查返回 200，再验证真实登录、会话读取、后台权限与账号改密。部署管理员改密仍依赖上述待适配的持久化存储；未经验证不能宣布完整登录闭环可用。
+
 ## 2026-10-15 构建修复
 
 - 项目 `.npmrc` 固定与既有锁文件一致的 peer 解析策略，自动 npm 安装无需手工补 `--legacy-peer-deps`；这不关闭漏洞审计或安装脚本。

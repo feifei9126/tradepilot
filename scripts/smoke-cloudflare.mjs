@@ -115,7 +115,9 @@ try {
     body: new URLSearchParams({ csrfToken, email: "smoke@example.invalid", password: "smoke-only-password", callbackUrl: `${origin}/app` }),
   });
   assert.ok([302, 303].includes(login.status), `Login: ${login.status} ${await login.text()}`);
-  assert.equal(new URL(login.headers.get("location"), origin).searchParams.get("error"), "CredentialsSignin");
+  const failedLogin = new URL(login.headers.get("location"), origin);
+  assert.equal(failedLogin.searchParams.get("error"), "CredentialsSignin");
+  assert.equal(failedLogin.searchParams.get("code"), "service_unavailable");
   console.log("PASS credentials callback: fails closed without database");
   const readyResponse = await request("/api/health/ready");
   assert.equal(readyResponse.status, 503, await readyResponse.clone().text());

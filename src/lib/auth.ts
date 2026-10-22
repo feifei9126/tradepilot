@@ -1,7 +1,11 @@
-import NextAuth from "next-auth";
+import NextAuth, { CredentialsSignin } from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 
 import { applyAccountSessionState, usableSessionClaims } from "@/lib/auth-session";
+
+class LoginServiceUnavailable extends CredentialsSignin {
+  code = "service_unavailable";
+}
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
   secret: process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET,
@@ -28,12 +32,12 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         const { findUserByCredentials } = await import("@/lib/registration");
         // Fail closed on a missing/unavailable shared database; no in-memory fallback.
         let attempt;
-        try { attempt = await reserveLoginAttempt(email, request); } catch { return null; }
+        try { attempt = await reserveLoginAttempt(email, request); } catch { throw new LoginServiceUnavailable(); }
         if (!attempt.allowed) return null;
         let configured;
         try { configured = await verifyDeploymentAdmin(email, password); } catch { await finishLoginAttempt(attempt, false).catch(() => {}); return null; }
         if (configured) {
-          try { await finishLoginAttempt(attempt, true); } catch { return null; }
+          try { await finishLoginAttempt(attempt, true); } catch { throw new LoginServiceUnavailable(); }
           return {
             id: "deployment-admin",
             email: configured.email,
@@ -50,7 +54,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         if (email === deploymentEmail) { await finishLoginAttempt(attempt, false).catch(() => {}); return null; } // Never let a seeded DB password bypass an overridden admin password.
 
         const user = await findUserByCredentials(email, password);
-        try { await finishLoginAttempt(attempt, Boolean(user)); } catch { return null; }
+        try { await finishLoginAttempt(attempt, Boolean(user)); } catch { throw new LoginServiceUnavailable(); }
         if (!user) return null;
 
         return {
