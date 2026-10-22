@@ -48,7 +48,8 @@
     "video-worker": "node workers/openmontage-adapter/server.mjs",
     "test:livekit": "tsx --test tests/livekit/*.test.ts",
     "test:db": "tsx --test --test-concurrency=1 tests/database/*.integration.ts",
-    "brand:generate": "node scripts/generate-brand-assets.mjs"
+    "brand:generate": "node scripts/generate-brand-assets.mjs",
+    "test:cloudflare": "node scripts/smoke-cloudflare.mjs"
   },
   "dependencies": {
     "@auth/drizzle-adapter": "^1.11.3",
@@ -72,7 +73,7 @@
     "lucide-react": "^1.17.0",
     "mailparser": "^3.9.36",
     "motion": "^14.1.0",
-    "next": "^16.0.0",
+    "next": "16.4.2",
     "next-auth": "^5.0.0-beta.32",
     "next-themes": "^0.4.6",
     "nodemailer": "^10.0.15",
@@ -89,7 +90,7 @@
     "zustand": "^5.0.14"
   },
   "devDependencies": {
-    "@opennextjs/cloudflare": "^1.20.9",
+    "@opennextjs/cloudflare": "1.20.13",
     "@tailwindcss/postcss": "^4",
     "@types/mailparser": "^3.9.0",
     "@types/node": "^20",
@@ -102,7 +103,7 @@
     "dotenv": "^17.4.2",
     "drizzle-kit": "^0.31.10",
     "eslint": "^9",
-    "eslint-config-next": "16.2.6",
+    "eslint-config-next": "16.4.2",
     "tailwindcss": "^4",
     "tsx": "^4.22.4",
     "typescript": "^5",
@@ -112,6 +113,9 @@
     "node": ">=22.22"
   },
   "overrides": {
-    "braces": "$braces"
+    "braces": "$braces",
+    "@node-minify/core": {
+      "glob": "10.5.0"
+    }
   }
 }

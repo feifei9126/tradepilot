@@ -1,11 +1,7 @@
 import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 
-import { findUserByCredentials } from "@/lib/registration";
-import { getAccountProfile, getAuthSessionState, verifyDeploymentAdmin } from "@/lib/account";
 import { applyAccountSessionState, usableSessionClaims } from "@/lib/auth-session";
-
-import { reserveLoginAttempt, finishLoginAttempt } from "@/lib/login-security";
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
   secret: process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET,
@@ -25,6 +21,11 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         const email = String(credentials.email).trim().toLowerCase();
         const password = String(credentials.password);
         if (email.length > 320 || password.length > 128) return null;
+        // Keep database drivers out of the proxy module initialization. Next may
+        // emit async exports for them, which Workerd cannot load via the proxy.
+        const { reserveLoginAttempt, finishLoginAttempt } = await import("@/lib/login-security");
+        const { verifyDeploymentAdmin } = await import("@/lib/account");
+        const { findUserByCredentials } = await import("@/lib/registration");
         // Fail closed on a missing/unavailable shared database; no in-memory fallback.
         let attempt;
         try { attempt = await reserveLoginAttempt(email, request); } catch { return null; }
@@ -78,10 +79,12 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         token.invalidated = false;
         token.databaseUnavailable = false;
       } else if (token.sub) {
+        const { getAuthSessionState } = await import("@/lib/account");
         const state = await getAuthSessionState(token.sub, typeof token.sessionVersion === "string" ? token.sessionVersion : "0");
         applyAccountSessionState(token, state);
       }
       if (trigger === "update" && token.sub && !token.invalidated && !token.databaseUnavailable) {
+        const { getAccountProfile } = await import("@/lib/account");
         const profile = await getAccountProfile(token.sub);
         token.name = profile.name;
       }
