@@ -69,7 +69,7 @@
     "date-fns": "^4.4.0",
     "drizzle-orm": "^0.45.2",
     "fast-xml-parser": "5.11.2",
-    "imapflow": "^2.2.6",
+    "imapflow": "^2.5.8",
     "livekit-client": "^2.22.3",
     "livekit-server-sdk": "^2.19.0",
     "lucide-react": "^1.17.0",
